@@ -1,0 +1,163 @@
+@page "/admin"
+@inject AppDataService Data
+@inject AppState State
+@inject NavigationManager Nav
+
+<div class="screen admin-screen">
+    @if (State.CurrentProfile is null || State.CurrentProfile.Type != ProfileType.Admin)
+    {
+        <p class="muted">Redirecting…</p>
+    }
+    else
+    {
+        <div class="admin-header">
+            <h1>Parent admin</h1>
+            <a class="link-switch-profile" href="/">Exit admin</a>
+        </div>
+
+        <section class="admin-section">
+            <div class="admin-section-header">
+                <h2>Kid profiles</h2>
+                <button class="btn-primary" @onclick="StartAddProfile">+ Add kid</button>
+            </div>
+
+            @if (_profiles is null)
+            {
+                <p class="muted">Loading…</p>
+            }
+            else
+            {
+                <div class="admin-profile-list">
+                    @foreach (var profile in _profiles.Where(p => p.Type == ProfileType.Kid))
+                    {
+                        <div class="admin-profile-row" style="--card-color:@profile.ColorHex">
+                            <span class="admin-profile-avatar">@profile.AvatarEmoji</span>
+                            <span class="admin-profile-name">@profile.Name</span>
+                            <a class="btn-secondary" href="@($"/admin/access/{profile.Id}")">Manage games</a>
+                            <button class="btn-secondary" @onclick="() => StartEditProfile(profile)">Edit</button>
+                            <button class="btn-danger" @onclick="() => DeleteProfileAsync(profile)">Remove</button>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="admin-section">
+            <h2>Parent PIN</h2>
+            <p class="muted">Set or change the PIN required to enter this admin panel.</p>
+            <div class="admin-pin-row">
+                <input type="password" inputmode="numeric" maxlength="6" @bind="_newPin" placeholder="New PIN" />
+                <button class="btn-primary" @onclick="SavePinAsync">Save PIN</button>
+                @if (_pinSaved)
+                {
+                    <span class="success-text">Saved</span>
+                }
+            </div>
+        </section>
+
+        @if (_editingProfile is not null)
+        {
+            <div class="pin-modal-backdrop">
+                <div class="pin-modal">
+                    <h2>@(_isNewProfile ? "Add kid profile" : "Edit profile")</h2>
+                    <label>
+                        Name
+                        <input @bind="_editingProfile.Name" />
+                    </label>
+                    <label>
+                        Avatar (emoji)
+                        <input @bind="_editingProfile.AvatarEmoji" maxlength="2" />
+                    </label>
+                    <label>
+                        Color
+                        <input type="color" @bind="_editingProfile.ColorHex" />
+                    </label>
+                    <div class="pin-modal-actions">
+                        <button class="btn-secondary" @onclick="CancelEditProfile">Cancel</button>
+                        <button class="btn-primary" @onclick="SaveProfileAsync">Save</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<Profile>? _profiles;
+    private Profile? _editingProfile;
+    private bool _isNewProfile;
+    private string _newPin = "";
+    private bool _pinSaved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (State.CurrentProfile is null || State.CurrentProfile.Type != ProfileType.Admin)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _profiles = await Data.GetProfilesAsync();
+    }
+
+    private void StartAddProfile()
+    {
+        _isNewProfile = true;
+        _editingProfile = new Profile { Type = ProfileType.Kid };
+    }
+
+    private void StartEditProfile(Profile profile)
+    {
+        _isNewProfile = false;
+        // Edit a copy so Cancel doesn't leave a half-edited object around.
+        _editingProfile = new Profile
+        {
+            Id = profile.Id,
+            Name = profile.Name,
+            AvatarEmoji = profile.AvatarEmoji,
+            ColorHex = profile.ColorHex,
+            Type = profile.Type,
+            PinHash = profile.PinHash
+        };
+    }
+
+    private void CancelEditProfile() => _editingProfile = null;
+
+    private async Task SaveProfileAsync()
+    {
+        if (_editingProfile is null || string.IsNullOrWhiteSpace(_editingProfile.Name))
+            return;
+
+        if (_isNewProfile)
+            await Data.AddProfileAsync(_editingProfile);
+        else
+            await Data.UpdateProfileAsync(_editingProfile);
+
+        _editingProfile = null;
+        await RefreshAsync();
+    }
+
+    private async Task DeleteProfileAsync(Profile profile)
+    {
+        await Data.DeleteProfileAsync(profile.Id);
+        await RefreshAsync();
+    }
+
+    private async Task SavePinAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newPin)) return;
+
+        var admin = _profiles!.First(p => p.Type == ProfileType.Admin);
+        admin.PinHash = PinHelper.Hash(_newPin);
+        await Data.UpdateProfileAsync(admin);
+
+        _newPin = "";
+        _pinSaved = true;
+        await RefreshAsync();
+    }
+}

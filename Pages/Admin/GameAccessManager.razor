@@ -1,0 +1,186 @@
+@page "/admin/access/{ProfileId}"
+@inject AppDataService Data
+@inject AppState State
+@inject NavigationManager Nav
+
+<div class="screen admin-screen">
+    @if (State.CurrentProfile is null || State.CurrentProfile.Type != ProfileType.Admin)
+    {
+        <p class="muted">Redirecting…</p>
+    }
+    else if (_profile is null || _allGames is null)
+    {
+        <p class="muted">Loading…</p>
+    }
+    else
+    {
+        <div class="admin-header">
+            <a class="link-back" href="/admin">← Back to admin</a>
+            <h1>Games for @_profile.Name</h1>
+        </div>
+
+        <section class="admin-section">
+            <div class="admin-section-header">
+                <h2>Game catalog</h2>
+                <button class="btn-primary" @onclick="StartAddGame">+ Add game to catalog</button>
+            </div>
+
+            @if (_allGames.Count == 0)
+            {
+                <p class="muted">No games in the catalog yet. Add one to get started.</p>
+            }
+            else
+            {
+                <div class="access-list">
+                    @foreach (var game in _allGames)
+                    {
+                        <label class="access-row">
+                            <input type="checkbox"
+                                   checked="@_allowedIds.Contains(game.Id)"
+                                   @onchange="e => ToggleAccessAsync(game.Id, (bool)e.Value!)" />
+                            <span class="access-row-thumb">@game.ThumbnailEmoji</span>
+                            <span class="access-row-title">@game.Title</span>
+                            @if (!game.IsCatalogEnabled)
+                            {
+                                <span class="access-row-hidden">Hidden from catalog</span>
+                            }
+                        </label>
+                    }
+                </div>
+            }
+        </section>
+
+        @if (_showAddGame)
+        {
+            <div class="pin-modal-backdrop">
+                <div class="pin-modal">
+                    <h2>Add game</h2>
+
+                    @if (_availableBuiltIns.Count > 0)
+                    {
+                        <p class="muted">Choose a game that's built into the app:</p>
+                        <div class="access-list">
+                            @foreach (var builtIn in _availableBuiltIns)
+                            {
+                                <button class="access-row" @onclick="() => AddBuiltInGameAsync(builtIn)">
+                                    <span class="access-row-thumb">@builtIn.ThumbnailEmoji</span>
+                                    <span class="access-row-title">@builtIn.Title</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="muted">Every built-in game is already in your catalog.</p>
+                    }
+
+                    <details>
+                        <summary>Add a web game by link instead</summary>
+                        <label>
+                            Title
+                            <input @bind="_editingGame.Title" />
+                        </label>
+                        <label>
+                            Thumbnail (emoji)
+                            <input @bind="_editingGame.ThumbnailEmoji" maxlength="2" />
+                        </label>
+                        <label>
+                            Web address
+                            <input @bind="_editingGame.LaunchTarget" placeholder="https://…" />
+                        </label>
+                        <div class="pin-modal-actions">
+                            <button class="btn-primary" @onclick="SaveExternalGameAsync">Add web game</button>
+                        </div>
+                    </details>
+
+                    <div class="pin-modal-actions">
+                        <button class="btn-secondary" @onclick="CancelAddGame">Close</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public string ProfileId { get; set; } = "";
+
+    private Profile? _profile;
+    private List<Game>? _allGames;
+    private List<string> _allowedIds = new();
+    private bool _showAddGame;
+    private Game _editingGame = new();
+    private List<BuiltInGame> _availableBuiltIns = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (State.CurrentProfile is null || State.CurrentProfile.Type != ProfileType.Admin)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        var profiles = await Data.GetProfilesAsync();
+        _profile = profiles.FirstOrDefault(p => p.Id == ProfileId);
+
+        if (_profile is null)
+        {
+            Nav.NavigateTo("/admin");
+            return;
+        }
+
+        _allGames = await Data.GetAllGamesAsync();
+        _allowedIds = await Data.GetAccessListAsync(ProfileId);
+
+        var catalogTargets = _allGames.Select(g => g.LaunchTarget).ToHashSet();
+        _availableBuiltIns = BuiltInGames.All.Where(b => !catalogTargets.Contains(b.LaunchTarget)).ToList();
+    }
+
+    private async Task ToggleAccessAsync(string gameId, bool allowed)
+    {
+        await Data.SetGameAccessAsync(ProfileId, gameId, allowed);
+        _allowedIds = await Data.GetAccessListAsync(ProfileId);
+    }
+
+    private void StartAddGame()
+    {
+        _editingGame = new Game();
+        _showAddGame = true;
+    }
+
+    private void CancelAddGame()
+    {
+        _showAddGame = false;
+    }
+
+    private async Task AddBuiltInGameAsync(BuiltInGame builtIn)
+    {
+        await Data.AddGameAsync(new Game
+        {
+            Title = builtIn.Title,
+            ThumbnailEmoji = builtIn.ThumbnailEmoji,
+            LaunchTarget = builtIn.LaunchTarget,
+            LaunchMode = GameLaunchMode.InternalRoute
+        });
+
+        _showAddGame = false;
+        await RefreshAsync();
+    }
+
+    private async Task SaveExternalGameAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_editingGame.Title) || string.IsNullOrWhiteSpace(_editingGame.LaunchTarget))
+            return;
+
+        _editingGame.LaunchMode = GameLaunchMode.ExternalIframe;
+        await Data.AddGameAsync(_editingGame);
+
+        _showAddGame = false;
+        await RefreshAsync();
+    }
+}

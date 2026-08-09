@@ -1,0 +1,319 @@
+@*
+    DressUpGame.razor
+    A sticker-based dress-up game. Pick Girl or Boy, then a character
+    (Princess/Witch/Unicorn or Prince/Knight/Dragon), then drag sticker
+    outfit pieces from the tray onto the character. Free play - no win
+    state - "Done!" just logs the session and shows a small celebration.
+
+    Drag-and-drop is implemented with Pointer Events (not the HTML5
+    drag-and-drop API) so the same code path works for mouse, touch, and
+    pen - HTML5 DnD is unreliable on touch/tablet browsers, especially
+    iOS Safari, which doesn't support it on touch targets at all.
+
+    Usage:
+        <DressUpGame OnComplete="HandleGameComplete" />
+
+    Optional:
+        <DressUpGame PlayerName="Riley" OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="dress-up-game">
+
+    @if (selectedTrack is null)
+    {
+        <div class="du-setup">
+            <h2>Dress Up</h2>
+            <p>Pick a character, then drag stickers onto them to build an outfit!</p>
+
+            <h3 class="du-section-title">Choose a set</h3>
+            <div class="du-track-select">
+                @foreach (var track in Tracks)
+                {
+                    <button class="du-track-btn" @onclick="() => selectedTrack = track">
+                        <span class="du-track-icon">@track.Icon</span>
+                        <span class="du-track-name">@track.Name</span>
+                    </button>
+                }
+            </div>
+        </div>
+    }
+    else if (selectedCharacter is null)
+    {
+        <div class="du-setup">
+            <div class="du-setup-header">
+                <button class="du-back-btn" @onclick="() => selectedTrack = null">← Back</button>
+                <h2>Choose a character</h2>
+            </div>
+
+            <div class="du-character-select">
+                @foreach (var character in selectedTrack.Characters)
+                {
+                    <button class="du-character-btn" @onclick="() => ChooseCharacter(character)">
+                        <span class="du-character-icon">@character.BaseEmoji</span>
+                        <span class="du-character-name">@character.Name</span>
+                    </button>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="du-hud">
+            <button class="du-restart-btn" @onclick="() => selectedCharacter = null">← Change Character</button>
+            <span class="du-character-title">@selectedCharacter.Name</span>
+            <button class="du-restart-btn" @onclick="ResetOutfit">Reset Outfit</button>
+        </div>
+
+        <div class="du-play" @ref="playRef" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointercancel="OnPointerUp">
+            <div class="du-stage" @ref="stageRef">
+                <span class="du-base">@selectedCharacter.BaseEmoji</span>
+
+                @foreach (var placed in placedStickers)
+                {
+                    <span @key="placed.StickerId" class="du-placed-sticker @(dragging == placed ? "dragging" : "")"
+                          style="left:@(placed.X.ToString(Inv))%; top:@(placed.Y.ToString(Inv))%;"
+                          @onpointerdown="e => StartDragPlaced(e, placed)"
+                          @onpointerdown:preventDefault>
+                        @placed.Emoji
+                    </span>
+                }
+            </div>
+
+            <div class="du-tray">
+                @foreach (var sticker in selectedCharacter.Stickers)
+                {
+                    <div @key="sticker.Id" class="du-tray-item @(IsPlaced(sticker.Id) ? "used" : "")"
+                         @onpointerdown="e => StartDragFromTray(e, sticker)"
+                         @onpointerdown:preventDefault>
+                        <span class="du-tray-emoji">@sticker.Emoji</span>
+                        <span class="du-tray-label">@sticker.Label</span>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <button class="du-done-btn" @onclick="FinishDressUp">Done! 🎉</button>
+
+        @if (celebrate)
+        {
+            <div class="du-win-overlay">
+                <div class="du-win-panel">
+                    <h2>🎉 All dressed up!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great styling" : PlayerName + ", great styling") on your @selectedCharacter.Name!</p>
+                    <div class="du-win-actions">
+                        <button class="du-start-btn" @onclick="() => { celebrate = false; selectedCharacter = null; }">Dress Another</button>
+                        <button class="du-restart-btn" @onclick="() => { celebrate = false; selectedTrack = null; }">Change Game</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    // ---- Public parameters -------------------------------------------------
+
+    /// <summary>Optional display name, e.g. from the active kid profile.</summary>
+    [Parameter] public string? PlayerName { get; set; }
+
+    /// <summary>Fired when the kid taps "Done!" on a dressed-up character.</summary>
+    [Parameter] public EventCallback<DressUpResult> OnComplete { get; set; }
+
+    // ---- Character catalog -------------------------------------------------
+
+    public record StickerDef(string Id, string Emoji, string Label);
+    public record CharacterOption(string Name, string BaseEmoji, List<StickerDef> Stickers);
+    public record TrackOption(string Name, string Icon, List<CharacterOption> Characters);
+
+    private static readonly CharacterOption Princess = new("Princess", "👸", new()
+    {
+        new StickerDef("crown", "👑", "Crown"),
+        new StickerDef("gem", "💎", "Gem"),
+    });
+
+    private static readonly CharacterOption Witch = new("Witch", "🧙‍♀️", new()
+    {
+        new StickerDef("hat", "🎩", "Hat"),
+        new StickerDef("broom", "🧹", "Broom"),
+    });
+
+    private static readonly CharacterOption Unicorn = new("Unicorn", "🦄", new()
+    {
+        new StickerDef("rainbow", "🌈", "Rainbow"),
+        new StickerDef("bow", "🎀", "Bow"),
+    });
+
+    private static readonly CharacterOption Prince = new("Prince", "🤴", new()
+    {
+        new StickerDef("crown", "👑", "Crown"),
+        new StickerDef("sword", "⚔️", "Sword"),
+    });
+
+    private static readonly CharacterOption Knight = new("Knight", "💂", new()
+    {
+        new StickerDef("shield", "🛡️", "Shield"),
+        new StickerDef("sword", "⚔️", "Sword"),
+    });
+
+    private static readonly CharacterOption Dragon = new("Dragon", "🐉", new()
+    {
+        new StickerDef("fire", "🔥", "Fire"),
+        new StickerDef("gem", "💎", "Gem"),
+    });
+
+    private readonly List<TrackOption> Tracks = new()
+    {
+        new TrackOption("Girl", "👧", new() { Princess, Witch, Unicorn }),
+        new TrackOption("Boy", "👦", new() { Prince, Knight, Dragon }),
+    };
+
+    // ---- Placed-sticker model ----------------------------------------------
+
+    public class PlacedSticker
+    {
+        public string StickerId { get; set; } = "";
+        public string Emoji { get; set; } = "";
+        public double X { get; set; } = 50;
+        public double Y { get; set; } = 50;
+    }
+
+    // ---- State ---------------------------------------------------------------
+
+    private TrackOption? selectedTrack;
+    private CharacterOption? selectedCharacter;
+    private readonly List<PlacedSticker> placedStickers = new();
+    private bool celebrate;
+
+    private ElementReference stageRef;
+    private ElementReference playRef;
+    private IJSObjectReference? _module;
+
+    private PlacedSticker? dragging;
+    private double stageLeft, stageTop, stageWidth, stageHeight;
+
+    private bool IsPlaced(string stickerId) => placedStickers.Any(p => p.StickerId == stickerId);
+
+    private void ChooseCharacter(CharacterOption character)
+    {
+        selectedCharacter = character;
+        placedStickers.Clear();
+    }
+
+    private void ResetOutfit() => placedStickers.Clear();
+
+    // ---- Drag and drop (Pointer Events - works for mouse, touch, pen) ------
+
+    private async Task StartDragFromTray(PointerEventArgs e, StickerDef sticker)
+    {
+        var existing = placedStickers.FirstOrDefault(p => p.StickerId == sticker.Id);
+        if (existing is null)
+        {
+            existing = new PlacedSticker { StickerId = sticker.Id, Emoji = sticker.Emoji, X = 50, Y = 50 };
+            placedStickers.Add(existing);
+        }
+
+        await BeginDrag(e, existing);
+    }
+
+    private async Task StartDragPlaced(PointerEventArgs e, PlacedSticker placed) => await BeginDrag(e, placed);
+
+    private async Task BeginDrag(PointerEventArgs e, PlacedSticker placed)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        var rect = await _module.InvokeAsync<StageRect>("getBoundingRect", stageRef);
+
+        stageLeft = rect.Left;
+        stageTop = rect.Top;
+        stageWidth = rect.Width;
+        stageHeight = rect.Height;
+
+        // Without this, a fast drag that leaves .du-play's bounds (easy to
+        // do on a touch screen) stops delivering pointermove/pointerup to
+        // our handlers entirely, since those events would otherwise target
+        // whatever element the pointer is now over instead.
+        await _module.InvokeVoidAsync("setPointerCapture", playRef, e.PointerId);
+
+        dragging = placed;
+        SetDragPosition(e.ClientX, e.ClientY, clamp: true);
+    }
+
+    private void OnPointerMove(PointerEventArgs e)
+    {
+        if (dragging is null) return;
+        SetDragPosition(e.ClientX, e.ClientY, clamp: true);
+    }
+
+    private void OnPointerUp(PointerEventArgs e)
+    {
+        if (dragging is null) return;
+
+        // Dropped well outside the stage - treat it as "put it back", not
+        // a placement, rather than pinning it to the nearest edge.
+        var (xPct, yPct) = ToStagePercent(e.ClientX, e.ClientY);
+        if (xPct < -15 || xPct > 115 || yPct < -15 || yPct > 115)
+        {
+            placedStickers.Remove(dragging);
+        }
+
+        dragging = null;
+        StateHasChanged();
+    }
+
+    private (double x, double y) ToStagePercent(double clientX, double clientY)
+    {
+        if (stageWidth <= 0 || stageHeight <= 0) return (50, 50);
+        var x = (clientX - stageLeft) / stageWidth * 100;
+        var y = (clientY - stageTop) / stageHeight * 100;
+        return (x, y);
+    }
+
+    private void SetDragPosition(double clientX, double clientY, bool clamp)
+    {
+        var (x, y) = ToStagePercent(clientX, clientY);
+        if (clamp)
+        {
+            x = Math.Clamp(x, 4, 96);
+            y = Math.Clamp(y, 4, 96);
+        }
+
+        dragging!.X = x;
+        dragging!.Y = y;
+        StateHasChanged();
+    }
+
+    private record StageRect(double Left, double Top, double Width, double Height);
+
+    // ---- Completion ------------------------------------------------------
+
+    private async Task FinishDressUp()
+    {
+        celebrate = true;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new DressUpResult(
+                Track: selectedTrack!.Name,
+                Character: selectedCharacter!.Name,
+                StickersPlaced: placedStickers.Count));
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    // ---- Result payload ------------------------------------------------------
+
+    public record DressUpResult(string Track, string Character, int StickersPlaced);
+}

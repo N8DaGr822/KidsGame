@@ -1,0 +1,286 @@
+.memory-game {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 1rem;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #2d2a3d;
+}
+
+/* ---- Setup screen ---- */
+
+.mg-setup {
+    text-align: center;
+    padding: 2rem 1rem;
+}
+
+.mg-setup h2 {
+    font-size: 2rem;
+    margin-bottom: 0.25rem;
+}
+
+.mg-section-title {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #837c9c;
+    margin: 1.5rem 0 0.6rem;
+}
+
+.mg-theme-select {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.mg-theme-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.75rem 1.4rem;
+    border-radius: 14px;
+    border: 2px solid #d8d3f0;
+    background: #ffffff;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.mg-theme-btn:hover {
+    transform: translateY(-2px);
+}
+
+.mg-theme-btn.selected {
+    border-color: #7c5cff;
+    background: #f1edff;
+}
+
+.mg-theme-icon {
+    font-size: 1.6rem;
+}
+
+.mg-theme-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.mg-difficulty-select {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.mg-diff-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 14px;
+    border: 2px solid #d8d3f0;
+    background: #ffffff;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.mg-diff-btn:hover {
+    transform: translateY(-2px);
+}
+
+.mg-diff-btn.selected {
+    border-color: #7c5cff;
+    background: #f1edff;
+}
+
+.mg-diff-name {
+    font-weight: 700;
+    font-size: 1.05rem;
+}
+
+.mg-diff-detail {
+    font-size: 0.8rem;
+    color: #6b6580;
+}
+
+.mg-start-btn, .mg-restart-btn {
+    border: none;
+    border-radius: 999px;
+    padding: 0.7rem 1.6rem;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.mg-start-btn {
+    background: #7c5cff;
+    color: white;
+}
+
+.mg-start-btn:hover {
+    background: #6a48f2;
+}
+
+.mg-restart-btn {
+    background: #eee9ff;
+    color: #4a3f80;
+}
+
+/* ---- HUD ---- */
+
+.mg-hud {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.mg-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 60px;
+}
+
+.mg-stat-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #837c9c;
+}
+
+.mg-stat-value {
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+/* ---- Board ---- */
+
+.mg-board {
+    display: grid;
+    grid-template-columns: repeat(var(--cols), 1fr);
+    gap: 0.6rem;
+    perspective: 800px;
+}
+
+.mg-card {
+    aspect-ratio: 3 / 4;
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+}
+
+.mg-card:disabled {
+    cursor: default;
+}
+
+.mg-card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.35s ease;
+    border-radius: 12px;
+}
+
+.mg-card.flipped .mg-card-inner {
+    transform: rotateY(180deg);
+}
+
+.mg-card-back, .mg-card-front {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    font-size: clamp(1.4rem, 5vw, 2.2rem);
+}
+
+.mg-card-back {
+    background: linear-gradient(160deg, #7c5cff, #5b3df0);
+    color: white;
+    font-weight: 800;
+    z-index: 1;
+}
+
+.mg-card-front {
+    background-color: #ffffff;
+    border: 2px solid #e4dffc;
+    transform: rotateY(180deg);
+    z-index: 2;
+}
+
+.mg-card-glyph {
+    display: inline-flex;
+}
+
+/* Animal-face emoji are pale/pastel by design, so on a plain light card
+   they wash out with almost no contrast. Rather than outlining the
+   glyph (which traces every internal edge - ears, eyes, whiskers - and
+   ends up looking noisy), give it a simple round backdrop with enough
+   value contrast to read clearly, independent of the card's own color. */
+.mg-theme-animals .mg-card-glyph {
+    align-items: center;
+    justify-content: center;
+    width: 2.5em;
+    height: 2.5em;
+    border-radius: 50%;
+    background: #eeecf9;
+    box-shadow: inset 0 2px 4px rgba(45, 42, 61, 0.12);
+}
+
+.mg-card.matched .mg-card-front {
+    background-color: #eafff0;
+    border-color: #7fe0a0;
+}
+
+/* Theme-specific card-front typography */
+.mg-theme-abc .mg-card-front,
+.mg-theme-numbers .mg-card-front {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-weight: 800;
+    color: #4a3f80;
+    font-size: clamp(1.6rem, 6vw, 2.6rem);
+}
+
+/* ---- Win overlay ---- */
+
+.mg-win-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(30, 22, 60, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 50;
+}
+
+.mg-win-panel {
+    background: white;
+    border-radius: 18px;
+    padding: 2rem;
+    text-align: center;
+    max-width: 320px;
+    width: 100%;
+}
+
+.mg-win-stats {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    margin: 1rem 0 1.5rem;
+}
+
+.mg-win-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}

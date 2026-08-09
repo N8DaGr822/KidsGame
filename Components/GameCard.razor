@@ -1,0 +1,9 @@
+<button class="game-card" @onclick="() => OnSelect.InvokeAsync(Game)">
+    <div class="game-card-thumb">@Game.ThumbnailEmoji</div>
+    <div class="game-card-title">@Game.Title</div>
+</button>
+
+@code {
+    [Parameter, EditorRequired] public Game Game { get; set; } = default!;
+    [Parameter] public EventCallback<Game> OnSelect { get; set; }
+}

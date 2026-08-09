@@ -1,0 +1,367 @@
+@*
+    MemoryMatchGame.razor
+    A self-contained memory matching (concentration) game component for a Blazor game launcher.
+    Supports multiple themes:
+      - Animals: match identical emoji pairs
+      - ABC:     match an uppercase letter to its lowercase counterpart (A <-> a)
+      - Numbers: match identical numbers (addition/subtraction mode is a natural next step -
+                 see the "Extending with a math mode" note near ThemeDefinitions below)
+
+    Usage:
+        <MemoryMatchGame OnComplete="HandleGameComplete" />
+
+    Optional:
+        <MemoryMatchGame PlayerName="Riley" OnComplete="HandleGameComplete" />
+
+    OnComplete fires with a MemoryMatchResult (theme, difficulty, moves, elapsed time)
+    so a parent launcher page can log scores, show a summary, or return to the
+    game selection carousel.
+*@
+@implements IDisposable
+
+<div class="memory-game">
+
+    @if (!started)
+    {
+        <div class="mg-setup">
+            <h2>Memory Match</h2>
+            <p>Flip two cards at a time and find all the matching pairs!</p>
+
+            <h3 class="mg-section-title">Choose a theme</h3>
+            <div class="mg-theme-select">
+                @foreach (var theme in Themes)
+                {
+                    <button class="mg-theme-btn @(theme.Name == selectedTheme.Name ? "selected" : "")"
+                            @onclick="() => SetTheme(theme)">
+                        <span class="mg-theme-icon">@theme.Icon</span>
+                        <span class="mg-theme-name">@theme.Name</span>
+                    </button>
+                }
+            </div>
+
+            <h3 class="mg-section-title">Choose a difficulty</h3>
+            <div class="mg-difficulty-select">
+                @foreach (var level in Difficulties)
+                {
+                    <button class="mg-diff-btn @(level.Name == selectedDifficulty.Name ? "selected" : "")"
+                            @onclick="() => selectedDifficulty = level">
+                        <span class="mg-diff-name">@level.Name</span>
+                        <span class="mg-diff-detail">@(level.PairCount) pairs</span>
+                    </button>
+                }
+            </div>
+
+            <button class="mg-start-btn" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="mg-hud">
+            <div class="mg-stat"><span class="mg-stat-label">Moves</span><span class="mg-stat-value">@moves</span></div>
+            <div class="mg-stat"><span class="mg-stat-label">Matches</span><span class="mg-stat-value">@matchedPairs / @selectedDifficulty.PairCount</span></div>
+            <div class="mg-stat"><span class="mg-stat-label">Time</span><span class="mg-stat-value">@FormatTime(elapsedSeconds)</span></div>
+            <button class="mg-restart-btn" @onclick="ResetToSetup">Change Game</button>
+        </div>
+
+        <div class="mg-board @(selectedTheme.BoardClass)" style="--cols:@selectedDifficulty.Columns;">
+            @foreach (var card in cards)
+            {
+                var cardRef = card;
+                <button class="mg-card @(cardRef.IsFaceUp || cardRef.IsMatched ? "flipped" : "") @(cardRef.IsMatched ? "matched" : "")"
+                        disabled="@(cardRef.IsMatched || cardRef.IsFaceUp || isResolvingMismatch)"
+                        @onclick="() => FlipCard(cardRef)">
+                    <div class="mg-card-inner">
+                        <div class="mg-card-back">?</div>
+                        <div class="mg-card-front"><span class="mg-card-glyph">@cardRef.Display</span></div>
+                    </div>
+                </button>
+            }
+        </div>
+
+        @if (gameWon)
+        {
+            <div class="mg-win-overlay">
+                <div class="mg-win-panel">
+                    <h2>🎉 You did it!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") matching every pair!</p>
+                    <div class="mg-win-stats">
+                        <div><span class="mg-stat-label">Moves</span><span class="mg-stat-value">@moves</span></div>
+                        <div><span class="mg-stat-label">Time</span><span class="mg-stat-value">@FormatTime(elapsedSeconds)</span></div>
+                    </div>
+                    <div class="mg-win-actions">
+                        <button class="mg-start-btn" @onclick="StartGame">Play Again</button>
+                        <button class="mg-restart-btn" @onclick="ResetToSetup">Change Game</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    // ---- Public parameters -------------------------------------------------
+
+    /// <summary>Optional display name, e.g. from the active kid profile.</summary>
+    [Parameter] public string? PlayerName { get; set; }
+
+    /// <summary>Fired once when the board is fully matched.</summary>
+    [Parameter] public EventCallback<MemoryMatchResult> OnComplete { get; set; }
+
+    // ---- Difficulty model ----------------------------------------------------
+
+    public record DifficultyLevel(string Name, int Columns, int Rows)
+    {
+        public int PairCount => (Columns * Rows) / 2;
+    }
+
+    private readonly List<DifficultyLevel> Difficulties = new()
+    {
+        new DifficultyLevel("Easy",   Columns: 4, Rows: 3), // 6 pairs
+        new DifficultyLevel("Medium", Columns: 4, Rows: 4), // 8 pairs
+        new DifficultyLevel("Hard",   Columns: 6, Rows: 4), // 12 pairs
+    };
+
+    private DifficultyLevel selectedDifficulty;
+
+    // ---- Theme model -----------------------------------------------------
+    //
+    // Each theme produces a list of CardSeed pairs. A pair's two cards can show
+    // DIFFERENT text (e.g. "A" and "a") as long as they share the same MatchKey.
+    // This is what makes the ABC theme ("A" matches "a") work with the same
+    // matching engine as the Animals theme (emoji matches itself).
+    //
+    // Extending with a math mode: to add "3 + 2" <-> "5" matching for Numbers,
+    // add a second ThemeDefinition (e.g. "Numbers (Add & Subtract)") whose
+    // GeneratePairs returns one CardSeed with Display="3 + 2" and another with
+    // Display="5", both sharing MatchKey="5". Everything else (flip/match/win
+    // logic, HUD, timer) needs no changes.
+
+    public record CardSeed(string Display, string MatchKey);
+
+    public record ThemeDefinition(string Name, string Icon, string BoardClass, Func<int, List<CardSeed>> GeneratePairs);
+
+    private static readonly string[] AnimalPool = new[]
+    {
+        "🐶", "🐱", "🐸", "🦊", "🐵", "🐼",
+        "🦁", "🐷", "🐨", "🐰", "🐯", "🐮"
+    };
+
+    private static readonly char[] LetterPool =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ".ToCharArray();
+
+    private readonly List<ThemeDefinition> Themes;
+    private ThemeDefinition selectedTheme;
+
+    public MemoryMatchGame()
+    {
+        selectedDifficulty = Difficulties[0];
+
+        Themes = new List<ThemeDefinition>
+        {
+            new ThemeDefinition(
+                Name: "Animals",
+                Icon: "🐾",
+                BoardClass: "mg-theme-animals",
+                GeneratePairs: pairCount =>
+                {
+                    var chosen = AnimalPool.OrderBy(_ => Guid.NewGuid()).Take(pairCount);
+                    return chosen
+                        .SelectMany(symbol => new[]
+                        {
+                            new CardSeed(symbol, symbol),
+                            new CardSeed(symbol, symbol),
+                        })
+                        .ToList();
+                }),
+
+            new ThemeDefinition(
+                Name: "ABC",
+                Icon: "🔤",
+                BoardClass: "mg-theme-abc",
+                GeneratePairs: pairCount =>
+                {
+                    var chosen = LetterPool.OrderBy(_ => Guid.NewGuid()).Take(pairCount);
+                    return chosen
+                        .SelectMany(letter => new[]
+                        {
+                            new CardSeed(letter.ToString(), letter.ToString()),                    // uppercase, e.g. "A"
+                            new CardSeed(letter.ToString().ToLowerInvariant(), letter.ToString()),  // lowercase, e.g. "a"
+                        })
+                        .ToList();
+                }),
+
+            new ThemeDefinition(
+                Name: "Numbers",
+                Icon: "🔢",
+                BoardClass: "mg-theme-numbers",
+                GeneratePairs: pairCount =>
+                {
+                    // Simple matching: identical numbers. (A future "Add & Subtract"
+                    // theme can reuse this same engine — see note above.)
+                    var chosen = Enumerable.Range(1, 20).OrderBy(_ => Guid.NewGuid()).Take(pairCount);
+                    return chosen
+                        .SelectMany(n => new[]
+                        {
+                            new CardSeed(n.ToString(), n.ToString()),
+                            new CardSeed(n.ToString(), n.ToString()),
+                        })
+                        .ToList();
+                }),
+        };
+
+        selectedTheme = Themes[0];
+    }
+
+    private void SetTheme(ThemeDefinition t) => selectedTheme = t;
+
+    // ---- Card model ----------------------------------------------------------
+
+    public class CardState
+    {
+        public string Display { get; set; } = "";
+        public string MatchKey { get; set; } = "";
+        public bool IsFaceUp { get; set; }
+        public bool IsMatched { get; set; }
+    }
+
+    private List<CardState> cards = new();
+    private CardState? firstPick;
+    private CardState? secondPick;
+    private bool isResolvingMismatch;
+
+    // ---- Game state ------------------------------------------------------
+
+    private bool started;
+    private bool gameWon;
+    private int moves;
+    private int matchedPairs;
+    private int elapsedSeconds;
+    private System.Threading.Timer? timer;
+
+    // ---- Lifecycle / actions -----------------------------------------------
+
+    private void StartGame()
+    {
+        started = true;
+        gameWon = false;
+        moves = 0;
+        matchedPairs = 0;
+        elapsedSeconds = 0;
+        firstPick = null;
+        secondPick = null;
+        isResolvingMismatch = false;
+
+        BuildDeck();
+        StartTimer();
+    }
+
+    private void ResetToSetup()
+    {
+        started = false;
+        gameWon = false;
+        StopTimer();
+    }
+
+    private void BuildDeck()
+    {
+        var seeds = selectedTheme.GeneratePairs(selectedDifficulty.PairCount);
+        cards = seeds
+            .OrderBy(_ => Guid.NewGuid())
+            .Select(s => new CardState { Display = s.Display, MatchKey = s.MatchKey })
+            .ToList();
+    }
+
+    private async void FlipCard(CardState card)
+    {
+        if (isResolvingMismatch || card.IsFaceUp || card.IsMatched) return;
+
+        card.IsFaceUp = true;
+
+        if (firstPick is null)
+        {
+            firstPick = card;
+            StateHasChanged();
+            return;
+        }
+
+        secondPick = card;
+        moves++;
+        StateHasChanged();
+
+        if (firstPick.MatchKey == secondPick.MatchKey)
+        {
+            firstPick.IsMatched = true;
+            secondPick.IsMatched = true;
+            matchedPairs++;
+            firstPick = null;
+            secondPick = null;
+
+            if (matchedPairs == selectedDifficulty.PairCount)
+            {
+                await FinishGame();
+            }
+        }
+        else
+        {
+            isResolvingMismatch = true;
+            StateHasChanged();
+            await Task.Delay(800);
+            firstPick.IsFaceUp = false;
+            secondPick.IsFaceUp = false;
+            firstPick = null;
+            secondPick = null;
+            isResolvingMismatch = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task FinishGame()
+    {
+        StopTimer();
+        gameWon = true;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MemoryMatchResult(
+                Theme: selectedTheme.Name,
+                Difficulty: selectedDifficulty.Name,
+                Moves: moves,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    // ---- Timer -------------------------------------------------------------
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.Minutes > 0 ? $"{ts.Minutes}:{ts.Seconds:D2}" : $"{ts.Seconds}s";
+    }
+
+    public void Dispose()
+    {
+        StopTimer();
+    }
+
+    // ---- Result payload ------------------------------------------------------
+
+    public record MemoryMatchResult(string Theme, string Difficulty, int Moves, int ElapsedSeconds);
+}

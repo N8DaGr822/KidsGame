@@ -1,0 +1,101 @@
+@page "/"
+@inject AppDataService Data
+@inject AppState State
+@inject NavigationManager Nav
+
+<div class="screen profile-screen">
+    <h1>Who's playing?</h1>
+
+    @if (_profiles is null)
+    {
+        <p class="muted">Loading profiles…</p>
+    }
+    else if (_profiles.Count == 0)
+    {
+        <p class="muted">No profiles yet.</p>
+    }
+    else
+    {
+        <Carousel>
+            @foreach (var profile in _profiles)
+            {
+                <ProfileCard Profile="profile" OnSelect="HandleSelectAsync" />
+            }
+        </Carousel>
+    }
+
+    @if (_pendingAdminProfile is not null)
+    {
+        <div class="pin-modal-backdrop">
+            <div class="pin-modal">
+                <h2>Enter parent PIN</h2>
+                <input type="password" inputmode="numeric" maxlength="6" @bind="_pinInput" @bind:event="oninput" placeholder="••••" />
+                @if (_pinError)
+                {
+                    <p class="error-text">That PIN didn't match. Try again.</p>
+                }
+                <div class="pin-modal-actions">
+                    <button class="btn-secondary" @onclick="CancelPin">Cancel</button>
+                    <button class="btn-primary" @onclick="SubmitPinAsync">Enter</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Profile>? _profiles;
+    private Profile? _pendingAdminProfile;
+    private string _pinInput = "";
+    private bool _pinError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.ClearCurrentProfile();
+        _profiles = await Data.GetProfilesAsync();
+    }
+
+    private Task HandleSelectAsync(Profile profile)
+    {
+        if (profile.Type == ProfileType.Admin)
+        {
+            _pendingAdminProfile = profile;
+            _pinInput = "";
+            _pinError = false;
+            return Task.CompletedTask;
+        }
+
+        State.SetCurrentProfile(profile);
+        Nav.NavigateTo("/games");
+        return Task.CompletedTask;
+    }
+
+    private Task SubmitPinAsync()
+    {
+        var profile = _pendingAdminProfile!;
+
+        // v1 note: PinHash is unset by default (no PIN configured yet).
+        // Until the admin sets one in the Admin panel, entry is open.
+        // Once PinHash is set, this should hash _pinInput the same way
+        // and compare - see Admin/ProfileManager for where PINs get set.
+        var pinConfigured = !string.IsNullOrEmpty(profile.PinHash);
+        var matches = !pinConfigured || profile.PinHash == PinHelper.Hash(_pinInput);
+
+        if (!matches)
+        {
+            _pinError = true;
+            return Task.CompletedTask;
+        }
+
+        State.SetCurrentProfile(profile);
+        Nav.NavigateTo("/admin");
+        return Task.CompletedTask;
+    }
+
+    private void CancelPin()
+    {
+        _pendingAdminProfile = null;
+        _pinInput = "";
+        _pinError = false;
+    }
+}

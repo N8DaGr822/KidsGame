@@ -1,0 +1,353 @@
+.fishing-game {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 1rem;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #2d2a3d;
+}
+
+/* ---- Setup screen ---- */
+
+.fg-setup {
+    text-align: center;
+    padding: 2rem 1rem;
+}
+
+.fg-setup h2 {
+    font-size: 2rem;
+    margin-bottom: 0.25rem;
+}
+
+.fg-section-title {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6b83a8;
+    margin: 1.5rem 0 0.6rem;
+}
+
+.fg-mode-select {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+
+.fg-mode-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.75rem 1.4rem;
+    border-radius: 14px;
+    border: 2px solid #cfe3f5;
+    background: #ffffff;
+    cursor: pointer;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.fg-mode-btn:hover {
+    transform: translateY(-2px);
+}
+
+.fg-mode-btn.selected {
+    border-color: #2f9bd6;
+    background: #eaf6ff;
+}
+
+.fg-mode-icon {
+    font-size: 1.6rem;
+}
+
+.fg-mode-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.fg-start-btn, .fg-restart-btn {
+    border: none;
+    border-radius: 999px;
+    padding: 0.7rem 1.6rem;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.fg-start-btn {
+    background: #2f9bd6;
+    color: white;
+}
+
+.fg-start-btn:hover {
+    background: #2685ba;
+}
+
+.fg-restart-btn {
+    background: #e6f2fb;
+    color: #275a80;
+}
+
+/* ---- HUD ---- */
+
+.fg-hud {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+
+.fg-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 60px;
+}
+
+.fg-stat-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b83a8;
+}
+
+.fg-stat-value {
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.fg-stat-sub {
+    font-size: 0.62em;
+    font-weight: 600;
+    opacity: 0.65;
+    margin-left: 0.15em;
+}
+
+/* ---- Scene ---- */
+
+.fg-scene {
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 4px 18px rgba(20, 50, 80, 0.12);
+}
+
+.fg-dock {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.75rem;
+    padding: 1.25rem 1rem 1.75rem;
+    /* Vertical plank seams over a warm wood gradient, plus a darker cap
+       along the front edge so the bar reads as a dock deck, not just a
+       brown stripe. */
+    background:
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.08) 0 3px, transparent 3px 46px),
+        linear-gradient(180deg, #d9b382, #b98a54);
+    border-bottom: 5px solid #8a6239;
+}
+
+.fg-dock::before,
+.fg-dock::after {
+    content: "";
+    position: absolute;
+    bottom: -22px;
+    width: 16px;
+    height: 26px;
+    background: linear-gradient(180deg, #8a6239, #6b4a2b);
+    border-radius: 0 0 4px 4px;
+    z-index: 1;
+}
+
+.fg-dock::before { left: 18%; }
+.fg-dock::after { right: 18%; }
+
+.fg-angler {
+    display: flex;
+    align-items: flex-end;
+}
+
+.fg-character {
+    font-size: 2.6rem;
+    line-height: 1;
+}
+
+.fg-pole {
+    font-size: 1.9rem;
+    line-height: 1;
+    transform: rotate(-20deg);
+    margin-left: -0.5rem;
+    margin-bottom: 0.2rem;
+}
+
+.fg-basket {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fg-basket-icon {
+    font-size: 2.6rem;
+}
+
+.fg-basket-target {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 0.4rem;
+    font-weight: 800;
+    font-size: 1rem;
+    color: #4a3320;
+}
+
+.fg-water {
+    position: relative;
+    height: 380px;
+    background: linear-gradient(180deg, #6ec6e8, #1f7fb8);
+    overflow: hidden;
+}
+
+.fg-water::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        repeating-linear-gradient(100deg, rgba(255, 255, 255, 0.08) 0 2px, transparent 2px 40px);
+    pointer-events: none;
+}
+
+.fg-fish {
+    position: absolute;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    animation-name: fg-swim;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+}
+
+.fg-fish:active {
+    transform: scale(0.88);
+}
+
+.fg-fish-body {
+    font-size: 3.6rem;
+    filter: drop-shadow(0 2px 3px rgba(10, 40, 60, 0.3));
+}
+
+.fg-fish-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #ffffff;
+    color: #1f3a52;
+    font-weight: 800;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0.34rem 0.5rem;
+    border-radius: 999px;
+    box-shadow: 0 1px 3px rgba(10, 40, 60, 0.35);
+    pointer-events: none;
+}
+
+.fg-fish.caught {
+    pointer-events: none;
+    animation: fg-catch 0.45s ease-in forwards;
+}
+
+/* Wrong-fish feedback: a quick shake plus a red flash on the label,
+   then it settles back to normal and keeps swimming. The label's shake
+   keyframe has to re-declare the base translate(-50%, -50%) centering
+   offset at every step, since an animated `transform` fully replaces
+   the property value rather than adding to what's already declared. */
+.fg-fish.missed .fg-fish-body {
+    animation: fg-shake-body 0.4s ease;
+}
+
+.fg-fish.missed .fg-fish-label {
+    background: #ffdbdb;
+    color: #a3222f;
+    animation: fg-shake-label 0.4s ease;
+}
+
+@keyframes fg-swim {
+    from { left: -8%; transform: translateX(-10%); }
+    to   { left: 100%; transform: translateX(-10%); }
+}
+
+@keyframes fg-catch {
+    0%   { transform: scale(1); opacity: 1; }
+    35%  { transform: scale(1.35) translateY(-8px); opacity: 1; }
+    100% { transform: scale(0.1) translateY(-150px); opacity: 0; }
+}
+
+@keyframes fg-shake-body {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+}
+
+@keyframes fg-shake-label {
+    0%, 100% { transform: translate(-50%, -50%); }
+    20% { transform: translate(calc(-50% - 6px), -50%); }
+    40% { transform: translate(calc(-50% + 6px), -50%); }
+    60% { transform: translate(calc(-50% - 4px), -50%); }
+    80% { transform: translate(calc(-50% + 4px), -50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fg-fish { animation: none; left: 45%; }
+    .fg-fish.caught { animation: none; opacity: 0; }
+    .fg-fish.missed .fg-fish-body,
+    .fg-fish.missed .fg-fish-label { animation: none; }
+}
+
+/* ---- Win overlay ---- */
+
+.fg-win-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 40, 60, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 50;
+}
+
+.fg-win-panel {
+    background: white;
+    border-radius: 18px;
+    padding: 2rem;
+    text-align: center;
+    max-width: 320px;
+    width: 100%;
+}
+
+.fg-win-stats {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin: 1rem 0 1.5rem;
+}
+
+.fg-win-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}

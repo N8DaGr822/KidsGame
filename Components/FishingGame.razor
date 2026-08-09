@@ -1,0 +1,379 @@
+@*
+    FishingGame.razor
+    A self-contained fishing minigame for a Blazor game launcher. A basket
+    on the dock shows a target letter or number (mode picked at setup);
+    fish carrying an assorted mix of letters or numbers drift in the water
+    below. Clicking a fish that matches the target catches it. Catching 3
+    of the current target advances to the next one in sequence (A, B, C...
+    or 1, 2, 3...); the round is only complete once every letter/number in
+    the mode has been cleared. Change Game exits at any point.
+
+    Usage:
+        <FishingGame OnComplete="HandleGameComplete" />
+
+    Optional:
+        <FishingGame PlayerName="Riley" OnComplete="HandleGameComplete" />
+
+    OnComplete fires with a FishingResult (mode, targets completed,
+    attempts, elapsed time) so a parent launcher page can log scores, show
+    a summary, or return to the game selection carousel.
+*@
+@implements IDisposable
+
+<div class="fishing-game">
+
+    @if (!started)
+    {
+        <div class="fg-setup">
+            <h2>Fishing Time</h2>
+            <p>Catch 3 fish that match your basket, then keep going until you've caught them all!</p>
+
+            <h3 class="fg-section-title">Choose a mode</h3>
+            <div class="fg-mode-select">
+                @foreach (var mode in Modes)
+                {
+                    <button class="fg-mode-btn @(mode.Name == selectedMode.Name ? "selected" : "")"
+                            @onclick="() => selectedMode = mode">
+                        <span class="fg-mode-icon">@mode.Icon</span>
+                        <span class="fg-mode-name">@mode.Name</span>
+                    </button>
+                }
+            </div>
+
+            <h3 class="fg-section-title">Difficulty</h3>
+            <div class="fg-mode-select">
+                <button class="fg-mode-btn @(!strikesEnabled ? "selected" : "")" @onclick="() => strikesEnabled = false">
+                    <span class="fg-mode-icon">🌤️</span>
+                    <span class="fg-mode-name">Relaxed</span>
+                </button>
+                <button class="fg-mode-btn @(strikesEnabled ? "selected" : "")" @onclick="() => strikesEnabled = true">
+                    <span class="fg-mode-icon">⚡</span>
+                    <span class="fg-mode-name">3 Strikes</span>
+                </button>
+            </div>
+
+            <button class="fg-start-btn" @onclick="StartGame">Start Fishing</button>
+        </div>
+    }
+    else
+    {
+        <div class="fg-hud">
+            <div class="fg-stat">
+                <span class="fg-stat-label">Target</span>
+                <span class="fg-stat-value">@target <span class="fg-stat-sub">(@(targetIndex + 1)/@selectedMode.Sequence.Count)</span></span>
+            </div>
+            <div class="fg-stat"><span class="fg-stat-label">Caught</span><span class="fg-stat-value">@caughtCount / @WinCount</span></div>
+            @if (strikesEnabled)
+            {
+                <div class="fg-stat"><span class="fg-stat-label">Strikes</span><span class="fg-stat-value">@strikes / @MaxStrikes</span></div>
+            }
+            <div class="fg-stat"><span class="fg-stat-label">Time</span><span class="fg-stat-value">@FormatTime(elapsedSeconds)</span></div>
+            <button class="fg-restart-btn" @onclick="ResetToSetup">Change Game</button>
+        </div>
+
+        <div class="fg-scene">
+            <div class="fg-dock">
+                <div class="fg-angler">
+                    <span class="fg-character">🧑</span>
+                    <span class="fg-pole">🎣</span>
+                </div>
+                <div class="fg-basket">
+                    <span class="fg-basket-icon">🧺</span>
+                    <span class="fg-basket-target">@target</span>
+                </div>
+            </div>
+
+            <div class="fg-water">
+                @foreach (var fish in fishes)
+                {
+                    <button @key="fish.Id" class="fg-fish @(fish.IsCaught ? "caught" : "") @(fish.IsMissed ? "missed" : "")"
+                            style="@FishStyle(fish)"
+                            disabled="@fish.IsCaught"
+                            @onclick="() => CatchFish(fish)">
+                        <span class="fg-fish-body">🐟</span>
+                        <span class="fg-fish-label">@fish.Symbol</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        @if (gameWon)
+        {
+            <div class="fg-win-overlay">
+                <div class="fg-win-panel">
+                    <h2>🎣 You caught them all!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") catching every @(selectedMode.Name == "Letters" ? "letter" : "number")!</p>
+                    <div class="fg-win-stats">
+                        <div><span class="fg-stat-label">Completed</span><span class="fg-stat-value">@selectedMode.Sequence.Count</span></div>
+                        <div><span class="fg-stat-label">Attempts</span><span class="fg-stat-value">@attempts</span></div>
+                        <div><span class="fg-stat-label">Time</span><span class="fg-stat-value">@FormatTime(elapsedSeconds)</span></div>
+                    </div>
+                    <div class="fg-win-actions">
+                        <button class="fg-start-btn" @onclick="StartGame">Play Again</button>
+                        <button class="fg-restart-btn" @onclick="ResetToSetup">Change Game</button>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (gameOver)
+        {
+            <div class="fg-win-overlay">
+                <div class="fg-win-panel">
+                    <h2>🐟💨 Out of strikes!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "No worries" : PlayerName + ", no worries") - give it another go!</p>
+                    <div class="fg-win-stats">
+                        <div><span class="fg-stat-label">Reached</span><span class="fg-stat-value">@target</span></div>
+                        <div><span class="fg-stat-label">Time</span><span class="fg-stat-value">@FormatTime(elapsedSeconds)</span></div>
+                    </div>
+                    <div class="fg-win-actions">
+                        <button class="fg-start-btn" @onclick="StartGame">Try Again</button>
+                        <button class="fg-restart-btn" @onclick="ResetToSetup">Change Game</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    // ---- Public parameters -------------------------------------------------
+
+    /// <summary>Optional display name, e.g. from the active kid profile.</summary>
+    [Parameter] public string? PlayerName { get; set; }
+
+    /// <summary>Fired once when every letter/number in the mode has been caught.</summary>
+    [Parameter] public EventCallback<FishingResult> OnComplete { get; set; }
+
+    // ---- Tuning --------------------------------------------------------------
+
+    private const int WinCount = 3;
+    private const int FishCount = 7;
+    private const int CatchAnimationMs = 450;
+    private const int MissAnimationMs = 400;
+    private const int MaxStrikes = 3;
+
+    // ---- Mode model ------------------------------------------------------
+
+    public record ModeDefinition(string Name, string Icon, List<string> Sequence);
+
+    private static readonly List<string> LetterSequence =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ".Select(c => c.ToString()).ToList();
+
+    private static readonly List<string> NumberSequence =
+        Enumerable.Range(1, 20).Select(n => n.ToString()).ToList();
+
+    private readonly List<ModeDefinition> Modes;
+    private ModeDefinition selectedMode;
+
+    public FishingGame()
+    {
+        Modes = new List<ModeDefinition>
+        {
+            new ModeDefinition("Letters", "🔤", LetterSequence),
+            new ModeDefinition("Numbers", "🔢", NumberSequence),
+        };
+
+        selectedMode = Modes[0];
+    }
+
+    // ---- Fish model ------------------------------------------------------
+
+    public class FishState
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+        public string Symbol { get; set; } = "";
+        public bool IsCaught { get; set; }
+        public bool IsMissed { get; set; }
+        public double Top { get; set; }
+        public double Duration { get; set; }
+        public double Delay { get; set; }
+    }
+
+    private List<FishState> fishes = new();
+    private readonly Random rng = new();
+
+    // ---- Game state ------------------------------------------------------
+
+    private int targetIndex;
+    private string target = "";
+    private bool started;
+    private bool gameWon;
+    private bool gameOver;
+    private bool strikesEnabled;
+    private int strikes;
+    private int caughtCount;
+    private int attempts;
+    private int elapsedSeconds;
+    private System.Threading.Timer? timer;
+
+    // ---- Lifecycle / actions -----------------------------------------------
+
+    private void StartGame()
+    {
+        started = true;
+        gameWon = false;
+        gameOver = false;
+        targetIndex = 0;
+        caughtCount = 0;
+        strikes = 0;
+        attempts = 0;
+        elapsedSeconds = 0;
+
+        target = selectedMode.Sequence[targetIndex];
+        BuildPond();
+        StartTimer();
+    }
+
+    private void ResetToSetup()
+    {
+        started = false;
+        gameWon = false;
+        gameOver = false;
+        StopTimer();
+    }
+
+    private void BuildPond()
+    {
+        var pool = selectedMode.Sequence;
+
+        // Guarantee at least WinCount fish carry the current target so the
+        // round is always winnable; fill the rest randomly from the pool
+        // (which may add a few extra target fish too - that's fine).
+        var symbols = new List<string>();
+        for (int i = 0; i < WinCount; i++) symbols.Add(target);
+        while (symbols.Count < FishCount) symbols.Add(pool[rng.Next(pool.Count)]);
+
+        fishes = symbols
+            .OrderBy(_ => Guid.NewGuid())
+            .Select(symbol => new FishState
+            {
+                Symbol = symbol,
+                Top = 8 + rng.NextDouble() * 74,
+                Duration = 7 + rng.NextDouble() * 5,
+                Delay = -(rng.NextDouble() * 6),
+            })
+            .ToList();
+    }
+
+    private static string FishStyle(FishState fish)
+    {
+        var top = fish.Top.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+
+        // Once caught, drop the swim-animation overrides so the "caught"
+        // keyframe (declared in CSS) takes over cleanly - an inline
+        // animation-duration/delay would otherwise win the cascade over
+        // the stylesheet's catch animation and make it play in slow
+        // motion using the fish's original swim timing.
+        if (fish.IsCaught) return $"top:{top}%;";
+
+        var duration = fish.Duration.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        var delay = fish.Delay.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        return $"top:{top}%; animation-duration:{duration}s; animation-delay:{delay}s;";
+    }
+
+    private async Task CatchFish(FishState fish)
+    {
+        if (fish.IsCaught || fish.IsMissed || gameWon || gameOver) return;
+
+        attempts++;
+
+        if (fish.Symbol != target)
+        {
+            fish.IsMissed = true;
+            StateHasChanged();
+
+            if (strikesEnabled)
+            {
+                strikes++;
+                if (strikes >= MaxStrikes)
+                {
+                    await Task.Delay(MissAnimationMs);
+                    StopTimer();
+                    gameOver = true;
+                    StateHasChanged();
+                    return;
+                }
+            }
+
+            await Task.Delay(MissAnimationMs);
+            fish.IsMissed = false;
+            StateHasChanged();
+            return;
+        }
+
+        fish.IsCaught = true;
+        StateHasChanged();
+
+        await Task.Delay(CatchAnimationMs);
+
+        fishes.Remove(fish);
+        caughtCount++;
+
+        if (caughtCount >= WinCount)
+        {
+            targetIndex++;
+
+            if (targetIndex >= selectedMode.Sequence.Count)
+            {
+                await FinishGame();
+                return;
+            }
+
+            caughtCount = 0;
+            target = selectedMode.Sequence[targetIndex];
+            BuildPond();
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task FinishGame()
+    {
+        StopTimer();
+        gameWon = true;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new FishingResult(
+                Mode: selectedMode.Name,
+                TargetsCompleted: selectedMode.Sequence.Count,
+                Attempts: attempts,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    // ---- Timer -------------------------------------------------------------
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.Minutes > 0 ? $"{ts.Minutes}:{ts.Seconds:D2}" : $"{ts.Seconds}s";
+    }
+
+    public void Dispose()
+    {
+        StopTimer();
+    }
+
+    // ---- Result payload ------------------------------------------------------
+
+    public record FishingResult(string Mode, int TargetsCompleted, int Attempts, int ElapsedSeconds);
+}

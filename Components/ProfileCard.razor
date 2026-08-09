@@ -1,0 +1,13 @@
+<button class="profile-card" style="--card-color:@Profile.ColorHex" @onclick="() => OnSelect.InvokeAsync(Profile)">
+    <div class="profile-card-avatar">@Profile.AvatarEmoji</div>
+    <div class="profile-card-name">@Profile.Name</div>
+    @if (Profile.Type == ProfileType.Admin)
+    {
+        <div class="profile-card-badge">Admin</div>
+    }
+</button>
+
+@code {
+    [Parameter, EditorRequired] public Profile Profile { get; set; } = default!;
+    [Parameter] public EventCallback<Profile> OnSelect { get; set; }
+}

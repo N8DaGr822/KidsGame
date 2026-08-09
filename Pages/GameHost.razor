@@ -1,0 +1,118 @@
+@page "/play/{GameId}"
+@inject AppDataService Data
+@inject AppState State
+@inject NavigationManager Nav
+
+<div class="screen game-host-screen">
+    @if (_game is null)
+    {
+        <p class="muted">Loading game…</p>
+    }
+    else
+    {
+        <div class="game-host-bar">
+            <button class="btn-secondary" @onclick="GoBack">← Exit game</button>
+            <span class="game-host-title">@_game.Title</span>
+        </div>
+
+        <div class="game-host-surface">
+            @if (_game.LaunchMode == GameLaunchMode.ExternalIframe)
+            {
+                <iframe title="@_game.Title" src="@_game.LaunchTarget"></iframe>
+            }
+            else if (_game.LaunchTarget == BuiltInGames.MemoryMatch)
+            {
+                <MemoryMatchGame PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleMemoryMatchComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.Fishing)
+            {
+                <FishingGame PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleFishingComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.DressUp)
+            {
+                <DressUpGame PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleDressUpComplete" />
+            }
+            else
+            {
+                @* Internal-route games are expected to be their own routed
+                   pages/components. This placeholder is where you'd wire in
+                   a dynamic component lookup (e.g. by convention on
+                   LaunchTarget) once a real game is plugged in. *@
+                <div class="game-placeholder">
+                    <p>🎮 "@_game.Title" would load here.</p>
+                    <p class="muted">Wire this route (@_game.LaunchTarget) up to the actual game component.</p>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string GameId { get; set; } = "";
+
+    private Game? _game;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (State.CurrentProfile is null)
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
+        var allGames = await Data.GetAllGamesAsync();
+        _game = allGames.FirstOrDefault(g => g.Id == GameId);
+
+        if (_game is null)
+        {
+            Nav.NavigateTo("/games");
+        }
+    }
+
+    private async Task HandleMemoryMatchComplete(MemoryMatchGame.MemoryMatchResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Theme,
+            Difficulty = result.Difficulty,
+            Moves = result.Moves,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleFishingComplete(FishingGame.FishingResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Mode,
+            Difficulty = $"{result.TargetsCompleted} completed",
+            Moves = result.Attempts,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleDressUpComplete(DressUpGame.DressUpResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Track,
+            Difficulty = result.Character,
+            Moves = result.StickersPlaced,
+            ElapsedSeconds = 0,
+        });
+    }
+
+    private void GoBack() => Nav.NavigateTo("/games");
+}
