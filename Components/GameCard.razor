@@ -1,5 +1,5 @@
 <button class="game-card" @onclick="() => OnSelect.InvokeAsync(Game)">
-    <div class="game-card-thumb">@Game.ThumbnailEmoji</div>
+    <AssetGlyph Class="game-card-thumb" Src="@Game.ThumbnailImagePath" Fallback="@Game.ThumbnailEmoji" Alt="@Game.Title" />
     <div class="game-card-title">@Game.Title</div>
 </button>
 

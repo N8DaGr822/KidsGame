@@ -12,3 +12,7 @@ obj/
 ## OS
 .DS_Store
 Thumbs.db
+
+## Local dev server logs
+server.log
+server.err.log

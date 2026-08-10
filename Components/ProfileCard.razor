@@ -1,5 +1,5 @@
 <button class="profile-card" style="--card-color:@Profile.ColorHex" @onclick="() => OnSelect.InvokeAsync(Profile)">
-    <div class="profile-card-avatar">@Profile.AvatarEmoji</div>
+    <AssetGlyph Class="profile-card-avatar" Src="@Profile.AvatarImagePath" Fallback="@Profile.AvatarEmoji" Alt="@Profile.Name" />
     <div class="profile-card-name">@Profile.Name</div>
     @if (Profile.Type == ProfileType.Admin)
     {

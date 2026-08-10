@@ -5,7 +5,10 @@ public class Game
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Title { get; set; } = "";
 
-    // Placeholder art until real thumbnails/art assets are added.
+    // Local image path under wwwroot, e.g. "images/game-thumbs/memory-match.png".
+    // Emoji stays as a fallback so existing localStorage data and partially
+    // migrated game records keep rendering.
+    public string? ThumbnailImagePath { get; set; }
     public string ThumbnailEmoji { get; set; } = "🎮";
 
     // Where GameHost navigates to launch this game - a route within this

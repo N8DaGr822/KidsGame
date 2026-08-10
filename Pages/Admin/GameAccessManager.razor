@@ -34,21 +34,53 @@
                 <div class="access-list">
                     @foreach (var game in _allGames)
                     {
-                        <label class="access-row">
+                        <div class="access-row">
                             <input type="checkbox"
                                    checked="@_allowedIds.Contains(game.Id)"
                                    @onchange="e => ToggleAccessAsync(game.Id, (bool)e.Value!)" />
-                            <span class="access-row-thumb">@game.ThumbnailEmoji</span>
+                            <AssetGlyph Class="access-row-thumb" Src="@game.ThumbnailImagePath" Fallback="@game.ThumbnailEmoji" Alt="@game.Title" />
                             <span class="access-row-title">@game.Title</span>
                             @if (!game.IsCatalogEnabled)
                             {
                                 <span class="access-row-hidden">Hidden from catalog</span>
                             }
-                        </label>
+                            <button type="button" class="btn-secondary" @onclick="() => StartEditGame(game)">Edit</button>
+                        </div>
                     }
                 </div>
             }
         </section>
+
+        @if (_editingCatalogGame is not null)
+        {
+            <div class="pin-modal-backdrop">
+                <div class="pin-modal">
+                    <h2>Edit game art</h2>
+                    <label>
+                        Title
+                        <input @bind="_editingCatalogGame.Title" />
+                    </label>
+                    <label>
+                        Thumbnail image path
+                        <input @bind="_editingCatalogGame.ThumbnailImagePath" placeholder="images/game-thumbs/memory-match.png" />
+                    </label>
+                    <label>
+                        Thumbnail fallback emoji
+                        <input @bind="_editingCatalogGame.ThumbnailEmoji" maxlength="8" />
+                    </label>
+                    <label>
+                        <span>
+                            <input type="checkbox" @bind="_editingCatalogGame.IsCatalogEnabled" />
+                            Show in game catalog
+                        </span>
+                    </label>
+                    <div class="pin-modal-actions">
+                        <button class="btn-secondary" @onclick="CancelEditGame">Cancel</button>
+                        <button class="btn-primary" @onclick="SaveCatalogGameAsync">Save</button>
+                    </div>
+                </div>
+            </div>
+        }
 
         @if (_showAddGame)
         {
@@ -63,7 +95,7 @@
                             @foreach (var builtIn in _availableBuiltIns)
                             {
                                 <button class="access-row" @onclick="() => AddBuiltInGameAsync(builtIn)">
-                                    <span class="access-row-thumb">@builtIn.ThumbnailEmoji</span>
+                                    <AssetGlyph Class="access-row-thumb" Src="@builtIn.ThumbnailImagePath" Fallback="@builtIn.ThumbnailEmoji" Alt="@builtIn.Title" />
                                     <span class="access-row-title">@builtIn.Title</span>
                                 </button>
                             }
@@ -81,8 +113,12 @@
                             <input @bind="_editingGame.Title" />
                         </label>
                         <label>
-                            Thumbnail (emoji)
-                            <input @bind="_editingGame.ThumbnailEmoji" maxlength="2" />
+                            Thumbnail image path
+                            <input @bind="_editingGame.ThumbnailImagePath" placeholder="images/game-thumbs/my-game.png" />
+                        </label>
+                        <label>
+                            Thumbnail fallback emoji
+                            <input @bind="_editingGame.ThumbnailEmoji" maxlength="8" />
                         </label>
                         <label>
                             Web address
@@ -110,6 +146,7 @@
     private List<string> _allowedIds = new();
     private bool _showAddGame;
     private Game _editingGame = new();
+    private Game? _editingCatalogGame;
     private List<BuiltInGame> _availableBuiltIns = new();
 
     protected override async Task OnInitializedAsync()
@@ -158,11 +195,38 @@
         _showAddGame = false;
     }
 
+    private void StartEditGame(Game game)
+    {
+        _editingCatalogGame = new Game
+        {
+            Id = game.Id,
+            Title = game.Title,
+            ThumbnailImagePath = game.ThumbnailImagePath,
+            ThumbnailEmoji = game.ThumbnailEmoji,
+            LaunchTarget = game.LaunchTarget,
+            LaunchMode = game.LaunchMode,
+            IsCatalogEnabled = game.IsCatalogEnabled
+        };
+    }
+
+    private void CancelEditGame() => _editingCatalogGame = null;
+
+    private async Task SaveCatalogGameAsync()
+    {
+        if (_editingCatalogGame is null || string.IsNullOrWhiteSpace(_editingCatalogGame.Title))
+            return;
+
+        await Data.UpdateGameAsync(_editingCatalogGame);
+        _editingCatalogGame = null;
+        await RefreshAsync();
+    }
+
     private async Task AddBuiltInGameAsync(BuiltInGame builtIn)
     {
         await Data.AddGameAsync(new Game
         {
             Title = builtIn.Title,
+            ThumbnailImagePath = builtIn.ThumbnailImagePath,
             ThumbnailEmoji = builtIn.ThumbnailEmoji,
             LaunchTarget = builtIn.LaunchTarget,
             LaunchMode = GameLaunchMode.InternalRoute

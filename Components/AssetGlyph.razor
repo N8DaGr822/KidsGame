@@ -1,0 +1,31 @@
+<span class="asset-glyph @Class">
+    @if (!string.IsNullOrWhiteSpace(Src) && !imageFailed)
+    {
+        <img class="asset-glyph-image" src="@Src" alt="@Alt" loading="@Loading" @onerror="HandleImageError" />
+    }
+    else
+    {
+        <span class="asset-glyph-fallback" role="img" aria-label="@Alt">@Fallback</span>
+    }
+</span>
+
+@code {
+    [Parameter] public string? Src { get; set; }
+    [Parameter] public string Fallback { get; set; } = "";
+    [Parameter] public string Alt { get; set; } = "";
+    [Parameter] public string Class { get; set; } = "";
+    [Parameter] public string Loading { get; set; } = "lazy";
+
+    private string? lastSrc;
+    private bool imageFailed;
+
+    protected override void OnParametersSet()
+    {
+        if (lastSrc == Src) return;
+
+        lastSrc = Src;
+        imageFailed = false;
+    }
+
+    private void HandleImageError() => imageFailed = true;
+}
