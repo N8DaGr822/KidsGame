@@ -1,7 +1,7 @@
 # Kids Game Launcher
 
 A Blazor WebAssembly PWA game launcher for kids: a profile picker
-(parent/admin + kid accounts), a per-kid game carousel, five built-in
+(parent/admin + kid accounts), a per-kid game carousel, seven built-in
 games, and an admin panel for managing profiles, which games each kid
 can access, and daily screen time. Works fully offline — no backend, no
 server, no account — everything is stored locally in the browser.
@@ -20,9 +20,9 @@ dotnet run
 Then open the URL it prints (typically `http://localhost:5000`).
 
 On first launch it seeds two profiles — an Admin ("Parent") and a Kid
-("Buddy") — with four of the five built-in games already unlocked for
-Buddy (Tank Duel isn't auto-granted, see below), so there's something to
-click on right away.
+("Buddy") — with four of the seven built-in games already unlocked for
+Buddy (Tank Duel, UNO, and Simon Says aren't auto-granted, see below),
+so there's something to click on right away.
 
 ## Install it on a tablet
 
@@ -62,8 +62,9 @@ touch targets in Safari on iOS and is inconsistent elsewhere — Pointer
 Events give one code path that works the same for mouse, touch, and pen.
 
 Sound effects (match/mismatch chimes, catch/splash, tank fire/impact/
-explosion) are procedural — a handful of Web Audio oscillator and noise
-nodes in `wwwroot/js/interop.js`, not audio files. They only ever play in
+explosion, UNO card plays, Simon Says pad tones/error buzz) are
+procedural — a handful of Web Audio oscillator and noise nodes in
+`wwwroot/js/interop.js`, not audio files. They only ever play in
 direct response to a user-caused action (a tap, a shot the player fired),
 which is exactly what's needed to unlock `AudioContext` playback in every
 browser, so there's no separate "enable sound" step.
@@ -82,16 +83,23 @@ browser, so there's no separate "enable sound" step.
   to the catalog (built-in games are one click via a picker; external
   web games can be added by URL — Crown & Banner, under
   `wwwroot/games/`, is a worked example), toggle which games each kid
-  sees, and (`/admin/history/{id}`) view a kid's play history and set or
-  reset their daily time limit.
+  sees, and (`/admin/history/{id}`) view a kid's play history — each
+  entry shows a 🏆 Won/Lost badge for games with a real outcome (Tank
+  Duel, UNO) so you can tell at a glance whether a kid is winning or
+  struggling — and set or reset their daily time limit. "Manage games"
+  (`/admin/access/{id}`) also lets you lock Memory Match or Simon Says to
+  a specific difficulty per kid, so a young kid can't set it too hard for
+  themselves and older ones don't have to be asked each time; leave it on
+  "Let \{kid\} choose" to keep showing them the in-game picker.
 
-### The five built-in games
+### The seven built-in games
 
 - **Memory Match** — flip cards to find matching pairs. Choose Animals,
   ABC (uppercase↔lowercase), Numbers, or **Math** (an equation card like
   "5 + 7" matches its result card "12" — reuses the exact same matching
   engine as the other themes, just a different `GeneratePairs` function),
-  and a difficulty. A chime plays on a match, a soft buzz on a mismatch.
+  and a difficulty (unless a parent has locked it - see below). A chime
+  plays on a match, a soft buzz on a mismatch.
 - **Fishing Catch** — a basket on the dock shows a target letter, number,
   or (in **Colors** mode) a color name; catch 3 matching fish to advance.
   Colors mode matches by the fish's actual on-screen color, not a label -
@@ -124,6 +132,30 @@ browser, so there's no separate "enable sound" step.
   to clear in one shot. Seeded into the catalog but not auto-granted to
   the default kid profile, same reasoning as Crown & Banner - grant it
   per-kid from the admin panel.
+- **UNO** — you versus two CPU opponents, a simplified version of the
+  classic card game (standard 108-card deck: colors, numbers, Skip,
+  Reverse, Draw Two, Wild, Wild Draw Four). Match the top card by color,
+  number, or symbol, or play a Wild any time; first to empty their hand
+  wins. A pulsing "No playable cards - tap to draw" button appears
+  whenever you have no legal play, so you're never stuck wondering what
+  to do. Simplified from real UNO on purpose - no "must call UNO"
+  penalty, a Wild Draw Four can be played any time rather than only when
+  you have no other matching-color card, and Draw Two/Wild Draw Four only
+  make the next player draw extra cards rather than also skipping their
+  turn (only Skip itself skips a turn) - all three are real-UNO nuances
+  that mostly just create "gotcha" penalties for a young player. Seeded
+  into the catalog but not auto-granted - grant it per-kid from the
+  admin panel.
+- **Simon Says** — the classic four-pad sequence memory game. Watch the
+  pattern light up (with a distinct musical tone per pad), then repeat
+  it by tapping the pads in the same order; every round you get right
+  appends one more step (and speeds up slightly), so it keeps getting
+  harder the longer you last. Choose a difficulty before playing: **Easy**
+  never ends the game (a wrong tap just replays the same round so you can
+  try again), **Medium** allows 3 mistakes before it's game over, **Hard**
+  ends on the very first one. Reports how far you got either way. Seeded
+  into the catalog but not auto-granted - grant it per-kid from the admin
+  panel, optionally locking its difficulty there too.
 
 ## Screen time tracking and limits
 
