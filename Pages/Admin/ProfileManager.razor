@@ -12,7 +12,7 @@
     {
         <div class="admin-header">
             <h1>Parent admin</h1>
-            <a class="link-switch-profile" href="/">Exit admin</a>
+            <a class="link-switch-profile" href="">Exit admin</a>
         </div>
 
         <section class="admin-section">
@@ -31,9 +31,10 @@
                     @foreach (var profile in _profiles.Where(p => p.Type == ProfileType.Kid))
                     {
                         <div class="admin-profile-row" style="--card-color:@profile.ColorHex">
-                            <span class="admin-profile-avatar">@profile.AvatarEmoji</span>
+                            <AssetGlyph Class="admin-profile-avatar" Src="@profile.AvatarImagePath" Fallback="@profile.AvatarEmoji" Alt="@profile.Name" />
                             <span class="admin-profile-name">@profile.Name</span>
-                            <a class="btn-secondary" href="@($"/admin/access/{profile.Id}")">Manage games</a>
+                            <a class="btn-secondary" href="@($"admin/access/{profile.Id}")">Manage games</a>
+                            <a class="btn-secondary" href="@($"admin/history/{profile.Id}")">Screen time</a>
                             <button class="btn-secondary" @onclick="() => StartEditProfile(profile)">Edit</button>
                             <button class="btn-danger" @onclick="() => DeleteProfileAsync(profile)">Remove</button>
                         </div>
@@ -65,8 +66,12 @@
                         <input @bind="_editingProfile.Name" />
                     </label>
                     <label>
-                        Avatar (emoji)
-                        <input @bind="_editingProfile.AvatarEmoji" maxlength="2" />
+                        Avatar image path
+                        <input @bind="_editingProfile.AvatarImagePath" placeholder="images/profiles/buddy.png" />
+                    </label>
+                    <label>
+                        Avatar fallback emoji
+                        <input @bind="_editingProfile.AvatarEmoji" maxlength="8" />
                     </label>
                     <label>
                         Color
@@ -119,10 +124,12 @@
         {
             Id = profile.Id,
             Name = profile.Name,
+            AvatarImagePath = profile.AvatarImagePath,
             AvatarEmoji = profile.AvatarEmoji,
             ColorHex = profile.ColorHex,
             Type = profile.Type,
-            PinHash = profile.PinHash
+            PinHash = profile.PinHash,
+            DailyTimeLimitMinutes = profile.DailyTimeLimitMinutes
         };
     }
 

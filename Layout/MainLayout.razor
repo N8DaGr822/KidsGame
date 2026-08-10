@@ -1,5 +1,36 @@
 @inherits LayoutComponentBase
+@inject Services.PlayTimeTracker Tracker
+@inject NavigationManager Nav
+@implements IDisposable
 
 <div class="app-shell">
     @Body
 </div>
+
+@if (Tracker.LimitReached)
+{
+    <div class="time-limit-overlay">
+        <div class="time-limit-card">
+            <span class="time-limit-icon">⏰</span>
+            <h1>All done for today!</h1>
+            <p>You've used up today's play time. Ask a grown-up if you'd like more, or come back tomorrow!</p>
+            <button class="btn-primary" @onclick="BackToProfiles">Back to profiles</button>
+        </div>
+    </div>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        Tracker.OnChange += HandleTrackerChanged;
+    }
+
+    private void HandleTrackerChanged() => InvokeAsync(StateHasChanged);
+
+    private void BackToProfiles() => Nav.NavigateTo("");
+
+    public void Dispose()
+    {
+        Tracker.OnChange -= HandleTrackerChanged;
+    }
+}

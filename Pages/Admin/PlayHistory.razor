@@ -1,0 +1,177 @@
+@page "/admin/history/{ProfileId}"
+@inject AppDataService Data
+@inject AppState State
+@inject NavigationManager Nav
+
+<div class="screen admin-screen">
+    @if (State.CurrentProfile is null || State.CurrentProfile.Type != ProfileType.Admin)
+    {
+        <p class="muted">Redirecting…</p>
+    }
+    else if (_profile is null)
+    {
+        <p class="muted">Loading…</p>
+    }
+    else
+    {
+        <div class="admin-header">
+            <a class="link-back" href="admin">← Back to admin</a>
+            <h1>Screen time for @_profile.Name</h1>
+        </div>
+
+        <section class="admin-section">
+            <h2>Daily limit</h2>
+            <p class="muted">How long @_profile.Name can play each day before the app locks them out. Leave blank for no limit.</p>
+            <div class="admin-pin-row">
+                <input type="number" min="0" step="5" @bind="_limitMinutesInput" placeholder="No limit" style="max-width:8rem" />
+                <button class="btn-primary" @onclick="SaveLimitAsync">Save limit</button>
+                @if (_limitSaved)
+                {
+                    <span class="success-text">Saved</span>
+                }
+            </div>
+
+            <div class="admin-pin-row" style="margin-top:1rem">
+                <span>
+                    Today: <strong>@FormatMinutes(_todaySeconds)</strong>
+                    @if (_profile.DailyTimeLimitMinutes is > 0)
+                    {
+                        <span class="muted"> of @_profile.DailyTimeLimitMinutes min</span>
+                    }
+                </span>
+                <button class="btn-secondary" @onclick="ResetTodayAsync">Reset today's timer</button>
+            </div>
+        </section>
+
+        <section class="admin-section">
+            <h2>Last 7 days</h2>
+            @if (_usageHistory is null || _usageHistory.Count == 0)
+            {
+                <p class="muted">No play time recorded yet.</p>
+            }
+            else
+            {
+                <div class="usage-history">
+                    @foreach (var day in _usageHistory)
+                    {
+                        <div class="usage-history-row">
+                            <span class="usage-history-date">@day.Date.ToString("ddd M/d")</span>
+                            <div class="usage-history-bar-track">
+                                <div class="usage-history-bar" style="width:@(BarWidthPercent(day.Seconds))%"></div>
+                            </div>
+                            <span class="usage-history-minutes">@FormatMinutes(day.Seconds)</span>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="admin-section">
+            <h2>Recent activity</h2>
+            @if (_recentSessions is null || _recentSessions.Count == 0)
+            {
+                <p class="muted">Nothing played yet.</p>
+            }
+            else
+            {
+                <div class="admin-profile-list">
+                    @foreach (var entry in _recentSessions)
+                    {
+                        <div class="admin-profile-row">
+                            @{
+                                var game = GameFor(entry.GameId);
+                            }
+                            <AssetGlyph Class="admin-profile-avatar" Src="@game?.ThumbnailImagePath" Fallback="@(game?.ThumbnailEmoji ?? "🎮")" Alt="@(game?.Title ?? "Unknown game")" />
+                            <span class="admin-profile-name">
+                                @(game?.Title ?? "Unknown game")
+                                <span class="muted">
+                                    — @FormatMinutesSeconds(entry.ElapsedSeconds)@(string.IsNullOrEmpty(entry.Difficulty) ? "" : $", {entry.Difficulty}")
+                                </span>
+                            </span>
+                            <span class="muted">@entry.PlayedAtUtc.ToLocalTime().ToString("MMM d, h:mm tt")</span>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter] public string ProfileId { get; set; } = "";
+
+    private Profile? _profile;
+    private List<Game> _games = new();
+    private List<(DateTime Date, int Seconds)>? _usageHistory;
+    private List<PlayHistoryEntry>? _recentSessions;
+    private int _todaySeconds;
+    private int? _limitMinutesInput;
+    private bool _limitSaved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (State.CurrentProfile is null || State.CurrentProfile.Type != ProfileType.Admin)
+        {
+            Nav.NavigateTo("");
+            return;
+        }
+
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        var profiles = await Data.GetProfilesAsync();
+        _profile = profiles.FirstOrDefault(p => p.Id == ProfileId);
+
+        if (_profile is null)
+        {
+            Nav.NavigateTo("admin");
+            return;
+        }
+
+        _limitMinutesInput = _profile.DailyTimeLimitMinutes;
+        _games = await Data.GetAllGamesAsync();
+        _usageHistory = await Data.GetUsageHistoryAsync(ProfileId, 7);
+        _todaySeconds = await Data.GetTodayUsageSecondsAsync(ProfileId);
+        _recentSessions = (await Data.GetPlayHistoryAsync(ProfileId))
+            .OrderByDescending(h => h.PlayedAtUtc)
+            .Take(15)
+            .ToList();
+    }
+
+    private async Task SaveLimitAsync()
+    {
+        if (_profile is null) return;
+
+        _profile.DailyTimeLimitMinutes = _limitMinutesInput is > 0 ? _limitMinutesInput : null;
+        await Data.UpdateProfileAsync(_profile);
+
+        _limitSaved = true;
+        await RefreshAsync();
+    }
+
+    private async Task ResetTodayAsync()
+    {
+        await Data.ResetTodayUsageAsync(ProfileId);
+        await RefreshAsync();
+    }
+
+    private Game? GameFor(string gameId) => _games.FirstOrDefault(g => g.Id == gameId);
+
+    private static string FormatMinutes(int seconds) => $"{seconds / 60} min";
+
+    private static string FormatMinutesSeconds(int seconds)
+    {
+        var mins = seconds / 60;
+        var secs = seconds % 60;
+        return mins > 0 ? $"{mins}m {secs}s" : $"{secs}s";
+    }
+
+    private int BarWidthPercent(int seconds)
+    {
+        var maxSeconds = Math.Max(_usageHistory?.Max(h => h.Seconds) ?? 0, (_profile?.DailyTimeLimitMinutes ?? 0) * 60);
+        maxSeconds = Math.Max(maxSeconds, 60);
+        return (int)Math.Clamp(seconds * 100.0 / maxSeconds, 0, 100);
+    }
+}

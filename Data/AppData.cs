@@ -19,4 +19,11 @@ public class AppData
 
     // Every completed play session, across all profiles and games.
     public List<PlayHistoryEntry> PlayHistory { get; set; } = new();
+
+    // profileId -> "yyyy-MM-dd" (local date) -> total seconds the app was
+    // open with that profile active. Ticked by PlayTimeTracker whenever a
+    // Kid profile is current, independent of which screen or game is
+    // showing - this is what daily time limits are enforced against, since
+    // PlayHistory above only captures completed/exited game sessions.
+    public Dictionary<string, Dictionary<string, int>> DailyUsageSeconds { get; set; } = new();
 }

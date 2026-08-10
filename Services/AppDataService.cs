@@ -78,6 +78,7 @@ public class AppDataService
         var data = await LoadAsync();
         data.Profiles.RemoveAll(p => p.Id == profileId);
         data.ProfileGameAccess.Remove(profileId);
+        data.DailyUsageSeconds.Remove(profileId);
         await SaveAsync();
     }
 
@@ -176,6 +177,67 @@ public class AppDataService
         return data.PlayHistory.Where(h => h.ProfileId == profileId).ToList();
     }
 
+    // ---- Play time tracking ----
+
+    // Adds to today's usage bucket for a profile and returns the new
+    // running total for today, so callers can check it against a limit
+    // without a second round trip.
+    public async Task<int> AddUsageSecondsAsync(string profileId, int seconds)
+    {
+        var data = await LoadAsync();
+        var dateKey = TodayKey();
+
+        if (!data.DailyUsageSeconds.TryGetValue(profileId, out var days))
+        {
+            days = new Dictionary<string, int>();
+            data.DailyUsageSeconds[profileId] = days;
+        }
+
+        days.TryGetValue(dateKey, out var current);
+        var updated = current + seconds;
+        days[dateKey] = updated;
+
+        await SaveAsync();
+        return updated;
+    }
+
+    public async Task<int> GetTodayUsageSecondsAsync(string profileId)
+    {
+        var data = await LoadAsync();
+        return data.DailyUsageSeconds.TryGetValue(profileId, out var days)
+               && days.TryGetValue(TodayKey(), out var seconds)
+            ? seconds
+            : 0;
+    }
+
+    // Oldest first, one entry per day, zero-filled for days with no usage.
+    public async Task<List<(DateTime Date, int Seconds)>> GetUsageHistoryAsync(string profileId, int dayCount)
+    {
+        var data = await LoadAsync();
+        var byDate = data.DailyUsageSeconds.TryGetValue(profileId, out var days) ? days : new Dictionary<string, int>();
+
+        var result = new List<(DateTime, int)>();
+        for (var i = dayCount - 1; i >= 0; i--)
+        {
+            var date = DateTime.Now.Date.AddDays(-i);
+            result.Add((date, byDate.TryGetValue(date.ToString("yyyy-MM-dd"), out var seconds) ? seconds : 0));
+        }
+
+        return result;
+    }
+
+    // Lets a parent grant bonus time today without waiting for the
+    // midnight rollover or raising the permanent daily limit.
+    public async Task ResetTodayUsageAsync(string profileId)
+    {
+        var data = await LoadAsync();
+        if (data.DailyUsageSeconds.TryGetValue(profileId, out var days))
+            days[TodayKey()] = 0;
+        await SaveAsync();
+    }
+
+    private static string TodayKey() => DateTime.Now.ToString("yyyy-MM-dd");
+
     // ---- Seed data ----
 
     private static AppData SeedDefaultData()
@@ -200,6 +262,7 @@ public class AppDataService
         var memoryMatch = new Game
         {
             Title = memoryMatchDef.Title,
+            ThumbnailImagePath = memoryMatchDef.ThumbnailImagePath,
             ThumbnailEmoji = memoryMatchDef.ThumbnailEmoji,
             LaunchTarget = memoryMatchDef.LaunchTarget,
             LaunchMode = GameLaunchMode.InternalRoute
@@ -209,6 +272,7 @@ public class AppDataService
         var fishing = new Game
         {
             Title = fishingDef.Title,
+            ThumbnailImagePath = fishingDef.ThumbnailImagePath,
             ThumbnailEmoji = fishingDef.ThumbnailEmoji,
             LaunchTarget = fishingDef.LaunchTarget,
             LaunchMode = GameLaunchMode.InternalRoute
@@ -218,6 +282,7 @@ public class AppDataService
         var dressUp = new Game
         {
             Title = dressUpDef.Title,
+            ThumbnailImagePath = dressUpDef.ThumbnailImagePath,
             ThumbnailEmoji = dressUpDef.ThumbnailEmoji,
             LaunchTarget = dressUpDef.LaunchTarget,
             LaunchMode = GameLaunchMode.InternalRoute
@@ -227,6 +292,7 @@ public class AppDataService
         var mannersGarden = new Game
         {
             Title = mannersGardenDef.Title,
+            ThumbnailImagePath = mannersGardenDef.ThumbnailImagePath,
             ThumbnailEmoji = mannersGardenDef.ThumbnailEmoji,
             LaunchTarget = mannersGardenDef.LaunchTarget,
             LaunchMode = GameLaunchMode.InternalRoute
@@ -241,6 +307,7 @@ public class AppDataService
         var crownAndBanner = new Game
         {
             Title = "Crown & Banner",
+            ThumbnailImagePath = "games/crown-and-banner/assets/units/griffin.png",
             ThumbnailEmoji = "👑",
             LaunchTarget = "games/crown-and-banner/index.html",
             LaunchMode = GameLaunchMode.ExternalIframe

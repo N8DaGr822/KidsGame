@@ -17,6 +17,7 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 // intentionally NOT persisted to storage.
 builder.Services.AddScoped<AppDataService>();
 builder.Services.AddScoped<AppState>();
+builder.Services.AddScoped<PlayTimeTracker>();
 
 builder.Services
     .AddBlazorise(options => options.Immediate = true)

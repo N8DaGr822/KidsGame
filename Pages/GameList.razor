@@ -49,5 +49,5 @@
         _games = await Data.GetGamesForProfileAsync(State.CurrentProfile.Id);
     }
 
-    private void PlayAsync(Game game) => Nav.NavigateTo($"/play/{game.Id}");
+    private void PlayAsync(Game game) => Nav.NavigateTo($"play/{game.Id}");
 }
