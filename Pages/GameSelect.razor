@@ -39,7 +39,7 @@
 
             @if (_games.Count > 8)
             {
-                <a class="link-see-all" href="/games/all">See all @_games.Count games →</a>
+                <a class="link-see-all" href="games/all">See all @_games.Count games →</a>
             }
         }
     }
@@ -52,7 +52,7 @@
     {
         if (State.CurrentProfile is null)
         {
-            Nav.NavigateTo("/");
+            Nav.NavigateTo("");
             return;
         }
 

@@ -15,7 +15,7 @@
     else
     {
         <div class="admin-header">
-            <a class="link-back" href="/admin">← Back to admin</a>
+            <a class="link-back" href="admin">← Back to admin</a>
             <h1>Games for @_profile.Name</h1>
         </div>
 
@@ -116,7 +116,7 @@
     {
         if (State.CurrentProfile is null || State.CurrentProfile.Type != ProfileType.Admin)
         {
-            Nav.NavigateTo("/");
+            Nav.NavigateTo("");
             return;
         }
 
@@ -130,7 +130,7 @@
 
         if (_profile is null)
         {
-            Nav.NavigateTo("/admin");
+            Nav.NavigateTo("admin");
             return;
         }
 

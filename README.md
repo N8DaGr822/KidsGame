@@ -25,17 +25,34 @@ there's something to click on right away.
 
 ## Install it on a tablet
 
-1. Publish a release build:
-   ```bash
-   dotnet publish -c Release -o publish
-   ```
-2. Host the contents of `publish/wwwroot` somewhere reachable from the
-   tablet — a static file host (GitHub Pages, Azure Static Web Apps,
-   Netlify, or a local `python -m http.server` on your home network for
-   testing) all work, since this is a pure static-file PWA.
-3. On the tablet, open that URL in the browser and use **"Add to Home
-   Screen"** (Chrome on Android, or Safari's Share menu on iPad). It
-   installs with its own icon and launches full-screen, offline-capable.
+Every push to `main` auto-deploys to GitHub Pages via
+[.github/workflows/deploy.yml](.github/workflows/deploy.yml) (enable it
+once under repo Settings → Pages → Source → "GitHub Actions"). The site
+ends up at `https://<user>.github.io/KidsGame/`.
+
+On the tablet, open that URL in the browser and use **"Add to Home
+Screen"** (Chrome on Android, or Safari's Share menu — must be Safari —
+on iPad). It installs with its own icon and launches full-screen,
+offline-capable. Launch it once while online so the service worker can
+cache everything before going offline.
+
+Service workers (and therefore offline support) only register over
+HTTPS, which is why this needs a real static host rather than
+`python -m http.server` on the home network — that works for a quick
+look but won't install as a true offline app.
+
+To publish and host it somewhere else instead (Netlify, Cloudflare
+Pages, Azure Static Web Apps, etc. all work — this is a pure static-file
+PWA):
+```bash
+dotnet publish -c Release -o publish
+```
+Host the contents of `publish/wwwroot`. Note that `<base href="/" />`
+in `wwwroot/index.html` and the app's internal navigation assume the
+site is served from the host's root; the GitHub Actions workflow patches
+`<base href>` to `/KidsGame/` at publish time to account for GitHub
+Pages' project-subpath URLs; a host that serves from its own root
+domain (Netlify, Cloudflare Pages) needs no such patch.
 
 All three games use touch-friendly tap targets and, where dragging is
 involved (Dress Up), [Pointer Events](https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events)

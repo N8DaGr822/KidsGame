@@ -60,7 +60,7 @@
     {
         if (State.CurrentProfile is null)
         {
-            Nav.NavigateTo("/");
+            Nav.NavigateTo("");
             return;
         }
 
@@ -69,7 +69,7 @@
 
         if (_game is null)
         {
-            Nav.NavigateTo("/games");
+            Nav.NavigateTo("games");
         }
     }
 
@@ -133,5 +133,5 @@
         });
     }
 
-    private void GoBack() => Nav.NavigateTo("/games");
+    private void GoBack() => Nav.NavigateTo("games");
 }
