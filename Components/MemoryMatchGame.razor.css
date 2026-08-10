@@ -217,9 +217,15 @@
 }
 
 .mg-theme-abc .mg-card-front,
-.mg-theme-numbers .mg-card-front {
+.mg-theme-numbers .mg-card-front,
+.mg-theme-math .mg-card-front {
     font-family: 'Nunito', system-ui, sans-serif;
     font-weight: 900;
+}
+
+.mg-theme-math .mg-card-glyph {
+    font-size: clamp(1rem, 3.6vw, 1.7rem);
+    white-space: nowrap;
 }
 
 .mg-win-overlay {

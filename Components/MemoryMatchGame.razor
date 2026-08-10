@@ -17,7 +17,8 @@
     so a parent launcher page can log scores, show a summary, or return to the
     game selection carousel.
 *@
-@implements IDisposable
+@implements IAsyncDisposable
+@inject IJSRuntime JS
 
 <div class="memory-game">
 
@@ -197,8 +198,7 @@
                 BoardClass: "mg-theme-numbers",
                 GeneratePairs: pairCount =>
                 {
-                    // Simple matching: identical numbers. (A future "Add & Subtract"
-                    // theme can reuse this same engine — see note above.)
+                    // Simple matching: identical numbers.
                     var chosen = Enumerable.Range(1, 20).OrderBy(_ => Guid.NewGuid()).Take(pairCount);
                     return chosen
                         .SelectMany(n => new[]
@@ -208,12 +208,59 @@
                         })
                         .ToList();
                 }),
+
+            new ThemeDefinition(
+                Name: "Math",
+                Icon: "➕",
+                BoardClass: "mg-theme-math",
+                GeneratePairs: GenerateMathPairs),
         };
 
         selectedTheme = Themes[0];
     }
 
     private void SetTheme(ThemeDefinition t) => selectedTheme = t;
+
+    // Match an equation ("3 + 2") to its result ("5"). Results within a
+    // single game must be unique - two different equations both landing
+    // on the same MatchKey would give that result four cards instead of
+    // two, breaking the "every card has exactly one partner" rule the
+    // rest of the matching engine relies on.
+    private static List<CardSeed> GenerateMathPairs(int pairCount)
+    {
+        var usedResults = new HashSet<int>();
+        var seeds = new List<CardSeed>();
+        var attempts = 0;
+
+        while (seeds.Count < pairCount * 2 && attempts < 1000)
+        {
+            attempts++;
+            int result;
+            string equation;
+
+            if (Random.Shared.Next(2) == 0)
+            {
+                var a = Random.Shared.Next(1, 10);
+                var b = Random.Shared.Next(1, 10);
+                result = a + b;
+                equation = $"{a} + {b}";
+            }
+            else
+            {
+                var a = Random.Shared.Next(1, 10);
+                var b = Random.Shared.Next(1, a + 1);
+                result = a - b;
+                equation = $"{a} - {b}";
+            }
+
+            if (!usedResults.Add(result)) continue;
+
+            seeds.Add(new CardSeed(equation, result.ToString()));
+            seeds.Add(new CardSeed(result.ToString(), result.ToString()));
+        }
+
+        return seeds;
+    }
 
     // ---- Card model ----------------------------------------------------------
 
@@ -229,6 +276,7 @@
     private CardState? firstPick;
     private CardState? secondPick;
     private bool isResolvingMismatch;
+    private IJSObjectReference? _module;
 
     // ---- Game state ------------------------------------------------------
 
@@ -296,6 +344,7 @@
             matchedPairs++;
             firstPick = null;
             secondPick = null;
+            await PlaySoundAsync("playMatchSound");
 
             if (matchedPairs == selectedDifficulty.PairCount)
             {
@@ -306,6 +355,7 @@
         {
             isResolvingMismatch = true;
             StateHasChanged();
+            await PlaySoundAsync("playMismatchSound");
             await Task.Delay(800);
             firstPick.IsFaceUp = false;
             secondPick.IsFaceUp = false;
@@ -314,6 +364,12 @@
             isResolvingMismatch = false;
             StateHasChanged();
         }
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
     }
 
     private async Task FinishGame()
@@ -356,9 +412,15 @@
         return ts.Minutes > 0 ? $"{ts.Minutes}:{ts.Seconds:D2}" : $"{ts.Seconds}s";
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         StopTimer();
+
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
     }
 
     // ---- Result payload ------------------------------------------------------
