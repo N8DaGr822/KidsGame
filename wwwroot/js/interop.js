@@ -14,3 +14,59 @@ export function getBoundingRect(element) {
 export function setPointerCapture(element, pointerId) {
     element.setPointerCapture(pointerId);
 }
+
+// ---- Freehand drawing on a <canvas> overlay --------------------------
+//
+// Drawing happens entirely here rather than round-tripping every
+// pointermove through Blazor - there's nothing to re-render, and this
+// keeps fast strokes smooth.
+
+const drawContexts = new WeakMap();
+
+function getDrawContext(canvas) {
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = canvas.clientWidth;
+    const cssHeight = canvas.clientHeight;
+    let entry = drawContexts.get(canvas);
+
+    // (Re)size the backing store to match the canvas's current on-screen
+    // size, scaled for device pixel ratio so strokes stay crisp. Only
+    // happens on first use or if the stage actually reflows (e.g. a
+    // window resize) - not on every stroke - but note it does clear any
+    // existing drawing when it happens.
+    if (!entry || entry.cssWidth !== cssWidth || entry.cssHeight !== cssHeight) {
+        canvas.width = cssWidth * dpr;
+        canvas.height = cssHeight * dpr;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        entry = { ctx, cssWidth, cssHeight };
+        drawContexts.set(canvas, entry);
+    }
+
+    return entry.ctx;
+}
+
+export function drawStart(canvas, x, y, color, size) {
+    const ctx = getDrawContext(canvas);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = size;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+}
+
+export function drawMove(canvas, x, y) {
+    const ctx = getDrawContext(canvas);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+}
+
+export function drawEnd(canvas) {
+    getDrawContext(canvas).closePath();
+}
+
+export function clearDrawCanvas(canvas) {
+    const ctx = getDrawContext(canvas);
+    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+}

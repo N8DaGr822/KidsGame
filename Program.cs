@@ -1,5 +1,8 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using Blazorise;
+using Blazorise.Bootstrap5;
+using Blazorise.Icons.FontAwesome;
 using KidsGameLauncher;
 using KidsGameLauncher.Services;
 
@@ -14,5 +17,10 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 // intentionally NOT persisted to storage.
 builder.Services.AddScoped<AppDataService>();
 builder.Services.AddScoped<AppState>();
+
+builder.Services
+    .AddBlazorise(options => options.Immediate = true)
+    .AddBootstrap5Providers()
+    .AddFontAwesomeIcons();
 
 await builder.Build().RunAsync();

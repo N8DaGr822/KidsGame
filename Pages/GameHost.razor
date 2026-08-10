@@ -107,8 +107,8 @@
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
-            Theme = result.Track,
-            Difficulty = result.Character,
+            Theme = result.Character,
+            Difficulty = $"{result.StickersPlaced} stickers",
             Moves = result.StickersPlaced,
             ElapsedSeconds = 0,
         });
