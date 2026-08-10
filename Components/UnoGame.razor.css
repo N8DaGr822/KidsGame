@@ -1,0 +1,288 @@
+.uno-game {
+    width: min(780px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+}
+
+.uno-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: rgba(32, 36, 49, 0.82);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.uno-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.uno-setup p {
+    max-width: 34rem;
+    color: var(--text-muted);
+}
+
+.uno-rules {
+    list-style: none;
+    display: grid;
+    gap: 0.4rem;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+    color: var(--text-muted);
+}
+
+.uno-start-btn,
+.uno-restart-btn {
+    min-height: 48px;
+    padding: 0.7rem 1.4rem;
+    border-radius: var(--radius-sm);
+    font-weight: 900;
+}
+
+.uno-start-btn {
+    background: var(--accent);
+    color: var(--accent-ink);
+}
+
+.uno-start-btn:hover {
+    background: var(--accent-strong);
+}
+
+.uno-restart-btn {
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text);
+}
+
+.uno-hud {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.uno-title {
+    font-weight: 900;
+    font-size: 1.2rem;
+}
+
+.uno-direction {
+    font-size: 1.6rem;
+    line-height: 1;
+}
+
+.uno-table {
+    display: grid;
+    gap: 1rem;
+}
+
+.uno-opponents {
+    display: flex;
+    justify-content: space-around;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.uno-opponent {
+    display: grid;
+    justify-items: center;
+    gap: 0.25rem;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+}
+
+.uno-opponent.current {
+    border-color: var(--accent);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.uno-opponent-name {
+    font-weight: 800;
+    font-size: 0.9rem;
+}
+
+.uno-opponent-hand {
+    display: flex;
+}
+
+.uno-opponent-count {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.uno-card-back {
+    width: 22px;
+    height: 32px;
+    margin-left: -10px;
+    border-radius: 5px;
+    background: linear-gradient(135deg, #1f2430, #3a3f52);
+    border: 2px solid #f7f8fc;
+    box-shadow: var(--shadow-sm);
+}
+
+.uno-card-back:first-child {
+    margin-left: 0;
+}
+
+.uno-card-back.big {
+    width: 52px;
+    height: 76px;
+    margin-left: 0;
+}
+
+.uno-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    padding: 1rem 0;
+    position: relative;
+}
+
+.uno-draw-pile {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    background: none;
+    padding: 0;
+}
+
+.uno-draw-pile:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.uno-pile-count {
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.uno-discard-pile {
+    display: grid;
+    place-items: center;
+}
+
+.uno-turn-banner {
+    position: absolute;
+    bottom: -1.4rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.uno-card {
+    width: 52px;
+    height: 76px;
+    border-radius: 8px;
+    border: 3px solid #f7f8fc;
+    display: grid;
+    place-items: center;
+    font-weight: 900;
+    font-size: 1.3rem;
+    color: #fff;
+    box-shadow: var(--shadow-sm);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.uno-red { background: linear-gradient(160deg, #ff6b6b, #d43b3b); }
+.uno-yellow { background: linear-gradient(160deg, #ffd166, #d69a1c); color: #2a2000; text-shadow: none; }
+.uno-green { background: linear-gradient(160deg, #76e39f, #2ea866); }
+.uno-blue { background: linear-gradient(160deg, #38b6ff, #1c72c9); }
+.uno-wild { background: linear-gradient(135deg, #ff6b6b, #ffd166, #76e39f, #38b6ff); }
+
+.uno-draw-cta {
+    display: block;
+    margin: 0 auto 0.5rem;
+    padding: 0.6rem 1.2rem;
+    border-radius: var(--radius-sm);
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 900;
+    box-shadow: var(--shadow-sm);
+    animation: uno-cta-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes uno-cta-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+}
+
+.uno-player-hand {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+}
+
+.uno-player-hand .uno-card {
+    cursor: pointer;
+    transition: transform 0.12s ease, opacity 0.12s ease;
+    opacity: 0.45;
+}
+
+.uno-player-hand .uno-card.playable {
+    opacity: 1;
+}
+
+.uno-player-hand .uno-card:not(:disabled):hover {
+    transform: translateY(-6px);
+}
+
+.uno-player-hand .uno-card:disabled {
+    cursor: default;
+}
+
+.uno-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 12, 18, 0.72);
+    display: grid;
+    place-items: center;
+    z-index: 40;
+    padding: 1rem;
+}
+
+.uno-color-picker,
+.uno-win-panel {
+    background: rgba(24, 27, 38, 0.96);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 1.5rem;
+    text-align: center;
+    display: grid;
+    gap: 1rem;
+    justify-items: center;
+}
+
+.uno-color-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+}
+
+.uno-color-swatch {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 3px solid #f7f8fc;
+}
+
+.uno-win-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}

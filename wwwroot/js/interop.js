@@ -289,3 +289,24 @@ export function playExplosionSound() {
     noiseBurst(ctx, t, 0.55, 0.35, 700);
     slide(ctx, 160, 40, t, 0.4, 'sawtooth', 0.22);
 }
+
+export function playUnoPlaySound() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    tone(ctx, 440, ctx.currentTime, 0.1, 'triangle', 0.15);
+}
+
+const SIMON_TONE_FREQS = [329.63, 261.63, 220.0, 164.81]; // green, red, yellow, blue
+
+export function playSimonTone(index) {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const freq = SIMON_TONE_FREQS[index] ?? 261.63;
+    tone(ctx, freq, ctx.currentTime, 0.35, 'sine', 0.22);
+}
+
+export function playSimonErrorSound() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    slide(ctx, 200, 80, ctx.currentTime, 0.4, 'sawtooth', 0.2);
+}

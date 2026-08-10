@@ -1,0 +1,518 @@
+@*
+    UnoGame.razor
+    A simplified UNO-style card game: you versus two CPU opponents.
+    Standard 108-card deck (4 colors x [one 0, two each of 1-9, two Skip,
+    two Reverse, two Draw Two] + 4 Wild + 4 Wild Draw Four). Match the top
+    of the discard pile by color, number, or symbol, or play a Wild any
+    time. First to empty their hand wins.
+
+    Simplified from real UNO for a young audience: no "must call UNO"
+    penalty, and Wild Draw Four can be played any time rather than only
+    when you have no other matching color - both are real-UNO nuances
+    that mostly just create "gotcha" penalties, not fun.
+
+    Usage:
+        <UnoGame OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="uno-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="uno-setup">
+            <h2>UNO</h2>
+            <p>Match the top card by color, number, or symbol. First to play all your cards wins!</p>
+            <ul class="uno-rules">
+                <li>🎨 <strong>Wild</strong> cards let you pick the next color.</li>
+                <li>⛔ <strong>Skip</strong> - the next player misses a turn.</li>
+                <li>🔁 <strong>Reverse</strong> - play switches direction.</li>
+                <li>+2 / +4 - the next player draws extra cards, then plays as normal.</li>
+            </ul>
+            <button class="uno-start-btn" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="uno-hud">
+            <span class="uno-title">UNO</span>
+            <span class="uno-direction" title="@(direction == 1 ? "Clockwise" : "Counter-clockwise")">@(direction == 1 ? "↻" : "↺")</span>
+            <button class="uno-restart-btn" @onclick="() => phase = Phase.Setup">← Exit</button>
+        </div>
+
+        <div class="uno-table">
+            <div class="uno-opponents">
+                @foreach (var bot in players.Skip(1))
+                {
+                    <div class="uno-opponent @(IsCurrent(bot) ? "current" : "")">
+                        <span class="uno-opponent-name">@bot.Name</span>
+                        <div class="uno-opponent-hand">
+                            @for (var i = 0; i < Math.Min(bot.Hand.Count, 10); i++)
+                            {
+                                <span class="uno-card-back"></span>
+                            }
+                        </div>
+                        <span class="uno-opponent-count">@bot.Hand.Count card@(bot.Hand.Count == 1 ? "" : "s")</span>
+                    </div>
+                }
+            </div>
+
+            <div class="uno-center">
+                <button class="uno-draw-pile" @onclick="HumanDraw" disabled="@(!CanHumanDraw())" title="Draw pile (@drawPile.Count left)">
+                    <span class="uno-card-back big"></span>
+                    <span class="uno-pile-count">@drawPile.Count</span>
+                </button>
+
+                <div class="uno-discard-pile">
+                    @if (TopDiscard is { } top)
+                    {
+                        <span class="uno-card @CardColorClass(currentColor)">@CardLabel(top)</span>
+                    }
+                </div>
+
+                <div class="uno-turn-banner">@TurnBannerText()</div>
+            </div>
+
+            @if (CanHumanDraw())
+            {
+                <button class="uno-draw-cta" @onclick="HumanDraw">🎴 No playable cards - tap to draw</button>
+            }
+
+            <div class="uno-player-hand">
+                @foreach (var card in players[0].Hand)
+                {
+                    <button @key="card.Id" class="uno-card @CardColorClass(card.Color) @(IsPlayable(card) ? "playable" : "")"
+                            disabled="@(!(phase == Phase.PlayerTurn && IsPlayable(card)))"
+                            @onclick="() => HumanPlay(card)">
+                        @CardLabel(card)
+                    </button>
+                }
+            </div>
+        </div>
+
+        @if (phase == Phase.ChoosingColor)
+        {
+            <div class="uno-overlay">
+                <div class="uno-color-picker">
+                    <h3>Pick a color</h3>
+                    <div class="uno-color-grid">
+                        @foreach (var color in new[] { CardColor.Red, CardColor.Yellow, CardColor.Green, CardColor.Blue })
+                        {
+                            <button class="uno-color-swatch @CardColorClass(color)" @onclick="() => ChooseWildColor(color)" aria-label="@color"></button>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (phase == Phase.RoundEnd)
+        {
+            <div class="uno-overlay">
+                <div class="uno-win-panel">
+                    <h2>@(winner == players[0] ? "🎉 You win!" : $"{winner?.Name} wins!")</h2>
+                    <p>@(winner == players[0] ? "Great playing" + (string.IsNullOrWhiteSpace(PlayerName) ? "!" : $", {PlayerName}!") : "Better luck next hand!")</p>
+                    <div class="uno-win-actions">
+                        <button class="uno-start-btn" @onclick="StartGame">Play Again</button>
+                        <button class="uno-restart-btn" @onclick="() => phase = Phase.Setup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    // ---- Public parameters -------------------------------------------------
+
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<UnoResult> OnComplete { get; set; }
+
+    // ---- Card model ----------------------------------------------------------
+
+    public enum CardColor { Red, Yellow, Green, Blue, Wild }
+    public enum CardKind { Number, Skip, Reverse, DrawTwo, Wild, WildDrawFour }
+    public record UnoCard(string Id, CardColor Color, CardKind Kind, int? Number = null);
+
+    public class UnoPlayer
+    {
+        public string Name { get; set; } = "";
+        public bool IsHuman { get; set; }
+        public List<UnoCard> Hand { get; set; } = new();
+    }
+
+    private enum Phase { Setup, PlayerTurn, Busy, ChoosingColor, RoundEnd }
+
+    // ---- State ---------------------------------------------------------------
+
+    private Phase phase = Phase.Setup;
+    private readonly List<UnoPlayer> players = new();
+    private readonly List<UnoCard> drawPile = new();
+    private readonly List<UnoCard> discardPile = new();
+    private int currentPlayerIndex;
+    private int direction = 1;
+    private CardColor currentColor;
+    private UnoPlayer? winner;
+    private UnoCard? pendingWildCard;
+    private int turnsPlayed;
+    private DateTime startedAtUtc;
+    private readonly Random rng = new();
+    private IJSObjectReference? _module;
+
+    private UnoCard? TopDiscard => discardPile.Count > 0 ? discardPile[^1] : null;
+
+    private void StartGame()
+    {
+        players.Clear();
+        players.Add(new UnoPlayer { Name = string.IsNullOrWhiteSpace(PlayerName) ? "You" : PlayerName, IsHuman = true });
+        players.Add(new UnoPlayer { Name = "Robo Red" });
+        players.Add(new UnoPlayer { Name = "Bot Blue" });
+
+        drawPile.Clear();
+        drawPile.AddRange(BuildDeck());
+        Shuffle(drawPile);
+
+        discardPile.Clear();
+        currentPlayerIndex = 0;
+        direction = 1;
+        winner = null;
+        turnsPlayed = 0;
+        startedAtUtc = DateTime.UtcNow;
+
+        foreach (var player in players)
+        {
+            player.Hand.Clear();
+            for (var i = 0; i < 7; i++)
+            {
+                player.Hand.Add(DrawOne());
+            }
+        }
+
+        // Flip a starting card. Keep re-drawing (putting non-number cards
+        // back at the bottom) until it's a plain number card, so the very
+        // first turn isn't immediately skipped/reversed/wild-colored
+        // before anyone has done anything.
+        UnoCard starter;
+        while (true)
+        {
+            starter = DrawOne();
+            if (starter.Kind == CardKind.Number) break;
+            drawPile.Add(starter);
+        }
+        discardPile.Add(starter);
+        currentColor = starter.Color;
+
+        phase = Phase.PlayerTurn;
+        _ = MaybeRunCpuTurnsAsync();
+    }
+
+    private static List<UnoCard> BuildDeck()
+    {
+        var deck = new List<UnoCard>();
+        foreach (var color in new[] { CardColor.Red, CardColor.Yellow, CardColor.Green, CardColor.Blue })
+        {
+            deck.Add(new UnoCard(Guid.NewGuid().ToString(), color, CardKind.Number, 0));
+            for (var n = 1; n <= 9; n++)
+            {
+                deck.Add(new UnoCard(Guid.NewGuid().ToString(), color, CardKind.Number, n));
+                deck.Add(new UnoCard(Guid.NewGuid().ToString(), color, CardKind.Number, n));
+            }
+            for (var i = 0; i < 2; i++)
+            {
+                deck.Add(new UnoCard(Guid.NewGuid().ToString(), color, CardKind.Skip));
+                deck.Add(new UnoCard(Guid.NewGuid().ToString(), color, CardKind.Reverse));
+                deck.Add(new UnoCard(Guid.NewGuid().ToString(), color, CardKind.DrawTwo));
+            }
+        }
+        for (var i = 0; i < 4; i++)
+        {
+            deck.Add(new UnoCard(Guid.NewGuid().ToString(), CardColor.Wild, CardKind.Wild));
+            deck.Add(new UnoCard(Guid.NewGuid().ToString(), CardColor.Wild, CardKind.WildDrawFour));
+        }
+        return deck;
+    }
+
+    private void Shuffle(List<UnoCard> cards)
+    {
+        for (var i = cards.Count - 1; i > 0; i--)
+        {
+            var j = rng.Next(i + 1);
+            (cards[i], cards[j]) = (cards[j], cards[i]);
+        }
+    }
+
+    private UnoCard DrawOne()
+    {
+        if (drawPile.Count == 0)
+        {
+            // Reshuffle everything except the current top card back into
+            // the draw pile - the only way to run out for real is if the
+            // top card is also the only card left, in which case there's
+            // nothing to give.
+            if (discardPile.Count <= 1) return new UnoCard(Guid.NewGuid().ToString(), CardColor.Wild, CardKind.Wild);
+
+            var top = discardPile[^1];
+            var reclaimed = discardPile.Take(discardPile.Count - 1).ToList();
+            discardPile.Clear();
+            discardPile.Add(top);
+            drawPile.AddRange(reclaimed);
+            Shuffle(drawPile);
+        }
+
+        var card = drawPile[0];
+        drawPile.RemoveAt(0);
+        return card;
+    }
+
+    // ---- Rules -----------------------------------------------------------
+
+    private bool IsPlayable(UnoCard card)
+    {
+        if (card.Kind is CardKind.Wild or CardKind.WildDrawFour) return true;
+        var top = TopDiscard;
+        if (top is null) return true;
+        if (card.Color == currentColor) return true;
+        if (card.Kind == CardKind.Number && top.Kind == CardKind.Number && card.Number == top.Number) return true;
+        if (card.Kind != CardKind.Number && card.Kind == top.Kind) return true;
+        return false;
+    }
+
+    private bool IsCurrent(UnoPlayer player) => players.Count > 0 && players[currentPlayerIndex] == player;
+
+    private bool CanHumanDraw() =>
+        phase == Phase.PlayerTurn && !players[0].Hand.Any(IsPlayable);
+
+    private string TurnBannerText() => phase switch
+    {
+        Phase.PlayerTurn => "Your turn",
+        Phase.ChoosingColor => "Pick a color",
+        Phase.RoundEnd => "Round over",
+        _ => $"{players[currentPlayerIndex].Name}'s turn",
+    };
+
+    // ---- Human actions -----------------------------------------------------
+
+    private void HumanPlay(UnoCard card)
+    {
+        if (phase != Phase.PlayerTurn || !IsPlayable(card)) return;
+
+        if (card.Kind is CardKind.Wild or CardKind.WildDrawFour)
+        {
+            pendingWildCard = card;
+            phase = Phase.ChoosingColor;
+            return;
+        }
+
+        PlayCard(players[0], card, null);
+    }
+
+    private void ChooseWildColor(CardColor color)
+    {
+        if (pendingWildCard is null) return;
+        var card = pendingWildCard;
+        pendingWildCard = null;
+        PlayCard(players[0], card, color);
+    }
+
+    private async Task HumanDraw()
+    {
+        if (!CanHumanDraw()) return;
+
+        var card = DrawOne();
+        players[0].Hand.Add(card);
+        StateHasChanged();
+
+        if (IsPlayable(card))
+        {
+            // Give the kid a beat to see the drawn card land in their hand
+            // before it's immediately playable, rather than the card just
+            // teleporting into a played state.
+            await Task.Delay(400);
+            return;
+        }
+
+        await EndHumanTurnAsync();
+    }
+
+    // ---- Core play/turn engine ---------------------------------------------
+
+    private void PlayCard(UnoPlayer player, UnoCard card, CardColor? chosenColor)
+    {
+        player.Hand.Remove(card);
+        discardPile.Add(card);
+        currentColor = card.Kind is CardKind.Wild or CardKind.WildDrawFour ? (chosenColor ?? CardColor.Red) : card.Color;
+        turnsPlayed++;
+        _ = PlaySoundAsync("playUnoPlaySound");
+
+        if (player.Hand.Count == 0)
+        {
+            winner = player;
+            phase = Phase.RoundEnd;
+            _ = HandleRoundEndAsync();
+            return;
+        }
+
+        switch (card.Kind)
+        {
+            case CardKind.Reverse:
+                direction *= -1;
+                Advance();
+                break;
+            case CardKind.Skip:
+                Advance();
+                Advance();
+                break;
+            case CardKind.DrawTwo:
+                // The next player draws 2 extra cards but keeps their
+                // turn - only Skip actually skips someone.
+                Advance();
+                GiveCards(players[currentPlayerIndex], 2);
+                break;
+            case CardKind.WildDrawFour:
+                Advance();
+                GiveCards(players[currentPlayerIndex], 4);
+                break;
+            default:
+                Advance();
+                break;
+        }
+
+        if (player.IsHuman)
+        {
+            _ = EndHumanTurnAsync();
+        }
+    }
+
+    private void Advance()
+    {
+        currentPlayerIndex = (currentPlayerIndex + direction + players.Count) % players.Count;
+    }
+
+    private void GiveCards(UnoPlayer player, int count)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            player.Hand.Add(DrawOne());
+        }
+    }
+
+    private async Task EndHumanTurnAsync()
+    {
+        phase = Phase.Busy;
+        StateHasChanged();
+        await MaybeRunCpuTurnsAsync();
+    }
+
+    private async Task MaybeRunCpuTurnsAsync()
+    {
+        while (phase != Phase.RoundEnd && !players[currentPlayerIndex].IsHuman)
+        {
+            phase = Phase.Busy;
+            StateHasChanged();
+            await Task.Delay(700);
+
+            var bot = players[currentPlayerIndex];
+            var playable = bot.Hand.Where(IsPlayable).ToList();
+
+            UnoCard? choice = playable.FirstOrDefault(c => c.Kind is not (CardKind.Wild or CardKind.WildDrawFour))
+                ?? playable.FirstOrDefault();
+
+            if (choice is null)
+            {
+                var drawn = DrawOne();
+                bot.Hand.Add(drawn);
+                StateHasChanged();
+                await Task.Delay(500);
+
+                if (IsPlayable(drawn))
+                {
+                    choice = drawn;
+                }
+                else
+                {
+                    Advance();
+                    continue;
+                }
+            }
+
+            CardColor? chosen = null;
+            if (choice.Kind is CardKind.Wild or CardKind.WildDrawFour)
+            {
+                var remaining = bot.Hand.Where(c => c != choice).ToList();
+                chosen = remaining
+                    .Where(c => c.Color != CardColor.Wild)
+                    .GroupBy(c => c.Color)
+                    .OrderByDescending(g => g.Count())
+                    .Select(g => g.Key)
+                    .FirstOrDefault(CardColor.Red);
+            }
+
+            PlayCard(bot, choice, chosen);
+        }
+
+        if (phase != Phase.RoundEnd)
+        {
+            phase = Phase.PlayerTurn;
+        }
+        StateHasChanged();
+    }
+
+    private async Task HandleRoundEndAsync()
+    {
+        StateHasChanged();
+        await PlaySoundAsync(winner == players[0] ? "playMatchSound" : "playMismatchSound");
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new UnoResult(
+                Won: winner == players[0],
+                CardsRemaining: players[0].Hand.Count,
+                TurnsPlayed: turnsPlayed,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    // ---- Rendering helpers ---------------------------------------------------
+
+    private static string CardColorClass(CardColor color) => color switch
+    {
+        CardColor.Red => "uno-red",
+        CardColor.Yellow => "uno-yellow",
+        CardColor.Green => "uno-green",
+        CardColor.Blue => "uno-blue",
+        _ => "uno-wild",
+    };
+
+    private static string CardLabel(UnoCard card) => card.Kind switch
+    {
+        CardKind.Number => card.Number.ToString() ?? "0",
+        CardKind.Skip => "⛔",
+        CardKind.Reverse => "🔁",
+        CardKind.DrawTwo => "+2",
+        CardKind.Wild => "🌈",
+        CardKind.WildDrawFour => "+4",
+        _ => "?",
+    };
+
+    private async Task PlaySoundAsync(string fn)
+    {
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+            await _module.InvokeVoidAsync(fn);
+        }
+        catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record UnoResult(bool Won, int CardsRemaining, int TurnsPlayed, int ElapsedSeconds);
+}
