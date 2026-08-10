@@ -1,7 +1,7 @@
 # Kids Game Launcher
 
 A Blazor WebAssembly PWA game launcher for kids: a profile picker
-(parent/admin + kid accounts), a per-kid game carousel, four built-in
+(parent/admin + kid accounts), a per-kid game carousel, five built-in
 games, and an admin panel for managing profiles, which games each kid
 can access, and daily screen time. Works fully offline — no backend, no
 server, no account — everything is stored locally in the browser.
@@ -20,8 +20,9 @@ dotnet run
 Then open the URL it prints (typically `http://localhost:5000`).
 
 On first launch it seeds two profiles — an Admin ("Parent") and a Kid
-("Buddy") — with all three built-in games already unlocked for Buddy, so
-there's something to click on right away.
+("Buddy") — with four of the five built-in games already unlocked for
+Buddy (Tank Duel isn't auto-granted, see below), so there's something to
+click on right away.
 
 ## Install it on a tablet
 
@@ -54,11 +55,18 @@ site is served from the host's root; the GitHub Actions workflow patches
 Pages' project-subpath URLs; a host that serves from its own root
 domain (Netlify, Cloudflare Pages) needs no such patch.
 
-All three games use touch-friendly tap targets and, where dragging is
-involved (Dress Up), [Pointer Events](https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events)
+All the built-in games use touch-friendly tap targets and, where dragging
+is involved (Dress Up, Manners Garden, Tank Duel's aiming), [Pointer Events](https://developer.mozilla.org/en-US/docs/Web/API/Pointer_events)
 rather than the HTML5 drag-and-drop API, since HTML5 DnD doesn't work on
 touch targets in Safari on iOS and is inconsistent elsewhere — Pointer
 Events give one code path that works the same for mouse, touch, and pen.
+
+Sound effects (match/mismatch chimes, catch/splash, tank fire/impact/
+explosion) are procedural — a handful of Web Audio oscillator and noise
+nodes in `wwwroot/js/interop.js`, not audio files. They only ever play in
+direct response to a user-caused action (a tap, a shot the player fired),
+which is exactly what's needed to unlock `AudioContext` playback in every
+browser, so there's no separate "enable sound" step.
 
 ## What's here
 
@@ -77,19 +85,45 @@ Events give one code path that works the same for mouse, touch, and pen.
   sees, and (`/admin/history/{id}`) view a kid's play history and set or
   reset their daily time limit.
 
-### The four built-in games
+### The five built-in games
 
 - **Memory Match** — flip cards to find matching pairs. Choose Animals,
-  ABC (uppercase↔lowercase), or Numbers, and a difficulty.
-- **Fishing Catch** — a basket on the dock shows a target letter or
-  number; catch 3 matching fish to advance to the next one, all the way
-  through the alphabet or 1–20. Optional "3 Strikes" difficulty ends the
-  round after 3 wrong catches.
+  ABC (uppercase↔lowercase), Numbers, or **Math** (an equation card like
+  "5 + 7" matches its result card "12" — reuses the exact same matching
+  engine as the other themes, just a different `GeneratePairs` function),
+  and a difficulty. A chime plays on a match, a soft buzz on a mismatch.
+- **Fishing Catch** — a basket on the dock shows a target letter, number,
+  or (in **Colors** mode) a color name; catch 3 matching fish to advance.
+  Colors mode matches by the fish's actual on-screen color, not a label -
+  each fish gets the sprite for its own color, so "catch the blue one" is
+  literally true. A splash plays on a miss, a catch chime on a hit, and
+  clearing each target adds a chip to an in-round collection strip.
+  Optional "3 Strikes" difficulty ends the round after 3 wrong catches.
 - **Dress Up** — pick Girl (Princess/Witch/Unicorn) or Boy (Prince/
   Knight/Dragon), then drag sticker outfit pieces onto the character.
-  Free play, no win state — tap "Done!" to log the session.
+  Free play, no win state — tap "Done!" to log the session. **Undo**
+  reverses whichever you did last (place/remove a sticker, or a drawing
+  stroke) via one shared history; **Save Picture** composites the
+  character, stickers, and drawing into a single PNG and downloads it.
 - **Manners Garden** — practice social scenarios (sharing, saying
-  please/thank you) for ages 3–5; correct choices grow the garden.
+  please/thank you) for ages 3–5; correct choices grow the garden. The
+  garden **persists across every session** (via `AppDataService`, keyed
+  per kid profile) rather than resetting each play — "View My Garden" is
+  reachable right from the setup screen. The setup screen also offers
+  **practicing a single skill** (3 rounds of just "Saying Please", etc.)
+  instead of always drawing 3 random lessons.
+- **Tank Duel** — turn-based artillery duel vs. one CPU tank. Drag
+  anywhere on the battlefield to aim; a dotted trajectory preview shows
+  exactly where the shot will land before you release to fire (same
+  physics used for the preview and the actual shot). Five hits destroys
+  a tank, with a fire/impact/explosion sound cue at each stage. A crate
+  wall forces a real arc rather than a flat shot; each win makes the next
+  battle harder along two axes at once - the CPU's own aim tightens
+  (±30% error at level 1, shrinking to a ±6% floor), and the wall gets
+  taller, then shifts off-center, then (level 7+) splits into two walls
+  to clear in one shot. Seeded into the catalog but not auto-granted to
+  the default kid profile, same reasoning as Crown & Banner - grant it
+  per-kid from the admin panel.
 
 ## Screen time tracking and limits
 
@@ -167,6 +201,6 @@ breaking old localStorage data.
 - The admin PIN is a light deterrent (SHA-256 hash stored client-side),
   not real security — fine for a kid's tablet, not for anything that
   needs to resist a determined adult.
-- Dress Up ships with 2 stickers per character; more can be added to
-  each `CharacterOption` in `DressUpGame.razor` without touching the
-  drag-and-drop logic.
+- Dress Up's sticker tray (`AllStickers` in `DressUpGame.razor`) is
+  shared across every character rather than curated per-character; more
+  can be added to that one list without touching the drag-and-drop logic.
