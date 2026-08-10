@@ -46,12 +46,14 @@
         <div class="du-hud">
             <button class="du-restart-btn" @onclick="() => selectedCharacter = null">← Change Character</button>
             <span class="du-character-title">@selectedCharacter.Name</span>
+            <button class="du-restart-btn" disabled="@(undoStack.Count == 0)" @onclick="UndoAsync">↩️ Undo</button>
+            <button class="du-restart-btn" @onclick="ExportOutfitAsync">💾 Save Picture</button>
             <button class="du-restart-btn" @onclick="ResetOutfit">Reset Outfit</button>
         </div>
 
         <div class="du-play" @ref="playRef" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointercancel="OnPointerUp">
             <div class="du-stage @(drawMode ? "draw-mode" : "")" @ref="stageRef" @onpointerdown="OnStagePointerDown">
-                <img class="du-base" src="@selectedCharacter.ImagePath" alt="@selectedCharacter.Name" />
+                <img class="du-base" @ref="baseImageRef" src="@selectedCharacter.ImagePath" alt="@selectedCharacter.Name" />
 
                 @foreach (var placed in placedStickers)
                 {
@@ -219,8 +221,23 @@
     private bool drawerOpen;
 
     private ElementReference stageRef;
+    private ElementReference baseImageRef;
     private ElementReference playRef;
     private IJSObjectReference? _module;
+
+    // ---- Undo -----------------------------------------------------------
+    //
+    // One shared history so a single "Undo" button reverses whatever the
+    // kid last did, whether that was placing/removing a sticker or a
+    // drawing stroke - StrokeEntry is just a marker; the actual pixels
+    // are undone JS-side via undoLastStroke, which keeps its own stack of
+    // canvas snapshots in lockstep with these markers.
+    private abstract record UndoEntry;
+    private record StickerAddedEntry(PlacedSticker Sticker) : UndoEntry;
+    private record StickerRemovedEntry(PlacedSticker Sticker) : UndoEntry;
+    private record StrokeEntry : UndoEntry;
+
+    private readonly Stack<UndoEntry> undoStack = new();
 
     private PlacedSticker? dragging;
     private double stageLeft, stageTop, stageWidth, stageHeight;
@@ -248,9 +265,18 @@
     {
         selectedCharacter = character;
         placedStickers.Clear();
+        undoStack.Clear();
     }
 
-    private void ResetOutfit() => placedStickers.Clear();
+    // A full reset also resets undo history - keeping stale sticker/stroke
+    // entries around after everything they refer to is gone would let
+    // Undo do something confusing (e.g. re-add a sticker that predates
+    // the reset the kid explicitly asked for).
+    private void ResetOutfit()
+    {
+        placedStickers.Clear();
+        undoStack.Clear();
+    }
 
     // ---- Drag and drop (Pointer Events - works for mouse, touch, pen) ------
 
@@ -263,6 +289,7 @@
         // wants - e.g. a handful of hearts.
         var placed = new PlacedSticker { StickerId = sticker.Id, Emoji = sticker.Emoji, X = 50, Y = 50 };
         placedStickers.Add(placed);
+        undoStack.Push(new StickerAddedEntry(placed));
 
         await BeginDrag(e, placed);
     }
@@ -334,6 +361,7 @@
         if (overTrash)
         {
             placedStickers.Remove(dragging);
+            undoStack.Push(new StickerRemovedEntry(dragging));
         }
 
         overTrash = false;
@@ -360,12 +388,53 @@
 
         isDrawing = true;
         await _module.InvokeVoidAsync("drawStart", canvasRef, e.ClientX - stageLeft, e.ClientY - stageTop, drawColor, brushSize);
+        undoStack.Push(new StrokeEntry());
     }
 
     private async Task ClearDrawing()
     {
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
         await _module.InvokeVoidAsync("clearDrawCanvas", canvasRef);
+
+        // Any StrokeEntry markers now point at pixels that no longer
+        // exist - drop the whole history rather than leave Undo able to
+        // "restore" a stroke from before the clear.
+        undoStack.Clear();
+    }
+
+    private async Task UndoAsync()
+    {
+        if (undoStack.Count == 0) return;
+
+        switch (undoStack.Pop())
+        {
+            case StickerAddedEntry added:
+                placedStickers.Remove(added.Sticker);
+                break;
+
+            case StickerRemovedEntry removed:
+                placedStickers.Add(removed.Sticker);
+                break;
+
+            case StrokeEntry:
+                _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+                await _module.InvokeVoidAsync("undoLastStroke", canvasRef);
+                break;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ExportOutfitAsync()
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+
+        var stickers = placedStickers
+            .Select(s => new { emoji = s.Emoji, xPercent = s.X, yPercent = s.Y })
+            .ToArray();
+        var filename = $"dress-up-{selectedCharacter!.Name.ToLowerInvariant()}.png";
+
+        await _module.InvokeVoidAsync("exportOutfit", stageRef, baseImageRef, stickers, canvasRef, filename);
     }
 
     private bool IsOverTrash(double clientX, double clientY) =>
