@@ -40,10 +40,25 @@
                                    @onchange="e => ToggleAccessAsync(game.Id, (bool)e.Value!)" />
                             <AssetGlyph Class="access-row-thumb" Src="@game.ThumbnailImagePath" Fallback="@game.ThumbnailEmoji" Alt="@game.Title" />
                             <span class="access-row-title">@game.Title</span>
-                            @if (!game.IsCatalogEnabled)
-                            {
-                                <span class="access-row-hidden">Hidden from catalog</span>
-                            }
+                            <div class="access-row-meta">
+                                @if (!game.IsCatalogEnabled)
+                                {
+                                    <span class="access-row-hidden">Hidden from catalog</span>
+                                }
+                                @if (SupportsDifficultyLock(game))
+                                {
+                                    <label class="access-row-difficulty">
+                                        <span class="muted">Difficulty</span>
+                                        <select value="@(_difficultyOverrides.GetValueOrDefault(game.Id, ""))"
+                                                @onchange="e => SetDifficultyOverrideAsync(game.Id, (string)e.Value!)">
+                                            <option value="">Let @_profile.Name choose</option>
+                                            <option value="Easy">Easy</option>
+                                            <option value="Medium">Medium</option>
+                                            <option value="Hard">Hard</option>
+                                        </select>
+                                    </label>
+                                }
+                            </div>
                             <button type="button" class="btn-secondary" @onclick="() => StartEditGame(game)">Edit</button>
                         </div>
                     }
@@ -141,9 +156,16 @@
 @code {
     [Parameter] public string ProfileId { get; set; } = "";
 
+    private static readonly HashSet<string> DifficultyLockableTargets = new()
+    {
+        BuiltInGames.MemoryMatch,
+        BuiltInGames.SimonSays,
+    };
+
     private Profile? _profile;
     private List<Game>? _allGames;
     private List<string> _allowedIds = new();
+    private Dictionary<string, string> _difficultyOverrides = new();
     private bool _showAddGame;
     private Game _editingGame = new();
     private Game? _editingCatalogGame;
@@ -174,8 +196,30 @@
         _allGames = await Data.GetAllGamesAsync();
         _allowedIds = await Data.GetAccessListAsync(ProfileId);
 
+        _difficultyOverrides.Clear();
+        foreach (var game in _allGames.Where(SupportsDifficultyLock))
+        {
+            var value = await Data.GetDifficultyOverrideAsync(ProfileId, game.Id);
+            if (!string.IsNullOrEmpty(value)) _difficultyOverrides[game.Id] = value;
+        }
+
         var catalogTargets = _allGames.Select(g => g.LaunchTarget).ToHashSet();
         _availableBuiltIns = BuiltInGames.All.Where(b => !catalogTargets.Contains(b.LaunchTarget)).ToList();
+    }
+
+    private static bool SupportsDifficultyLock(Game game) => DifficultyLockableTargets.Contains(game.LaunchTarget);
+
+    private async Task SetDifficultyOverrideAsync(string gameId, string difficulty)
+    {
+        await Data.SetDifficultyOverrideAsync(ProfileId, gameId, difficulty);
+        if (string.IsNullOrEmpty(difficulty))
+        {
+            _difficultyOverrides.Remove(gameId);
+        }
+        else
+        {
+            _difficultyOverrides[gameId] = difficulty;
+        }
     }
 
     private async Task ToggleAccessAsync(string gameId, bool allowed)

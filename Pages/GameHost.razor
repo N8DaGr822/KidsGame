@@ -23,7 +23,7 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.MemoryMatch)
             {
-                <MemoryMatchGame PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleMemoryMatchComplete" />
+                <MemoryMatchGame PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMemoryMatchComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Fishing)
             {
@@ -40,6 +40,14 @@
             else if (_game.LaunchTarget == BuiltInGames.TankDuel)
             {
                 <TankDuel PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleTankDuelComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.Uno)
+            {
+                <UnoGame PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleUnoComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.SimonSays)
+            {
+                <SimonSays PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSimonSaysComplete" />
             }
             else
             {
@@ -61,6 +69,7 @@
 
     private Game? _game;
     private DateTime? _sessionStartedAtUtc;
+    private string? _difficultyOverride;
 
     protected override async Task OnInitializedAsync()
     {
@@ -79,6 +88,7 @@
             return;
         }
 
+        _difficultyOverride = await Data.GetDifficultyOverrideAsync(State.CurrentProfile.Id, _game.Id);
         _sessionStartedAtUtc = DateTime.UtcNow;
     }
 
@@ -153,6 +163,36 @@
             Theme = result.Won ? "Victory" : "Defeat",
             Difficulty = $"{result.ShotsFired} shots",
             Moves = result.ShotsFired,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleUnoComplete(UnoGame.UnoResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Won ? "Victory" : "Defeat",
+            Difficulty = $"{result.CardsRemaining} cards left",
+            Moves = result.TurnsPlayed,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleSimonSaysComplete(SimonSays.SimonSaysResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = "Simon Says",
+            Difficulty = $"Round {result.RoundsReached}",
+            Moves = result.RoundsReached,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

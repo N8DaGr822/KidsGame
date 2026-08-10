@@ -30,4 +30,11 @@ public class AppData
     // profileId -> every Manners Garden item earned, all-time (not reset
     // per session) - the garden is meant to keep growing across days.
     public Dictionary<string, List<string>> GardenItems { get; set; } = new();
+
+    // profileId -> gameId -> a parent-locked difficulty name ("Easy",
+    // "Medium", "Hard") for games that expose a difficulty picker. Absent
+    // (or not present for a given gameId) means the kid picks their own -
+    // this only ever narrows a kid's choice, never widens it, so it's
+    // safe to leave unset by default.
+    public Dictionary<string, Dictionary<string, string>> GameDifficultyOverrides { get; set; } = new();
 }

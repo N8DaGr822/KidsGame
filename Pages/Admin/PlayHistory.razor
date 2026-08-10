@@ -84,8 +84,12 @@
                             <AssetGlyph Class="admin-profile-avatar" Src="@game?.ThumbnailImagePath" Fallback="@(game?.ThumbnailEmoji ?? "🎮")" Alt="@(game?.Title ?? "Unknown game")" />
                             <span class="admin-profile-name">
                                 @(game?.Title ?? "Unknown game")
+                                @if (OutcomeBadge(entry.Theme) is { } badge)
+                                {
+                                    <span class="outcome-badge @badge.CssClass">@badge.Label</span>
+                                }
                                 <span class="muted">
-                                    — @FormatMinutesSeconds(entry.ElapsedSeconds)@(string.IsNullOrEmpty(entry.Difficulty) ? "" : $", {entry.Difficulty}")
+                                    — @FormatMinutesSeconds(entry.ElapsedSeconds)@(string.IsNullOrEmpty(entry.Difficulty) ? "" : $", {entry.Difficulty}")@(ShowThemeAsText(entry.Theme, game?.Title) ? $", {entry.Theme}" : "")
                                 </span>
                             </span>
                             <span class="muted">@entry.PlayedAtUtc.ToLocalTime().ToString("MMM d, h:mm tt")</span>
@@ -158,6 +162,23 @@
     }
 
     private Game? GameFor(string gameId) => _games.FirstOrDefault(g => g.Id == gameId);
+
+    // Theme doubles as a game outcome for games with a real win/lose state
+    // (Tank Duel, UNO) - surface those as a clear badge instead of leaving
+    // them invisible, so a parent can tell at a glance whether a kid is
+    // struggling with (or breezing through) a game.
+    private static (string Label, string CssClass)? OutcomeBadge(string? theme) => theme switch
+    {
+        "Victory" => ("🏆 Won", "outcome-win"),
+        "Defeat" => ("Lost", "outcome-loss"),
+        _ => null,
+    };
+
+    // For other games, Theme carries useful context (which mode/character/
+    // theme was played) - show it unless it's an outcome badge already, or
+    // just repeats the game's own title (Simon Says, Manners Garden).
+    private static bool ShowThemeAsText(string? theme, string? gameTitle) =>
+        !string.IsNullOrEmpty(theme) && theme != gameTitle && OutcomeBadge(theme) is null;
 
     private static string FormatMinutes(int seconds) => $"{seconds / 60} min";
 

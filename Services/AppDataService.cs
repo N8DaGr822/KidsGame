@@ -80,6 +80,7 @@ public class AppDataService
         data.ProfileGameAccess.Remove(profileId);
         data.DailyUsageSeconds.Remove(profileId);
         data.GardenItems.Remove(profileId);
+        data.GameDifficultyOverrides.Remove(profileId);
         await SaveAsync();
     }
 
@@ -261,6 +262,43 @@ public class AppDataService
         await SaveAsync();
     }
 
+    // ---- Parent-locked game difficulty (Easy/Medium/Hard, per kid per
+    // game) - lets a parent decide for games where a young kid picking
+    // their own difficulty could set it too hard for themselves. ----------
+
+    public async Task<string?> GetDifficultyOverrideAsync(string profileId, string gameId)
+    {
+        var data = await LoadAsync();
+        return data.GameDifficultyOverrides.TryGetValue(profileId, out var byGame) && byGame.TryGetValue(gameId, out var value)
+            ? value
+            : null;
+    }
+
+    public async Task SetDifficultyOverrideAsync(string profileId, string gameId, string? difficulty)
+    {
+        var data = await LoadAsync();
+
+        if (string.IsNullOrEmpty(difficulty))
+        {
+            if (data.GameDifficultyOverrides.TryGetValue(profileId, out var existing))
+            {
+                existing.Remove(gameId);
+            }
+        }
+        else
+        {
+            if (!data.GameDifficultyOverrides.TryGetValue(profileId, out var byGame))
+            {
+                byGame = new Dictionary<string, string>();
+                data.GameDifficultyOverrides[profileId] = byGame;
+            }
+
+            byGame[gameId] = difficulty;
+        }
+
+        await SaveAsync();
+    }
+
     // ---- Seed data ----
 
     private static AppData SeedDefaultData()
@@ -350,6 +388,29 @@ public class AppDataService
             LaunchMode = GameLaunchMode.InternalRoute
         };
 
+        // Card and reflex-memory games - seeded into the catalog like Tank
+        // Duel and Crown & Banner above, not auto-granted, so a parent
+        // decides per-kid whether they're ready via the admin panel.
+        var unoDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.Uno);
+        var uno = new Game
+        {
+            Title = unoDef.Title,
+            ThumbnailImagePath = unoDef.ThumbnailImagePath,
+            ThumbnailEmoji = unoDef.ThumbnailEmoji,
+            LaunchTarget = unoDef.LaunchTarget,
+            LaunchMode = GameLaunchMode.InternalRoute
+        };
+
+        var simonSaysDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.SimonSays);
+        var simonSays = new Game
+        {
+            Title = simonSaysDef.Title,
+            ThumbnailImagePath = simonSaysDef.ThumbnailImagePath,
+            ThumbnailEmoji = simonSaysDef.ThumbnailEmoji,
+            LaunchTarget = simonSaysDef.LaunchTarget,
+            LaunchMode = GameLaunchMode.InternalRoute
+        };
+
         var data = new AppData();
         data.Profiles.Add(admin);
         data.Profiles.Add(kid);
@@ -359,6 +420,8 @@ public class AppDataService
         data.Games.Add(mannersGarden);
         data.Games.Add(crownAndBanner);
         data.Games.Add(tankDuel);
+        data.Games.Add(uno);
+        data.Games.Add(simonSays);
         data.ProfileGameAccess[admin.Id] = new List<string>();
         data.ProfileGameAccess[kid.Id] = new List<string> { memoryMatch.Id, fishing.Id, dressUp.Id, mannersGarden.Id };
 

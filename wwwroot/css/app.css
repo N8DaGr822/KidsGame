@@ -698,6 +698,49 @@ select:focus-visible {
   font-weight: 800;
 }
 
+.outcome-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  vertical-align: middle;
+}
+
+.outcome-win {
+  background: rgba(118, 227, 159, 0.18);
+  color: #76e39f;
+}
+
+.outcome-loss {
+  background: rgba(255, 107, 107, 0.16);
+  color: #ff6b6b;
+}
+
+.access-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.access-row-difficulty {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.access-row-difficulty select {
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
 .admin-pin-row {
   display: flex;
   align-items: center;

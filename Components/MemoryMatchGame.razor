@@ -41,16 +41,23 @@
             </div>
 
             <h3 class="mg-section-title">Choose a difficulty</h3>
-            <div class="mg-difficulty-select">
-                @foreach (var level in Difficulties)
-                {
-                    <button class="mg-diff-btn @(level.Name == selectedDifficulty.Name ? "selected" : "")"
-                            @onclick="() => selectedDifficulty = level">
-                        <span class="mg-diff-name">@level.Name</span>
-                        <span class="mg-diff-detail">@(level.PairCount) pairs</span>
-                    </button>
-                }
-            </div>
+            @if (LockedDifficulty is not null)
+            {
+                <p class="mg-difficulty-locked">🔒 A parent set this to <strong>@LockedDifficulty.Name</strong> (@LockedDifficulty.PairCount pairs).</p>
+            }
+            else
+            {
+                <div class="mg-difficulty-select">
+                    @foreach (var level in Difficulties)
+                    {
+                        <button class="mg-diff-btn @(level.Name == selectedDifficulty.Name ? "selected" : "")"
+                                @onclick="() => selectedDifficulty = level">
+                            <span class="mg-diff-name">@level.Name</span>
+                            <span class="mg-diff-detail">@(level.PairCount) pairs</span>
+                        </button>
+                    }
+                </div>
+            }
 
             <button class="mg-start-btn" @onclick="StartGame">Start Game</button>
         </div>
@@ -105,6 +112,19 @@
 
     /// <summary>Optional display name, e.g. from the active kid profile.</summary>
     [Parameter] public string? PlayerName { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard") from
+    /// the admin panel; when it matches one of <see cref="Difficulties"/>,
+    /// the picker is replaced with a locked note and that level is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private DifficultyLevel? LockedDifficulty =>
+        string.IsNullOrEmpty(ForcedDifficulty) ? null : Difficulties.FirstOrDefault(d => d.Name == ForcedDifficulty);
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
 
     /// <summary>Fired once when the board is fully matched.</summary>
     [Parameter] public EventCallback<MemoryMatchResult> OnComplete { get; set; }
