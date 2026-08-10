@@ -205,6 +205,35 @@
     font-weight: 900;
 }
 
+.fg-collection-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.fg-collection-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.6rem;
+    height: 1.6rem;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.85);
+    color: #17354f;
+    font-size: 0.75rem;
+    font-weight: 900;
+    animation: fg-collection-pop 0.3s ease;
+}
+
+@keyframes fg-collection-pop {
+    from { transform: scale(0); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
 .fg-water {
     position: relative;
     height: clamp(320px, 55vh, 430px);
