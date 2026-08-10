@@ -32,6 +32,10 @@
             {
                 <DressUpGame PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleDressUpComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.MannersGarden)
+            {
+                <MannersGarden PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleMannersGardenComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -111,6 +115,21 @@
             Difficulty = $"{result.StickersPlaced} stickers",
             Moves = result.StickersPlaced,
             ElapsedSeconds = 0,
+        });
+    }
+
+    private async Task HandleMannersGardenComplete(MannersGarden.MannersGardenResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = "Manners Garden",
+            Difficulty = $"{result.GardenItemsEarned} garden items",
+            Moves = result.ScenariosCompleted,
+            ElapsedSeconds = result.ElapsedSeconds,
         });
     }
 

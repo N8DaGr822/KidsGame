@@ -1,0 +1,480 @@
+.mng-game {
+    width: min(760px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+}
+
+/* ---- Setup ---- */
+
+.mng-setup {
+    display: grid;
+    justify-items: center;
+    gap: 1rem;
+    padding: clamp(1.5rem, 5vw, 2.5rem);
+    text-align: center;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: rgba(32, 36, 49, 0.82);
+    box-shadow: var(--shadow-sm);
+}
+
+.mng-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.mng-setup p {
+    max-width: 32rem;
+    color: var(--text-muted);
+}
+
+.mng-cast {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    margin: 0.5rem 0;
+}
+
+.mng-cast-member {
+    display: grid;
+    justify-items: center;
+    gap: 0.35rem;
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: var(--text-soft);
+}
+
+.mng-cast-emoji {
+    font-size: 3rem;
+    line-height: 1;
+}
+
+.mng-start-btn {
+    min-height: 56px;
+    padding: 0.9rem 2rem;
+    border: none;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 1.15rem;
+    font-weight: 900;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.mng-start-btn:hover {
+    background: var(--accent-strong);
+    transform: translateY(-2px);
+}
+
+/* ---- HUD ---- */
+
+.mng-hud {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.mng-mute-btn {
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text);
+    font-size: 1.2rem;
+    display: grid;
+    place-items: center;
+}
+
+.mng-progress {
+    display: flex;
+    gap: 0.35rem;
+    font-size: 1.3rem;
+    line-height: 1;
+}
+
+.mng-progress-dot {
+    opacity: 0.28;
+    filter: grayscale(1);
+    transition: opacity 0.2s ease, filter 0.2s ease, transform 0.2s ease;
+}
+
+.mng-progress-dot.done {
+    opacity: 1;
+    filter: none;
+}
+
+.mng-progress-dot.active {
+    opacity: 1;
+    filter: none;
+    transform: scale(1.25);
+}
+
+.mng-restart-btn {
+    min-height: 42px;
+    padding: 0.6rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text);
+    font-weight: 800;
+}
+
+/* ---- Garden progress strip ---- */
+
+.mng-garden-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-height: 2.4rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-md);
+    background: rgba(118, 227, 159, 0.08);
+}
+
+.mng-garden-chip {
+    font-size: 1.4rem;
+    line-height: 1;
+    animation: mng-pop-in 0.35s ease;
+}
+
+/* ---- Stage ---- */
+
+.mng-stage {
+    display: grid;
+    justify-items: center;
+    gap: 1.25rem;
+    padding: clamp(1.25rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background:
+        radial-gradient(circle at 50% 0%, rgba(78, 205, 196, 0.12), transparent 20rem),
+        linear-gradient(180deg, #273144, #171b27);
+    box-shadow: var(--shadow-sm);
+    min-height: 22rem;
+}
+
+.mng-speech-bubble {
+    width: min(560px, 100%);
+    padding: 0.9rem 1.25rem;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    text-align: center;
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.mng-characters {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(1rem, 5vw, 3rem);
+    flex-wrap: wrap;
+}
+
+.mng-character {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 0.3rem;
+}
+
+.mng-char-emoji {
+    font-size: clamp(4rem, 12vw, 5.5rem);
+    line-height: 1;
+    filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.3));
+}
+
+.mng-character.sad .mng-char-emoji {
+    animation: mng-wiggle-sad 0.5s ease;
+}
+
+.mng-character.happy .mng-char-emoji {
+    animation: mng-bounce-happy 0.6s ease;
+}
+
+.mng-char-name {
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: var(--text-soft);
+}
+
+.mng-reaction {
+    position: absolute;
+    top: -0.5rem;
+    right: -0.75rem;
+    font-size: 1.8rem;
+    animation: mng-float-up 1.4s ease forwards;
+}
+
+.mng-item {
+    font-size: clamp(2.5rem, 8vw, 3.5rem);
+    line-height: 1;
+}
+
+/* ---- Choices ---- */
+
+.mng-choices {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    width: 100%;
+}
+
+.mng-choice-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    min-height: 84px;
+    padding: 1rem 1.4rem;
+    border: 2px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    text-align: left;
+    transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.mng-choice-btn:hover {
+    transform: translateY(-2px);
+    border-color: rgba(78, 205, 196, 0.7);
+    background: rgba(78, 205, 196, 0.12);
+}
+
+.mng-choice-btn.polite:hover {
+    border-color: var(--accent);
+}
+
+.mng-choice-emoji {
+    font-size: 2.6rem;
+    line-height: 1;
+}
+
+.mng-choice-text {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+
+.mng-single-choice {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.mng-single-choice .mng-choice-btn {
+    max-width: 320px;
+}
+
+/* ---- Sorry: rebuild-the-tower mini interaction ---- */
+
+.mng-helper-text {
+    margin: 0;
+    color: var(--text-soft);
+    font-weight: 700;
+}
+
+.mng-blocks-rebuild {
+    display: flex;
+    gap: 0.85rem;
+}
+
+.mng-block {
+    width: 72px;
+    height: 72px;
+    border: 2px dashed var(--line);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 2.4rem;
+    display: grid;
+    place-items: center;
+    opacity: 0.5;
+    transition: transform 0.2s ease, opacity 0.2s ease, border-color 0.2s ease;
+}
+
+.mng-block.stacked {
+    opacity: 1;
+    border-style: solid;
+    border-color: var(--accent);
+    background: rgba(78, 205, 196, 0.12);
+    transform: scale(1.08);
+}
+
+/* ---- Clean-up drag area ---- */
+
+.mng-cleanup-area {
+    position: relative;
+    width: 100%;
+    height: 16rem;
+    touch-action: none;
+}
+
+.mng-cleanup-toy {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    font-size: 3rem;
+    line-height: 1;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.3));
+}
+
+.mng-cleanup-toy.dragging {
+    cursor: grabbing;
+    z-index: 2;
+    filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.4));
+}
+
+.mng-toy-bin {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    transform: translateX(-50%);
+    font-size: 4rem;
+    line-height: 1;
+    pointer-events: none;
+}
+
+/* ---- Achoo: drag the elbow to cover a sneeze ---- */
+
+.mng-achoo-area {
+    position: relative;
+    width: 100%;
+    height: 14rem;
+    touch-action: none;
+}
+
+.mng-achoo-character {
+    position: absolute;
+    left: 50%;
+    top: 45%;
+    transform: translate(-50%, -50%);
+}
+
+.mng-achoo-target {
+    position: absolute;
+    left: 50%;
+    top: 22%;
+    width: 84px;
+    height: 84px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 3px dashed rgba(255, 200, 87, 0.55);
+    background: rgba(255, 200, 87, 0.1);
+    pointer-events: none;
+    animation: mng-target-pulse 1.4s ease-in-out infinite;
+}
+
+.mng-elbow {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    font-size: 2.8rem;
+    line-height: 1;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.3));
+}
+
+/* ---- Reward toast ---- */
+
+.mng-reward-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 1.5rem;
+    transform: translateX(-50%);
+    z-index: 20;
+    padding: 0.65rem 1.2rem;
+    border-radius: 999px;
+    background: var(--success);
+    color: #063326;
+    font-weight: 900;
+    box-shadow: var(--shadow-md);
+    animation: mng-pop-in 0.3s ease;
+}
+
+/* ---- Garden celebration ---- */
+
+.mng-garden-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: rgba(8, 10, 16, 0.72);
+    backdrop-filter: blur(8px);
+}
+
+.mng-garden-panel {
+    width: min(420px, 100%);
+    padding: 1.5rem;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    color: var(--text);
+    text-align: center;
+    box-shadow: var(--shadow-md);
+}
+
+.mng-garden-bed {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: var(--radius-md);
+    background: linear-gradient(180deg, rgba(78, 205, 196, 0.1), rgba(118, 227, 159, 0.14));
+}
+
+.mng-garden-item {
+    font-size: 2rem;
+    line-height: 1;
+    animation: mng-pop-in 0.4s ease;
+}
+
+.mng-garden-actions {
+    display: grid;
+    gap: 0.6rem;
+    margin-top: 1rem;
+}
+
+/* ---- Animations ---- */
+
+@keyframes mng-pop-in {
+    from { transform: scale(0); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes mng-wiggle-sad {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-8deg); }
+    75% { transform: rotate(8deg); }
+}
+
+@keyframes mng-bounce-happy {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-14px); }
+}
+
+@keyframes mng-float-up {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(-26px); opacity: 0; }
+}
+
+@keyframes mng-target-pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    50% { transform: translate(-50%, -50%) scale(1.08); opacity: 0.75; }
+}

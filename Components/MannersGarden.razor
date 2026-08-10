@@ -1,0 +1,889 @@
+@*
+    MannersGarden.razor
+    A manners-practice game for ages 3-5. The player helps one of five
+    animal friends (Benny Bear, Poppy Penguin, Milo Monkey, Lulu Lamb,
+    Tilly Turtle) through a short social scenario - most often by tapping
+    one of two big picture choices, no reading required, since every
+    choice is spoken aloud (Web Speech API) and paired with a distinct
+    emoji/icon. Choosing the unkind option never "loses" anything: it
+    shows the other character's natural reaction, the narrator gently
+    re-prompts, and the child tries again until they pick the kind
+    response. Two lessons (Greeting, Achoo) are single-path positive
+    actions with no "wrong" option at all, matching how those manners
+    were originally spec'd. Every completed scenario adds a
+    flower/butterfly/etc. to the session's Manners Garden.
+
+    A session is 3 scenarios drawn at random from 9 lesson types (each
+    with a few character/item variations so repeat sessions don't look
+    identical), followed by a short garden celebration screen.
+
+    Usage:
+        <MannersGarden OnComplete="HandleGameComplete" />
+
+    Optional:
+        <MannersGarden PlayerName="Riley" OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="mng-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="mng-setup">
+            <h2>🌷 Manners Garden</h2>
+            <p>Help Benny, Poppy, Milo, Lulu, and Tilly practice kind manners - and grow a beautiful garden together!</p>
+
+            <div class="mng-cast">
+                <div class="mng-cast-member"><span class="mng-cast-emoji">🐻</span><span>Benny Bear</span></div>
+                <div class="mng-cast-member"><span class="mng-cast-emoji">🐧</span><span>Poppy Penguin</span></div>
+                <div class="mng-cast-member"><span class="mng-cast-emoji">🐵</span><span>Milo Monkey</span></div>
+                <div class="mng-cast-member"><span class="mng-cast-emoji">🐑</span><span>Lulu Lamb</span></div>
+                <div class="mng-cast-member"><span class="mng-cast-emoji">🐢</span><span>Tilly Turtle</span></div>
+            </div>
+
+            <button class="mng-start-btn" @onclick="StartSession">▶️ Start Playing</button>
+        </div>
+    }
+    else if (phase == Phase.SessionComplete)
+    {
+        <div class="mng-garden-overlay">
+            <div class="mng-garden-panel">
+                <h2>🌼 Your Manners Garden!</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") practicing kind manners today!</p>
+
+                <div class="mng-garden-bed">
+                    @foreach (var item in gardenItems)
+                    {
+                        <span class="mng-garden-item">@item</span>
+                    }
+                </div>
+
+                <div class="mng-garden-actions">
+                    <button class="mng-start-btn" @onclick="StartSession">Play Again</button>
+                    <button class="mng-restart-btn" @onclick="ExitToSetup">Change Game</button>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="mng-hud">
+            <button class="mng-mute-btn" @onclick="ToggleMute" aria-label="@(muted ? "Unmute narration" : "Mute narration")">@(muted ? "🔇" : "🔊")</button>
+            <div class="mng-progress">
+                @for (int i = 0; i < sessionLessons.Count; i++)
+                {
+                    var dotIndex = i;
+                    <span class="mng-progress-dot @(dotIndex < roundIndex ? "done" : "") @(dotIndex == roundIndex ? "active" : "")">🌱</span>
+                }
+            </div>
+            <button class="mng-restart-btn" @onclick="ExitToSetup">Change Game</button>
+        </div>
+
+        @if (gardenItems.Count > 0)
+        {
+            <div class="mng-garden-strip">
+                @foreach (var item in gardenItems)
+                {
+                    <span class="mng-garden-chip">@item</span>
+                }
+            </div>
+        }
+
+        <div class="mng-stage">
+            <div class="mng-speech-bubble">@narratorText</div>
+
+            @if (round.Lesson == LessonType.CleanUp)
+            {
+                <div class="mng-cleanup-area" @ref="cleanupAreaRef" @onpointermove="OnCleanupPointerMove" @onpointerup="OnCleanupPointerUp" @onpointercancel="OnCleanupPointerUp">
+                    @foreach (var toy in round.Toys)
+                    {
+                        <span @key="toy.Id" class="mng-cleanup-toy @(draggingToy == toy ? "dragging" : "")"
+                              style="left:@(toy.X.ToString(Inv))%; top:@(toy.Y.ToString(Inv))%;"
+                              @onpointerdown="e => StartDragToy(e, toy)"
+                              @onpointerdown:preventDefault>
+                            @toy.Emoji
+                        </span>
+                    }
+                    <div class="mng-toy-bin" @ref="binRef">🧺</div>
+                </div>
+            }
+            else if (round.Lesson == LessonType.Greeting)
+            {
+                <div class="mng-characters">
+                    <div class="mng-character @(round.ReactorHappy ? "happy" : "")">
+                        <span class="mng-char-emoji">@round.Reactor.Emoji</span>
+                        <span class="mng-char-name">@round.Reactor.FullName</span>
+                    </div>
+                    <div class="mng-character @(round.WavedHello ? "happy" : "")">
+                        <span class="mng-char-emoji">@round.Actor.Emoji</span>
+                        <span class="mng-char-name">@round.Actor.FullName</span>
+                    </div>
+                </div>
+
+                @if (!round.ShowingConsequence && phase == Phase.Playing)
+                {
+                    <div class="mng-single-choice">
+                        <button class="mng-choice-btn polite" @onclick="WaveGreeting">
+                            <span class="mng-choice-emoji">👋</span>
+                            <span class="mng-choice-text">@(round.WavedHello ? "Wave Goodbye!" : "Wave Hello!")</span>
+                        </button>
+                    </div>
+                }
+            }
+            else if (round.Lesson == LessonType.Achoo)
+            {
+                <div class="mng-achoo-area" @ref="achooAreaRef" @onpointermove="OnAchooPointerMove" @onpointerup="OnAchooPointerUp" @onpointercancel="OnAchooPointerUp">
+                    <div class="mng-character mng-achoo-character">
+                        <span class="mng-char-emoji">@(round.ElbowPlaced ? "🤧" : round.Actor.Emoji)</span>
+                        <span class="mng-char-name">@round.Actor.FullName</span>
+                        <div class="mng-achoo-target" @ref="achooTargetRef"></div>
+                    </div>
+
+                    @if (!round.ElbowPlaced)
+                    {
+                        <span class="mng-elbow"
+                              style="left:@(round.ElbowX.ToString(Inv))%; top:@(round.ElbowY.ToString(Inv))%;"
+                              @onpointerdown="StartDragElbow"
+                              @onpointerdown:preventDefault>
+                            💪
+                        </span>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="mng-characters">
+                    <div class="mng-character @(round.ReactorSad ? "sad" : "") @(round.ReactorHappy ? "happy" : "")">
+                        <span class="mng-char-emoji">@round.Reactor.Emoji</span>
+                        <span class="mng-char-name">@round.Reactor.FullName</span>
+                        @if (round.ReactorSad)
+                        {
+                            <span class="mng-reaction">😢</span>
+                        }
+                        else if (round.ReactorHappy)
+                        {
+                            <span class="mng-reaction">💕</span>
+                        }
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(round.ItemEmoji))
+                    {
+                        <span class="mng-item">@round.ItemEmoji</span>
+                    }
+
+                    <div class="mng-character">
+                        <span class="mng-char-emoji">@round.Actor.Emoji</span>
+                        <span class="mng-char-name">@round.Actor.FullName</span>
+                    </div>
+                </div>
+
+                @if (round.Lesson == LessonType.Sorry && round.HelpingRebuild)
+                {
+                    <p class="mng-helper-text">Tap the blocks to help rebuild!</p>
+                    <div class="mng-blocks-rebuild">
+                        @for (int i = 0; i < round.BlockTapped.Length; i++)
+                        {
+                            var idx = i;
+                            <button class="mng-block @(round.BlockTapped[idx] ? "stacked" : "")" disabled="@round.BlockTapped[idx]" @onclick="() => TapBlock(idx)">🧱</button>
+                        }
+                    </div>
+                }
+                else if (!round.ShowingConsequence && phase == Phase.Playing)
+                {
+                    <div class="mng-choices">
+                        <button class="mng-choice-btn polite" @onclick="() => ChooseOption(true)">
+                            <span class="mng-choice-emoji">@PoliteEmoji(round.Lesson)</span>
+                            <span class="mng-choice-text">@PoliteText(round)</span>
+                        </button>
+                        <button class="mng-choice-btn" @onclick="() => ChooseOption(false)">
+                            <span class="mng-choice-emoji">@ImpoliteEmoji(round.Lesson)</span>
+                            <span class="mng-choice-text">@ImpoliteText(round)</span>
+                        </button>
+                    </div>
+                }
+            }
+        </div>
+
+        @if (phase == Phase.Reward && gardenItems.Count > 0)
+        {
+            <div class="mng-reward-toast">✨ @gardenItems[^1] added to your garden!</div>
+        }
+    }
+
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    // ---- Public parameters -------------------------------------------------
+
+    /// <summary>Optional display name, e.g. from the active kid profile.</summary>
+    [Parameter] public string? PlayerName { get; set; }
+
+    /// <summary>Fired once when the 3-scenario session's garden celebration is shown.</summary>
+    [Parameter] public EventCallback<MannersGardenResult> OnComplete { get; set; }
+
+    // ---- Cast ----------------------------------------------------------------
+
+    public record CharacterDef(string FirstName, string FullName, string Emoji);
+
+    private static readonly CharacterDef Benny = new("Benny", "Benny Bear", "🐻");
+    private static readonly CharacterDef Poppy = new("Poppy", "Poppy Penguin", "🐧");
+    private static readonly CharacterDef Milo = new("Milo", "Milo Monkey", "🐵");
+    private static readonly CharacterDef Lulu = new("Lulu", "Lulu Lamb", "🐑");
+    private static readonly CharacterDef Tilly = new("Tilly", "Tilly Turtle", "🐢");
+
+    // ---- Lessons ---------------------------------------------------------
+
+    public enum LessonType { Please, ThankYou, Turns, Sorry, CleanUp, Greeting, Achoo, GentleHands, InsideVoice }
+
+    private static readonly List<LessonType> AllLessons = Enum.GetValues<LessonType>().ToList();
+
+    // Actor is whichever character's behavior the child chooses for;
+    // Reactor is who emotionally responds to that choice.
+    private record ItemVariation(CharacterDef Actor, CharacterDef Reactor, string ItemEmoji, string ItemLabel);
+
+    private static readonly List<ItemVariation> PleaseVariations = new()
+    {
+        new(Milo, Poppy, "🍪", "crackers"),
+        new(Benny, Milo, "🧃", "juice"),
+        new(Poppy, Benny, "🖍️", "crayons"),
+        new(Lulu, Tilly, "🥕", "carrots"),
+        new(Tilly, Lulu, "🍇", "grapes"),
+    };
+
+    private static readonly List<ItemVariation> ThankYouVariations = new()
+    {
+        new(Milo, Poppy, "🌼", "flower"),
+        new(Poppy, Benny, "🐚", "seashell"),
+        new(Benny, Milo, "⭐", "sticker"),
+        new(Lulu, Tilly, "🎈", "balloon"),
+        new(Tilly, Lulu, "🍓", "berry"),
+    };
+
+    private static readonly List<ItemVariation> TurnsVariations = new()
+    {
+        new(Milo, Benny, "🚂", "toy train"),
+        new(Benny, Poppy, "🧱", "blocks"),
+        new(Poppy, Milo, "⚽", "ball"),
+        new(Lulu, Tilly, "🪁", "kite"),
+        new(Tilly, Benny, "🧩", "puzzle"),
+    };
+
+    private static readonly List<ItemVariation> SorryVariations = new()
+    {
+        new(Milo, Benny, "🧱", "block tower"),
+        new(Poppy, Milo, "🧱", "block tower"),
+        new(Benny, Poppy, "🧱", "block tower"),
+        new(Lulu, Tilly, "🧱", "block tower"),
+        new(Tilly, Lulu, "🧱", "block tower"),
+    };
+
+    private static readonly List<ItemVariation> GentleHandsVariations = new()
+    {
+        new(Milo, Lulu, "", ""),
+        new(Benny, Tilly, "", ""),
+        new(Poppy, Milo, "", ""),
+        new(Lulu, Benny, "", ""),
+    };
+
+    private static readonly List<ItemVariation> InsideVoiceVariations = new()
+    {
+        new(Milo, Poppy, "", ""),
+        new(Lulu, Tilly, "", ""),
+        new(Benny, Milo, "", ""),
+    };
+
+    private static readonly List<ItemVariation> GreetingVariations = new()
+    {
+        new(Milo, Benny, "", ""),
+        new(Lulu, Poppy, "", ""),
+        new(Tilly, Milo, "", ""),
+        new(Poppy, Lulu, "", ""),
+    };
+
+    private static readonly List<CharacterDef> AchooCharacters = new() { Benny, Poppy, Milo, Lulu, Tilly };
+
+    private static readonly (string Emoji, string Label)[] ToyPool =
+    {
+        ("🧸", "teddy bear"), ("🧱", "blocks"), ("⚽", "ball"),
+        ("📚", "book"), ("🚗", "car"), ("🖍️", "crayon"),
+    };
+
+    private static readonly string[] GardenRewardPool =
+    {
+        "🌸", "🌷", "🌻", "🌼", "🌹", "🦋", "🐦", "🍎", "🐞", "🌳", "✨", "🍓",
+    };
+
+    // ---- Round state -----------------------------------------------------
+
+    public class CleanUpToy
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+        public string Emoji { get; set; } = "";
+        public double X { get; set; }
+        public double Y { get; set; }
+    }
+
+    private class RoundState
+    {
+        public LessonType Lesson;
+        public CharacterDef Actor = null!;
+        public CharacterDef Reactor = null!;
+        public string ItemEmoji = "";
+        public string ItemLabel = "";
+
+        public bool ShowingConsequence;
+        public bool ReactorSad;
+        public bool ReactorHappy;
+        public bool HelpingRebuild;
+        public bool[] BlockTapped = new bool[3];
+
+        public List<CleanUpToy> Toys = new();
+
+        // Greeting
+        public bool WavedHello;
+
+        // Achoo
+        public bool ElbowPlaced;
+        public double ElbowX = 78;
+        public double ElbowY = 68;
+    }
+
+    private enum Phase { Setup, Playing, Reward, SessionComplete }
+
+    private Phase phase = Phase.Setup;
+    private readonly Random rng = new();
+    private RoundState round = new();
+    private List<LessonType> sessionLessons = new();
+    private int roundIndex;
+    private readonly List<string> gardenItems = new();
+    private string narratorText = "";
+    private bool muted;
+
+    private IJSObjectReference? _module;
+    private int elapsedSeconds;
+    private System.Threading.Timer? timer;
+
+    // ---- Drag state (clean-up toys) ---------------------------------------
+
+    private ElementReference cleanupAreaRef;
+    private ElementReference binRef;
+    private double areaLeft, areaTop, areaWidth, areaHeight;
+    private double binLeft, binTop, binWidth, binHeight;
+    private CleanUpToy? draggingToy;
+
+    // ---- Session flow ------------------------------------------------------
+
+    private async Task StartSession()
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+
+        sessionLessons = AllLessons.OrderBy(_ => rng.Next()).Take(3).ToList();
+        roundIndex = 0;
+        gardenItems.Clear();
+        elapsedSeconds = 0;
+
+        BuildRound(sessionLessons[0]);
+        phase = Phase.Playing;
+        StartTimer();
+        StateHasChanged();
+    }
+
+    private void ExitToSetup()
+    {
+        StopTimer();
+        _ = StopSpeakingAsync();
+        phase = Phase.Setup;
+    }
+
+    private void BuildRound(LessonType lesson)
+    {
+        round = new RoundState { Lesson = lesson };
+
+        if (lesson == LessonType.CleanUp)
+        {
+            var chosen = ToyPool.OrderBy(_ => rng.Next()).Take(3).ToList();
+            round.Toys = chosen.Select((t, idx) => new CleanUpToy
+            {
+                Emoji = t.Emoji,
+                X = 18 + idx * 32 + rng.Next(-6, 6),
+                Y = 28 + rng.Next(-8, 14),
+            }).ToList();
+
+            SetNarration("Playtime is over. Let's clean up together! Drag the toys into the basket.");
+            return;
+        }
+
+        if (lesson == LessonType.Greeting)
+        {
+            var greeting = GreetingVariations[rng.Next(GreetingVariations.Count)];
+            round.Actor = greeting.Actor;
+            round.Reactor = greeting.Reactor;
+            SetNarration($"{round.Actor.FirstName} just arrived! Let's say hello to {round.Reactor.FirstName}.");
+            return;
+        }
+
+        if (lesson == LessonType.Achoo)
+        {
+            round.Actor = AchooCharacters[rng.Next(AchooCharacters.Count)];
+            SetNarration($"{round.Actor.FirstName} feels a sneeze coming! Drag the elbow up to cover it.");
+            return;
+        }
+
+        var pool = lesson switch
+        {
+            LessonType.Please => PleaseVariations,
+            LessonType.ThankYou => ThankYouVariations,
+            LessonType.Turns => TurnsVariations,
+            LessonType.Sorry => SorryVariations,
+            LessonType.GentleHands => GentleHandsVariations,
+            LessonType.InsideVoice => InsideVoiceVariations,
+            _ => throw new ArgumentOutOfRangeException(nameof(lesson)),
+        };
+
+        var variation = pool[rng.Next(pool.Count)];
+        round.Actor = variation.Actor;
+        round.Reactor = variation.Reactor;
+        round.ItemEmoji = variation.ItemEmoji;
+        round.ItemLabel = variation.ItemLabel;
+
+        SetNarration(PromptLine(round));
+    }
+
+    private async Task CompleteRound()
+    {
+        gardenItems.Add(GardenRewardPool[rng.Next(GardenRewardPool.Length)]);
+        phase = Phase.Reward;
+        StateHasChanged();
+        await Task.Delay(1300);
+
+        if (roundIndex + 1 >= sessionLessons.Count)
+        {
+            await FinishSession();
+        }
+        else
+        {
+            roundIndex++;
+            BuildRound(sessionLessons[roundIndex]);
+            phase = Phase.Playing;
+            StateHasChanged();
+        }
+    }
+
+    private async Task FinishSession()
+    {
+        StopTimer();
+        phase = Phase.SessionComplete;
+        SetNarration("Wow! Look at your beautiful garden! Great job practicing your manners today!");
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MannersGardenResult(
+                ScenariosCompleted: sessionLessons.Count,
+                GardenItemsEarned: gardenItems.Count,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    // ---- Tap-choice lessons (Please / Thank You / Turns / Sorry) ---------
+
+    private async Task ChooseOption(bool polite)
+    {
+        if (round.ShowingConsequence) return;
+        round.ShowingConsequence = true;
+
+        if (polite)
+        {
+            round.ReactorHappy = true;
+
+            switch (round.Lesson)
+            {
+                case LessonType.Please:
+                    SetNarration("Please is a kind way to ask!");
+                    StateHasChanged();
+                    await Task.Delay(1600);
+                    await CompleteRound();
+                    break;
+
+                case LessonType.ThankYou:
+                    SetNarration("Thank you shows someone you appreciate their kindness!");
+                    StateHasChanged();
+                    await Task.Delay(1600);
+                    await CompleteRound();
+                    break;
+
+                case LessonType.Turns:
+                    SetNarration("Great asking!");
+                    StateHasChanged();
+                    await Task.Delay(1300);
+                    SetNarration($"{round.Reactor.FirstName} finished up and shared. Waiting for a turn was worth it!");
+                    StateHasChanged();
+                    await Task.Delay(1700);
+                    await CompleteRound();
+                    break;
+
+                case LessonType.Sorry:
+                    SetNarration("Saying sorry and helping can make things better!");
+                    round.ShowingConsequence = false;
+                    round.HelpingRebuild = true;
+                    StateHasChanged();
+                    break;
+
+                case LessonType.GentleHands:
+                    SetNarration("Gentle hands feel nice and keep friends safe!");
+                    StateHasChanged();
+                    await Task.Delay(1600);
+                    await CompleteRound();
+                    break;
+
+                case LessonType.InsideVoice:
+                    SetNarration($"Great job using your inside voice! {round.Reactor.FirstName} could listen easily.");
+                    StateHasChanged();
+                    await Task.Delay(1600);
+                    await CompleteRound();
+                    break;
+            }
+        }
+        else
+        {
+            round.ReactorSad = true;
+            SetNarration(GentleRetryLine(round));
+            StateHasChanged();
+            await Task.Delay(2200);
+
+            // Never a dead end - reset back to the same scenario so the
+            // child can pick again, rather than failing the round.
+            round.ReactorSad = false;
+            round.ShowingConsequence = false;
+            SetNarration(PromptLine(round));
+            StateHasChanged();
+        }
+    }
+
+    private async Task TapBlock(int idx)
+    {
+        if (round.BlockTapped[idx]) return;
+        round.BlockTapped[idx] = true;
+        StateHasChanged();
+
+        if (round.BlockTapped.All(t => t))
+        {
+            SetNarration($"You rebuilt the tower together! {round.Reactor.FirstName} feels happy again.");
+            round.ReactorHappy = true;
+            round.HelpingRebuild = false;
+
+            // Without this, the original "I'm sorry / Run away" choice
+            // buttons briefly re-match the "no consequence showing" guard
+            // and flash back on screen during the pause before the round
+            // actually advances.
+            round.ShowingConsequence = true;
+            StateHasChanged();
+            await Task.Delay(1500);
+            await CompleteRound();
+        }
+    }
+
+    private async Task WaveGreeting()
+    {
+        round.ShowingConsequence = true;
+        round.ReactorHappy = true;
+
+        if (!round.WavedHello)
+        {
+            SetNarration($"Hi, {round.Reactor.FirstName}!");
+            round.WavedHello = true;
+            StateHasChanged();
+            await Task.Delay(1500);
+
+            SetNarration($"It's time for {round.Actor.FirstName} to go home. Let's wave goodbye!");
+            round.ShowingConsequence = false;
+            StateHasChanged();
+        }
+        else
+        {
+            SetNarration("Bye-bye! See you soon!");
+            StateHasChanged();
+            await Task.Delay(1500);
+            await CompleteRound();
+        }
+    }
+
+    private static string PromptLine(RoundState r) => r.Lesson switch
+    {
+        LessonType.Please => $"{r.Actor.FirstName} would like some {r.ItemLabel}. What should {r.Actor.FirstName} say?",
+        LessonType.ThankYou => $"{r.Reactor.FirstName} gave {r.Actor.FirstName} a {r.ItemLabel}! What should {r.Actor.FirstName} say?",
+        LessonType.Turns => $"{r.Reactor.FirstName} is playing with the {r.ItemLabel}. {r.Actor.FirstName} wants a turn too!",
+        LessonType.Sorry => $"Oops! {r.Actor.FirstName} bumped {r.Reactor.FirstName}'s {r.ItemLabel}!",
+        LessonType.GentleHands => $"{r.Actor.FirstName} wants to play with {r.Reactor.FirstName}.",
+        LessonType.InsideVoice => $"{r.Actor.FirstName} has exciting news for {r.Reactor.FirstName} - they're inside today.",
+        _ => "",
+    };
+
+    private static string GentleRetryLine(RoundState r) => r.Lesson switch
+    {
+        LessonType.Please => $"{r.Reactor.FirstName} didn't quite understand. Let's try asking nicely.",
+        LessonType.ThankYou => $"{r.Reactor.FirstName} felt a little sad. Let's try saying thank you.",
+        LessonType.Turns => $"{r.Reactor.FirstName} was still playing with that. Let's try asking for a turn.",
+        LessonType.Sorry => $"That made {r.Reactor.FirstName} feel sad. Let's go back and help.",
+        LessonType.GentleHands => $"That felt rough to {r.Reactor.FirstName}. Let's try gentle hands.",
+        LessonType.InsideVoice => $"That was too loud for {r.Reactor.FirstName}'s ears. Let's use an inside voice.",
+        _ => "",
+    };
+
+    private static string PoliteEmoji(LessonType lesson) => lesson switch
+    {
+        LessonType.Please => "🙏",
+        LessonType.ThankYou => "💕",
+        LessonType.Turns => "🙋",
+        LessonType.Sorry => "🤗",
+        LessonType.GentleHands => "🤚",
+        LessonType.InsideVoice => "🤫",
+        _ => "🙂",
+    };
+
+    private static string ImpoliteEmoji(LessonType lesson) => lesson switch
+    {
+        LessonType.Please => "✊",
+        LessonType.ThankYou => "🚶",
+        LessonType.Turns => "✊",
+        LessonType.Sorry => "🏃",
+        LessonType.GentleHands => "💥",
+        LessonType.InsideVoice => "📢",
+        _ => "🙁",
+    };
+
+    private static string PoliteText(RoundState r) => r.Lesson switch
+    {
+        LessonType.Please => $"\"{char.ToUpper(r.ItemLabel[0])}{r.ItemLabel[1..]}, please?\"",
+        LessonType.ThankYou => "\"Thank you!\"",
+        LessonType.Turns => "\"Can I have a turn?\"",
+        LessonType.Sorry => "\"I'm sorry, can I help?\"",
+        LessonType.GentleHands => "Gentle high-five",
+        LessonType.InsideVoice => "Use a quiet voice",
+        _ => "",
+    };
+
+    private static string ImpoliteText(RoundState r) => r.Lesson switch
+    {
+        LessonType.Please => $"\"Give me {r.ItemLabel}!\"",
+        LessonType.ThankYou => "Walk away",
+        LessonType.Turns => $"Grab the {r.ItemLabel}",
+        LessonType.Sorry => "Run away",
+        LessonType.GentleHands => "Push",
+        LessonType.InsideVoice => "Shout loudly",
+        _ => "",
+    };
+
+    // ---- Clean-up lesson (drag toys into the basket) ----------------------
+
+    private async Task StartDragToy(PointerEventArgs e, CleanUpToy toy)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+
+        var areaRect = await _module.InvokeAsync<StageRect>("getBoundingRect", cleanupAreaRef);
+        areaLeft = areaRect.Left;
+        areaTop = areaRect.Top;
+        areaWidth = areaRect.Width;
+        areaHeight = areaRect.Height;
+
+        var binRect = await _module.InvokeAsync<StageRect>("getBoundingRect", binRef);
+        binLeft = binRect.Left;
+        binTop = binRect.Top;
+        binWidth = binRect.Width;
+        binHeight = binRect.Height;
+
+        await _module.InvokeVoidAsync("setPointerCapture", cleanupAreaRef, e.PointerId);
+
+        draggingToy = toy;
+        SetToyPosition(e.ClientX, e.ClientY);
+    }
+
+    private void OnCleanupPointerMove(PointerEventArgs e)
+    {
+        if (draggingToy is null) return;
+        SetToyPosition(e.ClientX, e.ClientY);
+    }
+
+    private async Task OnCleanupPointerUp(PointerEventArgs e)
+    {
+        if (draggingToy is null) return;
+
+        var toy = draggingToy;
+        draggingToy = null;
+
+        var overBin = binWidth > 0 && binHeight > 0 &&
+            e.ClientX >= binLeft && e.ClientX <= binLeft + binWidth &&
+            e.ClientY >= binTop && e.ClientY <= binTop + binHeight;
+
+        if (overBin)
+        {
+            round.Toys.Remove(toy);
+            StateHasChanged();
+
+            if (round.Toys.Count == 0)
+            {
+                SetNarration("Great job cleaning up together!");
+                StateHasChanged();
+                await Task.Delay(1400);
+                await CompleteRound();
+                return;
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private void SetToyPosition(double clientX, double clientY)
+    {
+        if (draggingToy is null || areaWidth <= 0 || areaHeight <= 0) return;
+
+        draggingToy.X = Math.Clamp((clientX - areaLeft) / areaWidth * 100, 4, 96);
+        draggingToy.Y = Math.Clamp((clientY - areaTop) / areaHeight * 100, 4, 96);
+        StateHasChanged();
+    }
+
+    // ---- Achoo lesson (drag the elbow up to cover a sneeze) ---------------
+
+    private ElementReference achooAreaRef;
+    private ElementReference achooTargetRef;
+    private double achooAreaLeft, achooAreaTop, achooAreaWidth, achooAreaHeight;
+    private double achooTargetLeft, achooTargetTop, achooTargetWidth, achooTargetHeight;
+    private bool draggingElbow;
+
+    private async Task StartDragElbow(PointerEventArgs e)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+
+        var areaRect = await _module.InvokeAsync<StageRect>("getBoundingRect", achooAreaRef);
+        achooAreaLeft = areaRect.Left;
+        achooAreaTop = areaRect.Top;
+        achooAreaWidth = areaRect.Width;
+        achooAreaHeight = areaRect.Height;
+
+        var targetRect = await _module.InvokeAsync<StageRect>("getBoundingRect", achooTargetRef);
+        achooTargetLeft = targetRect.Left;
+        achooTargetTop = targetRect.Top;
+        achooTargetWidth = targetRect.Width;
+        achooTargetHeight = targetRect.Height;
+
+        await _module.InvokeVoidAsync("setPointerCapture", achooAreaRef, e.PointerId);
+
+        draggingElbow = true;
+        SetElbowPosition(e.ClientX, e.ClientY);
+    }
+
+    private void OnAchooPointerMove(PointerEventArgs e)
+    {
+        if (!draggingElbow) return;
+        SetElbowPosition(e.ClientX, e.ClientY);
+    }
+
+    private async Task OnAchooPointerUp(PointerEventArgs e)
+    {
+        if (!draggingElbow) return;
+        draggingElbow = false;
+
+        var overTarget = achooTargetWidth > 0 && achooTargetHeight > 0 &&
+            e.ClientX >= achooTargetLeft && e.ClientX <= achooTargetLeft + achooTargetWidth &&
+            e.ClientY >= achooTargetTop && e.ClientY <= achooTargetTop + achooTargetHeight;
+
+        if (overTarget)
+        {
+            round.ElbowPlaced = true;
+            SetNarration($"Achoo! Great job covering with your elbow, {round.Actor.FirstName}!");
+            StateHasChanged();
+            await Task.Delay(1600);
+            await CompleteRound();
+        }
+        else
+        {
+            // Not a failure - just snap back so they can try again.
+            round.ElbowX = 78;
+            round.ElbowY = 68;
+            StateHasChanged();
+        }
+    }
+
+    private void SetElbowPosition(double clientX, double clientY)
+    {
+        if (!draggingElbow || achooAreaWidth <= 0 || achooAreaHeight <= 0) return;
+
+        round.ElbowX = Math.Clamp((clientX - achooAreaLeft) / achooAreaWidth * 100, 4, 96);
+        round.ElbowY = Math.Clamp((clientY - achooAreaTop) / achooAreaHeight * 100, 4, 96);
+        StateHasChanged();
+    }
+
+    private record StageRect(double Left, double Top, double Width, double Height);
+
+    // ---- Narration (Web Speech API, degrades silently if unsupported) -----
+
+    private void SetNarration(string text)
+    {
+        narratorText = text;
+        if (!muted)
+        {
+            _ = SpeakAsync(text);
+        }
+    }
+
+    private async Task SpeakAsync(string text)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync("speak", text);
+    }
+
+    private async Task StopSpeakingAsync()
+    {
+        if (_module is null) return;
+        await _module.InvokeVoidAsync("stopSpeaking");
+    }
+
+    private void ToggleMute()
+    {
+        muted = !muted;
+        if (muted)
+        {
+            _ = StopSpeakingAsync();
+        }
+    }
+
+    // ---- Timer -------------------------------------------------------------
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        StopTimer();
+
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("stopSpeaking");
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    // ---- Result payload ------------------------------------------------------
+
+    public record MannersGardenResult(int ScenariosCompleted, int GardenItemsEarned, int ElapsedSeconds);
+}

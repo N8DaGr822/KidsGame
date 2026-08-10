@@ -223,14 +223,24 @@ public class AppDataService
             LaunchMode = GameLaunchMode.InternalRoute
         };
 
+        var mannersGardenDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.MannersGarden);
+        var mannersGarden = new Game
+        {
+            Title = mannersGardenDef.Title,
+            ThumbnailEmoji = mannersGardenDef.ThumbnailEmoji,
+            LaunchTarget = mannersGardenDef.LaunchTarget,
+            LaunchMode = GameLaunchMode.InternalRoute
+        };
+
         var data = new AppData();
         data.Profiles.Add(admin);
         data.Profiles.Add(kid);
         data.Games.Add(memoryMatch);
         data.Games.Add(fishing);
         data.Games.Add(dressUp);
+        data.Games.Add(mannersGarden);
         data.ProfileGameAccess[admin.Id] = new List<string>();
-        data.ProfileGameAccess[kid.Id] = new List<string> { memoryMatch.Id, fishing.Id, dressUp.Id };
+        data.ProfileGameAccess[kid.Id] = new List<string> { memoryMatch.Id, fishing.Id, dressUp.Id, mannersGarden.Id };
 
         return data;
     }

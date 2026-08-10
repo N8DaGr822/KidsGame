@@ -14,11 +14,13 @@ public static class BuiltInGames
     public const string MemoryMatch = "memory-match";
     public const string Fishing = "fishing-catch";
     public const string DressUp = "dress-up";
+    public const string MannersGarden = "manners-garden";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
         new BuiltInGame("Memory Match", "🧠", MemoryMatch),
         new BuiltInGame("Fishing Catch", "🎣", Fishing),
         new BuiltInGame("Dress Up", "👗", DressUp),
+        new BuiltInGame("Manners Garden", "🌷", MannersGarden),
     };
 }

@@ -70,3 +70,26 @@ export function clearDrawCanvas(canvas) {
     const ctx = getDrawContext(canvas);
     ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
 }
+
+// ---- Spoken narration (Web Speech API) --------------------------------
+//
+// No audio assets to ship - this reads narrator/dialogue lines aloud so
+// pre-readers can follow along. Silently does nothing on browsers without
+// speechSynthesis support rather than erroring.
+
+export function speak(text) {
+    if (!('speechSynthesis' in window)) return;
+
+    // Cancel any line still playing so lines never overlap/queue up
+    // behind fast-advancing gameplay.
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.92;
+    utterance.pitch = 1.15;
+    window.speechSynthesis.speak(utterance);
+}
+
+export function stopSpeaking() {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+}
