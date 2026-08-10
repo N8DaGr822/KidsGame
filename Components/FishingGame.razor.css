@@ -224,17 +224,25 @@
     animation-name: fg-swim;
     animation-timing-function: linear;
     animation-iteration-count: infinite;
-    animation-direction: alternate;
+}
+
+/* Each fish swims one consistent direction for its whole lifetime
+   (chosen randomly in FishState.SwimsRightToLeft) rather than
+   bouncing back and forth via animation-direction:alternate - that
+   made the fish glide backwards, tail-first, on every reverse lap
+   since the sprite itself never turned around. */
+.fg-fish.reverse {
+    animation-name: fg-swim-reverse;
 }
 
 .fg-fish:active {
     transform: scale(0.9);
 }
 
-.fg-fish-body {
-    font-size: clamp(3rem, 8vw, 4rem);
-    filter: drop-shadow(0 4px 6px rgba(3, 28, 48, 0.32));
-}
+/* .fg-fish-body sizing lives in wwwroot/css/app.css, not here - it's
+   passed as AssetGlyph's Class parameter, and CSS isolation only scopes
+   to elements declared in this component's own markup, not a child
+   component's rendered output. */
 
 .fg-fish-label {
     position: absolute;
@@ -271,6 +279,11 @@
 @keyframes fg-swim {
     from { left: -8%; transform: translateX(-10%); }
     to { left: 100%; transform: translateX(-10%); }
+}
+
+@keyframes fg-swim-reverse {
+    from { left: 100%; transform: translateX(-10%); }
+    to { left: -8%; transform: translateX(-10%); }
 }
 
 @keyframes fg-catch {
@@ -331,7 +344,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .fg-fish {
+    .fg-fish,
+    .fg-fish.reverse {
         left: 45%;
         animation: none;
     }

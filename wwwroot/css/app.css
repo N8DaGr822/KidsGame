@@ -126,6 +126,26 @@ select:focus-visible {
   font-weight: 800;
 }
 
+.asset-glyph {
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  line-height: 1;
+}
+
+.asset-glyph-image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.asset-glyph-fallback {
+  line-height: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;
@@ -213,6 +233,20 @@ select:focus-visible {
   font-weight: 800;
 }
 
+.profile-chip-avatar {
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--profile-color, var(--accent)) 18%, rgba(255, 255, 255, 0.08));
+}
+
+.profile-chip-avatar .asset-glyph-image {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 .link-switch-profile,
 .link-back,
 .link-see-all {
@@ -293,6 +327,7 @@ select:focus-visible {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.75rem;
+  width: 71rem;
 }
 
 .carousel-track {
@@ -383,6 +418,13 @@ select:focus-visible {
   font-size: 4rem;
 }
 
+.profile-card-avatar .asset-glyph-image {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
 .profile-card-name {
   font-family: var(--font-display);
   font-size: 1.45rem;
@@ -421,6 +463,60 @@ select:focus-visible {
   border-radius: 22px;
   background: rgba(78, 205, 196, 0.14);
   font-size: 3.4rem;
+}
+
+.game-card-thumb .asset-glyph-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Fishing Catch fish body - sized here rather than in
+   FishingGame.razor.css because it's passed as AssetGlyph's Class
+   parameter; CSS isolation can't scope into a child component's markup. */
+.fg-fish-body {
+  width: clamp(4.5rem, 12vw, 6.5rem);
+  height: clamp(4.5rem, 12vw, 6.5rem);
+  font-size: clamp(4.5rem, 12vw, 6.5rem);
+  filter: drop-shadow(0 4px 6px rgba(3, 28, 48, 0.32));
+}
+
+.fg-fish-body .asset-glyph-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* The source art faces left; flip it to face right for fish swimming
+   that direction. Scoped to the body only (not the whole .fg-fish
+   button) so the letter/number label next to it stays unmirrored. */
+.fg-fish:not(.reverse) .fg-fish-body {
+  transform: scaleX(-1);
+}
+
+/* Manners Garden cast portraits - same CSS-isolation reason as above.
+   .mng-char-emoji keeps its scoped sizing too, since it's also used
+   directly (not through AssetGlyph) for the Achoo sneeze reaction. */
+.mng-cast-emoji {
+  width: 3rem;
+  height: 3rem;
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.mng-char-emoji {
+  width: clamp(4rem, 12vw, 5.5rem);
+  height: clamp(4rem, 12vw, 5.5rem);
+  font-size: clamp(4rem, 12vw, 5.5rem);
+  line-height: 1;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.3));
+}
+
+.mng-cast-emoji .asset-glyph-image,
+.mng-char-emoji .asset-glyph-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .game-card-title {
@@ -559,16 +655,24 @@ select:focus-visible {
 }
 
 .access-row {
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
   width: 100%;
   text-align: left;
-  cursor: pointer;
 }
 
 .admin-profile-avatar,
 .access-row-thumb {
+  width: 2.4rem;
+  height: 2.4rem;
   font-size: 1.8rem;
   line-height: 1;
+}
+
+.admin-profile-avatar .asset-glyph-image,
+.access-row-thumb .asset-glyph-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .admin-profile-name,
@@ -610,6 +714,43 @@ select:focus-visible {
   background: var(--surface-subtle);
   color: var(--text);
   padding: 0.65rem 0.75rem;
+}
+
+.usage-history {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.usage-history-row {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) 4rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.usage-history-date {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.usage-history-bar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.usage-history-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.usage-history-minutes {
+  text-align: right;
+  font-weight: 800;
+  font-size: 0.85rem;
 }
 
 /* ============================================================
@@ -669,6 +810,47 @@ select:focus-visible {
   font-weight: 800;
 }
 
+/* ============================================================
+   Time limit overlay
+   ============================================================ */
+
+.time-limit-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(8, 10, 16, 0.88);
+  backdrop-filter: blur(10px);
+}
+
+.time-limit-card {
+  width: min(420px, 100%);
+  padding: 2rem 1.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  text-align: center;
+}
+
+.time-limit-icon {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-size: 3rem;
+}
+
+.time-limit-card h1 {
+  font-size: 1.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.time-limit-card p {
+  margin-bottom: 1.5rem;
+  color: var(--text-soft);
+}
+
 #blazor-error-ui {
   display: none;
   position: fixed;
@@ -718,6 +900,7 @@ select:focus-visible {
   }
 
   .admin-profile-row .btn-secondary,
+  .access-row .btn-secondary,
   .admin-profile-row .btn-danger,
   .access-row-hidden {
     grid-column: 1 / -1;

@@ -45,10 +45,10 @@
     color: var(--text-soft);
 }
 
-.mng-cast-emoji {
-    font-size: 3rem;
-    line-height: 1;
-}
+/* .mng-cast-emoji sizing lives in wwwroot/css/app.css, not here - it's
+   passed as AssetGlyph's Class parameter, and CSS isolation only scopes
+   to elements declared in this component's own markup, not a child
+   component's rendered output. */
 
 .mng-start-btn {
     min-height: 56px;
@@ -121,6 +121,17 @@
     background: rgba(255, 255, 255, 0.08);
     color: var(--text);
     font-weight: 800;
+}
+
+.mng-garden-peek-btn {
+    min-height: 42px;
+    padding: 0.6rem 1rem;
+    border: 1px solid rgba(118, 227, 159, 0.5);
+    border-radius: var(--radius-sm);
+    background: rgba(118, 227, 159, 0.14);
+    color: var(--text);
+    font-weight: 800;
+    white-space: nowrap;
 }
 
 /* ---- Garden progress strip ---- */
@@ -419,6 +430,8 @@
 
 .mng-garden-panel {
     width: min(420px, 100%);
+    max-height: calc(100vh - 2rem);
+    overflow: auto;
     padding: 1.5rem;
     border: 1px solid var(--line-strong);
     border-radius: var(--radius-lg);
@@ -426,23 +439,6 @@
     color: var(--text);
     text-align: center;
     box-shadow: var(--shadow-md);
-}
-
-.mng-garden-bed {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 0.5rem;
-    padding: 1rem;
-    margin: 1rem 0;
-    border-radius: var(--radius-md);
-    background: linear-gradient(180deg, rgba(78, 205, 196, 0.1), rgba(118, 227, 159, 0.14));
-}
-
-.mng-garden-item {
-    font-size: 2rem;
-    line-height: 1;
-    animation: mng-pop-in 0.4s ease;
 }
 
 .mng-garden-actions {

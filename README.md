@@ -1,10 +1,10 @@
 # Kids Game Launcher
 
 A Blazor WebAssembly PWA game launcher for kids: a profile picker
-(parent/admin + kid accounts), a per-kid game carousel, three built-in
-games, and an admin panel for managing profiles and which games each kid
-can access. Works fully offline — no backend, no server, no account —
-everything is stored locally in the browser.
+(parent/admin + kid accounts), a per-kid game carousel, four built-in
+games, and an admin panel for managing profiles, which games each kid
+can access, and daily screen time. Works fully offline — no backend, no
+server, no account — everything is stored locally in the browser.
 
 ## Requirements
 
@@ -72,9 +72,12 @@ Events give one code path that works the same for mouse, touch, and pen.
   component or via iframe for externally-hosted games.
 - **Admin panel** (`/admin`) — add/edit/remove kid profiles, add games
   to the catalog (built-in games are one click via a picker; external
-  web games can be added by URL), and toggle which games each kid sees.
+  web games can be added by URL — Crown & Banner, under
+  `wwwroot/games/`, is a worked example), toggle which games each kid
+  sees, and (`/admin/history/{id}`) view a kid's play history and set or
+  reset their daily time limit.
 
-### The three built-in games
+### The four built-in games
 
 - **Memory Match** — flip cards to find matching pairs. Choose Animals,
   ABC (uppercase↔lowercase), or Numbers, and a difficulty.
@@ -85,11 +88,37 @@ Events give one code path that works the same for mouse, touch, and pen.
 - **Dress Up** — pick Girl (Princess/Witch/Unicorn) or Boy (Prince/
   Knight/Dragon), then drag sticker outfit pieces onto the character.
   Free play, no win state — tap "Done!" to log the session.
+- **Manners Garden** — practice social scenarios (sharing, saying
+  please/thank you) for ages 3–5; correct choices grow the garden.
+
+## Screen time tracking and limits
+
+`Services/PlayTimeTracker.cs` ticks every 15 seconds while a Kid profile
+is active — regardless of which screen or game is showing, including
+iframe-hosted games the app has no visibility into otherwise — and adds
+that time to the profile's usage total for the current local day
+(`AppData.DailyUsageSeconds`). `Layout/MainLayout.razor` wraps every
+page, so once a profile's daily limit (set from `/admin/history/{id}`)
+is reached, a full-screen lockout appears no matter what's on screen,
+and stays until the kid switches back to the profile picker.
+
+This total is separate from `AppData.PlayHistory`, which logs
+individual play sessions (game, difficulty, moves where applicable, and
+duration) for the "recent activity" list on that same admin page.
+Built-in games log their own entry on completion; iframe games have no
+completion signal at all, so `GameHost.razor` measures their session
+length itself and logs it on exit instead.
+
+Known limitation: the timer keeps running if the tablet is put to sleep
+or the tab is backgrounded (there's no Page Visibility API hook yet), so
+a long stretch with the screen off while the tab is open would still
+count against the limit.
 
 ## Data storage
 
-All data (profiles, game catalog, per-kid access lists, and play
-history) lives in browser `localStorage` as a single JSON blob, via
+All data (profiles, game catalog, per-kid access lists, play history,
+and daily usage totals) lives in browser `localStorage` as a single
+JSON blob, via
 `Services/AppDataService.cs`. This is intentional for v1: single
 device, fully offline, no backend to run.
 
@@ -110,12 +139,31 @@ internals for a real database or API without touching any page.
   admin panel with its full URL. `GameHost` loads it directly in an
   iframe, no code changes needed.
 
+## Adding images
+
+Game thumbnails and profile avatars now support local image paths with
+emoji fallbacks. Put artwork under `wwwroot/images/` and enter the path
+relative to `wwwroot` in the admin UI.
+
+Examples:
+
+- Profile avatar: `images/profiles/buddy.png`
+- Game thumbnail: `images/game-thumbs/memory-match.png`
+- Dress Up sticker art: `images/dressup/stickers/crown.png`
+- Fishing art: `images/fishing/fish-blue.png`
+- Manners Garden art: `images/manners/benny-bear.png`
+
+The reusable renderer is `Components/AssetGlyph.razor`: it shows the
+image when a path is present and falls back to the existing emoji when
+the path is blank. That lets you migrate one asset at a time without
+breaking old localStorage data.
+
 ## Known gaps / next steps
 
 - PWA icons in `wwwroot/icons/` are simple placeholders — swap in real
   art before shipping.
-- No image/thumbnail upload — games and profiles use emoji as
-  placeholder art for now.
+- No file upload UI yet — images need to be copied into `wwwroot/images/`
+  and referenced by path from the admin screens.
 - The admin PIN is a light deterrent (SHA-256 hash stored client-side),
   not real security — fine for a kid's tablet, not for anything that
   needs to resist a determined adult.

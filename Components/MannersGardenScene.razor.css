@@ -1,0 +1,50 @@
+.mngs-yard {
+    position: relative;
+    overflow: hidden;
+    min-height: 18rem;
+    margin: 0.75rem 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.mngs-sky {
+    position: absolute;
+    inset: 0 0 58% 0;
+    background:
+        radial-gradient(circle at 82% 20%, rgba(255, 236, 158, 0.95), rgba(255, 236, 158, 0) 24%),
+        linear-gradient(180deg, #7fd0e6, #bfeaf1);
+}
+
+.mngs-ground {
+    position: absolute;
+    inset: 42% 0 0 0;
+    border-top: 4px solid rgba(255, 255, 255, 0.3);
+    background: linear-gradient(180deg, #8fd47a, #56a852);
+}
+
+.mngs-plant {
+    position: absolute;
+    transform: translateX(-50%);
+    font-size: 2.3rem;
+    line-height: 1;
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.25));
+    animation: mngs-pop-in 0.4s ease;
+}
+
+.mngs-empty {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    margin: 0;
+    padding: 1.5rem;
+    text-align: center;
+    color: rgba(8, 40, 20, 0.7);
+    font-weight: 800;
+}
+
+@keyframes mngs-pop-in {
+    from { transform: translateX(-50%) scale(0); opacity: 0; }
+    to { transform: translateX(-50%) scale(1); opacity: 1; }
+}

@@ -35,11 +35,13 @@
             <p>Help Benny, Poppy, Milo, Lulu, and Tilly practice kind manners - and grow a beautiful garden together!</p>
 
             <div class="mng-cast">
-                <div class="mng-cast-member"><span class="mng-cast-emoji">🐻</span><span>Benny Bear</span></div>
-                <div class="mng-cast-member"><span class="mng-cast-emoji">🐧</span><span>Poppy Penguin</span></div>
-                <div class="mng-cast-member"><span class="mng-cast-emoji">🐵</span><span>Milo Monkey</span></div>
-                <div class="mng-cast-member"><span class="mng-cast-emoji">🐑</span><span>Lulu Lamb</span></div>
-                <div class="mng-cast-member"><span class="mng-cast-emoji">🐢</span><span>Tilly Turtle</span></div>
+                @foreach (var member in Cast)
+                {
+                    <div class="mng-cast-member">
+                        <AssetGlyph Class="mng-cast-emoji" Src="@member.ImagePath" Fallback="@member.Emoji" Alt="@member.FullName" />
+                        <span>@member.FullName</span>
+                    </div>
+                }
             </div>
 
             <button class="mng-start-btn" @onclick="StartSession">▶️ Start Playing</button>
@@ -52,12 +54,7 @@
                 <h2>🌼 Your Manners Garden!</h2>
                 <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") practicing kind manners today!</p>
 
-                <div class="mng-garden-bed">
-                    @foreach (var item in gardenItems)
-                    {
-                        <span class="mng-garden-item">@item</span>
-                    }
-                </div>
+                <MannersGardenScene Items="gardenItems" />
 
                 <div class="mng-garden-actions">
                     <button class="mng-start-btn" @onclick="StartSession">Play Again</button>
@@ -77,9 +74,16 @@
                     <span class="mng-progress-dot @(dotIndex < roundIndex ? "done" : "") @(dotIndex == roundIndex ? "active" : "")">🌱</span>
                 }
             </div>
+            <button class="mng-garden-peek-btn" @onclick="ToggleGarden">@(showingGarden ? "▶️ Back to Play" : "🌷 View Garden")</button>
             <button class="mng-restart-btn" @onclick="ExitToSetup">Change Game</button>
         </div>
 
+        @if (showingGarden)
+        {
+            <MannersGardenScene Items="gardenItems" />
+        }
+        else
+        {
         @if (gardenItems.Count > 0)
         {
             <div class="mng-garden-strip">
@@ -112,11 +116,11 @@
             {
                 <div class="mng-characters">
                     <div class="mng-character @(round.ReactorHappy ? "happy" : "")">
-                        <span class="mng-char-emoji">@round.Reactor.Emoji</span>
+                        <AssetGlyph Class="mng-char-emoji" Src="@round.Reactor.ImagePath" Fallback="@round.Reactor.Emoji" Alt="@round.Reactor.FullName" />
                         <span class="mng-char-name">@round.Reactor.FullName</span>
                     </div>
                     <div class="mng-character @(round.WavedHello ? "happy" : "")">
-                        <span class="mng-char-emoji">@round.Actor.Emoji</span>
+                        <AssetGlyph Class="mng-char-emoji" Src="@round.Actor.ImagePath" Fallback="@round.Actor.Emoji" Alt="@round.Actor.FullName" />
                         <span class="mng-char-name">@round.Actor.FullName</span>
                     </div>
                 </div>
@@ -135,7 +139,14 @@
             {
                 <div class="mng-achoo-area" @ref="achooAreaRef" @onpointermove="OnAchooPointerMove" @onpointerup="OnAchooPointerUp" @onpointercancel="OnAchooPointerUp">
                     <div class="mng-character mng-achoo-character">
-                        <span class="mng-char-emoji">@(round.ElbowPlaced ? "🤧" : round.Actor.Emoji)</span>
+                        @if (round.ElbowPlaced)
+                        {
+                            <span class="mng-char-emoji">🤧</span>
+                        }
+                        else
+                        {
+                            <AssetGlyph Class="mng-char-emoji" Src="@round.Actor.ImagePath" Fallback="@round.Actor.Emoji" Alt="@round.Actor.FullName" />
+                        }
                         <span class="mng-char-name">@round.Actor.FullName</span>
                         <div class="mng-achoo-target" @ref="achooTargetRef"></div>
                     </div>
@@ -155,7 +166,7 @@
             {
                 <div class="mng-characters">
                     <div class="mng-character @(round.ReactorSad ? "sad" : "") @(round.ReactorHappy ? "happy" : "")">
-                        <span class="mng-char-emoji">@round.Reactor.Emoji</span>
+                        <AssetGlyph Class="mng-char-emoji" Src="@round.Reactor.ImagePath" Fallback="@round.Reactor.Emoji" Alt="@round.Reactor.FullName" />
                         <span class="mng-char-name">@round.Reactor.FullName</span>
                         @if (round.ReactorSad)
                         {
@@ -173,7 +184,7 @@
                     }
 
                     <div class="mng-character">
-                        <span class="mng-char-emoji">@round.Actor.Emoji</span>
+                        <AssetGlyph Class="mng-char-emoji" Src="@round.Actor.ImagePath" Fallback="@round.Actor.Emoji" Alt="@round.Actor.FullName" />
                         <span class="mng-char-name">@round.Actor.FullName</span>
                     </div>
                 </div>
@@ -204,6 +215,7 @@
                 }
             }
         </div>
+        }
 
         @if (phase == Phase.Reward && gardenItems.Count > 0)
         {
@@ -226,13 +238,18 @@
 
     // ---- Cast ----------------------------------------------------------------
 
-    public record CharacterDef(string FirstName, string FullName, string Emoji);
+    // ImagePath is null for Lulu and Tilly until matching art is added -
+    // AssetGlyph falls back to Emoji automatically, so this is a
+    // one-character-at-a-time migration like the rest of the app's art.
+    public record CharacterDef(string FirstName, string FullName, string Emoji, string? ImagePath = null);
 
-    private static readonly CharacterDef Benny = new("Benny", "Benny Bear", "🐻");
-    private static readonly CharacterDef Poppy = new("Poppy", "Poppy Penguin", "🐧");
-    private static readonly CharacterDef Milo = new("Milo", "Milo Monkey", "🐵");
+    private static readonly CharacterDef Benny = new("Benny", "Benny Bear", "🐻", "images/manners/benny-bear.png");
+    private static readonly CharacterDef Poppy = new("Poppy", "Poppy Penguin", "🐧", "images/manners/poppy-penguin.png");
+    private static readonly CharacterDef Milo = new("Milo", "Milo Monkey", "🐵", "images/manners/milo-monkey.png");
     private static readonly CharacterDef Lulu = new("Lulu", "Lulu Lamb", "🐑");
     private static readonly CharacterDef Tilly = new("Tilly", "Tilly Turtle", "🐢");
+
+    private static readonly List<CharacterDef> Cast = new() { Benny, Poppy, Milo, Lulu, Tilly };
 
     // ---- Lessons ---------------------------------------------------------
 
@@ -361,6 +378,7 @@
     private readonly List<string> gardenItems = new();
     private string narratorText = "";
     private bool muted;
+    private bool showingGarden;
 
     private IJSObjectReference? _module;
     private int elapsedSeconds;
@@ -384,6 +402,7 @@
         roundIndex = 0;
         gardenItems.Clear();
         elapsedSeconds = 0;
+        showingGarden = false;
 
         BuildRound(sessionLessons[0]);
         phase = Phase.Playing;
@@ -396,7 +415,10 @@
         StopTimer();
         _ = StopSpeakingAsync();
         phase = Phase.Setup;
+        showingGarden = false;
     }
+
+    private void ToggleGarden() => showingGarden = !showingGarden;
 
     private void BuildRound(LessonType lesson)
     {

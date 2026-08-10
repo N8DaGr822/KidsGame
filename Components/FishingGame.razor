@@ -86,11 +86,11 @@
             <div class="fg-water">
                 @foreach (var fish in fishes)
                 {
-                    <button @key="fish.Id" class="fg-fish @(fish.IsCaught ? "caught" : "") @(fish.IsMissed ? "missed" : "")"
+                    <button @key="fish.Id" class="fg-fish @(fish.IsCaught ? "caught" : "") @(fish.IsMissed ? "missed" : "") @(fish.SwimsRightToLeft ? "reverse" : "")"
                             style="@FishStyle(fish)"
                             disabled="@fish.IsCaught"
                             @onclick="() => CatchFish(fish)">
-                        <span class="fg-fish-body">🐟</span>
+                        <AssetGlyph Class="fg-fish-body" Src="@fish.ImagePath" Fallback="🐟" Alt="" />
                         <span class="fg-fish-label">@fish.Symbol</span>
                     </button>
                 }
@@ -183,12 +183,26 @@
     {
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string Symbol { get; set; } = "";
+        public string ImagePath { get; set; } = "";
         public bool IsCaught { get; set; }
         public bool IsMissed { get; set; }
+        public bool SwimsRightToLeft { get; set; }
         public double Top { get; set; }
         public double Duration { get; set; }
         public double Delay { get; set; }
     }
+
+    // Purely decorative variety - unrelated to the letter/number a fish
+    // carries, so catching stays based on the label, not the color.
+    private static readonly string[] FishImagePool =
+    {
+        "images/fishing/fish-blue.png",
+        "images/fishing/fish-orange.png",
+        "images/fishing/fish-green.png",
+        "images/fishing/fish-pink.png",
+        "images/fishing/fish-grey.png",
+        "images/fishing/fish-red.png",
+    };
 
     private List<FishState> fishes = new();
     private readonly Random rng = new();
@@ -249,6 +263,8 @@
             .Select(symbol => new FishState
             {
                 Symbol = symbol,
+                ImagePath = FishImagePool[rng.Next(FishImagePool.Length)],
+                SwimsRightToLeft = rng.Next(2) == 0,
                 Top = 8 + rng.NextDouble() * 74,
                 Duration = 7 + rng.NextDouble() * 5,
                 Delay = -(rng.NextDouble() * 6),

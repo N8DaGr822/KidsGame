@@ -1,0 +1,48 @@
+@*
+    MannersGardenScene.razor
+    Read-only visual of the garden items earned so far - a small sky/grass
+    scene with items scattered across the ground, rather than a plain row
+    of emoji. Used both for peeking at the garden mid-session (via the
+    "View Garden" toggle in MannersGarden.razor) and for the end-of-session
+    celebration screen, so the garden looks the same wherever it's shown.
+*@
+
+<div class="mngs-yard">
+    <div class="mngs-sky"></div>
+    <div class="mngs-ground">
+        @if (Items.Count == 0)
+        {
+            <p class="mngs-empty">Finish a scenario to plant something here!</p>
+        }
+        else
+        {
+            @for (var i = 0; i < Items.Count; i++)
+            {
+                var index = i;
+                var (left, bottom) = ItemPosition(index);
+                <span class="mngs-plant" style="left:@(left.ToString(Inv))%; bottom:@(bottom.ToString(Inv))%;">@Items[index]</span>
+            }
+        }
+    </div>
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    [Parameter, EditorRequired] public List<string> Items { get; set; } = new();
+
+    // Deterministic scattered layout (loose rows + per-index jitter) so the
+    // bed reads as planted rather than gridded, without needing to store a
+    // position per item anywhere.
+    private static (double Left, double Bottom) ItemPosition(int index)
+    {
+        const int columns = 4;
+        var col = index % columns;
+        var row = index / columns;
+        var jitterX = (index * 37 % 11) - 5;
+        var jitterY = (index * 53 % 13) - 6;
+        var left = Math.Clamp(12 + col * 24 + jitterX, 4, 92);
+        var bottom = Math.Clamp(10 + row * 26 + jitterY, 6, 78);
+        return (left, bottom);
+    }
+}
