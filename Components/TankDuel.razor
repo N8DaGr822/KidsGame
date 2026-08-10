@@ -1,0 +1,687 @@
+@*
+    TankDuel.razor
+    A very simple turn-based artillery duel: your tank vs one CPU tank,
+    facing each other across a fixed battlefield. Drag anywhere on the
+    field to aim - a dotted trajectory preview shows exactly where the
+    shell will go before you let go and fire. 5 hits destroys a tank.
+
+    No moving, no destructible terrain, no upgrades - just aim, power,
+    fire, repeat. Trajectory preview uses the exact same physics as the
+    actual shot, so "what you see is what you get."
+
+    Usage:
+        <TankDuel OnComplete="HandleGameComplete" />
+
+    Optional:
+        <TankDuel PlayerName="Riley" OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="tk-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="tk-setup">
+            <h2>🎯 Tank Duel</h2>
+            <p>Drag anywhere on the battlefield to aim - the dotted line shows
+               exactly where your shot will land. Let go to fire! Five hits
+               and a tank is out. Watch out for the crate wall in the middle -
+               you'll need a real arc to clear it, and every battle you win
+               makes the walls taller, trickier to line up, and eventually
+               more than one.</p>
+            <button class="tk-start-btn" @onclick="StartNewCampaign">▶️ Start Battle</button>
+        </div>
+    }
+    else
+    {
+        <div class="tk-hud">
+            <div class="tk-hp-group">
+                <span class="tk-hp-label">You</span>
+                <div class="tk-hp-pips">
+                    @for (var i = 0; i < MaxHp; i++)
+                    {
+                        <span class="tk-hp-pip @(i < playerHp ? "" : "spent")">🛡️</span>
+                    }
+                </div>
+            </div>
+            <div class="tk-status">
+                <span class="tk-level">Level @level</span>
+                @statusText
+            </div>
+            <div class="tk-hp-group">
+                <span class="tk-hp-label">Enemy</span>
+                <div class="tk-hp-pips">
+                    @for (var i = 0; i < MaxHp; i++)
+                    {
+                        <span class="tk-hp-pip @(i < enemyHp ? "" : "spent")">🛡️</span>
+                    }
+                </div>
+            </div>
+            <button class="tk-restart-btn" @onclick="ExitToSetup">Change Game</button>
+        </div>
+
+        <div class="tk-battlefield" @ref="fieldRef"
+             @onpointerdown="OnFieldPointerDown"
+             @onpointermove="OnFieldPointerMove"
+             @onpointerup="OnFieldPointerUp"
+             @onpointercancel="OnFieldPointerUp">
+
+            <div class="tk-sky"></div>
+            <div class="tk-ground"></div>
+
+            @foreach (var obstacle in obstacles)
+            {
+                @for (var i = 0; i < obstacle.CrateCount; i++)
+                {
+                    var crateIndex = i;
+                    <img class="tk-crate" src="images/tanks/crate-wood.png" alt=""
+                         style="left:@(obstacle.X.ToString(Inv))%; top:@((GroundY - crateIndex * CrateHeightPercent).ToString(Inv))%;" />
+                }
+            }
+
+            @if (previewPoints.Count > 0)
+            {
+                @foreach (var point in previewPoints)
+                {
+                    <span class="tk-preview-dot" style="left:@(point.X.ToString(Inv))%; top:@(point.Y.ToString(Inv))%;"></span>
+                }
+            }
+
+            <div class="tk-tank tk-tank-player" style="left:@(PlayerX.ToString(Inv))%; top:@(GroundY.ToString(Inv))%;">
+                <img class="tk-tank-body" src="images/tanks/tank-body-green.png" alt="Your tank" />
+                <img class="tk-tank-barrel" src="images/tanks/tank-barrel-green.png" alt=""
+                     style="transform:rotate(@(BarrelCssAngle(playerBarrelAngleDeg).ToString(Inv))deg);" />
+            </div>
+
+            <div class="tk-tank tk-tank-enemy" style="left:@(EnemyX.ToString(Inv))%; top:@(GroundY.ToString(Inv))%;">
+                <img class="tk-tank-body" src="images/tanks/tank-body-grey.png" alt="Enemy tank" />
+                <img class="tk-tank-barrel" src="images/tanks/tank-barrel-grey.png" alt=""
+                     style="transform:rotate(@(BarrelCssAngle(enemyBarrelAngleDeg).ToString(Inv))deg);" />
+            </div>
+
+            @if (shellActive)
+            {
+                <img class="tk-shell" src="images/tanks/tank-shell.png" alt=""
+                     style="left:@(shellX.ToString(Inv))%; top:@(shellY.ToString(Inv))%;" />
+            }
+
+            @if (impactX is { } ix && impactY is { } iy)
+            {
+                <img class="tk-impact @(impactIsExplosion ? "big" : "")" src="@ImpactFrameSrc()" alt=""
+                     style="left:@(ix.ToString(Inv))%; top:@(iy.ToString(Inv))%;" />
+            }
+        </div>
+
+        @if (phase == Phase.RoundEnd)
+        {
+            <div class="tk-win-overlay">
+                <div class="tk-win-panel">
+                    <h2>@(playerWon ? "🎉 Direct hit - enemy tank down!" : "💥 Your tank was destroyed!")</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@(playerWon ? "great shooting!" : "give it another go!")</p>
+                    <div class="tk-win-stats">
+                        <div><span class="tk-stat-label">Shots fired</span><span class="tk-stat-value">@shotsFired</span></div>
+                        <div><span class="tk-stat-label">Time</span><span class="tk-stat-value">@FormatTime(elapsedSeconds)</span></div>
+                    </div>
+                    <div class="tk-win-actions">
+                        <button class="tk-start-btn" @onclick="PlayAgain">@(playerWon ? $"Next Battle (Level {level + 1})" : "Try Again")</button>
+                        <button class="tk-restart-btn" @onclick="ExitToSetup">Change Game</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    // ---- Public parameters -------------------------------------------------
+
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<TankDuelResult> OnComplete { get; set; }
+
+    // ---- Field layout (all in percent-of-field units - both the physics
+    // and the rendering share this one coordinate space) -------------------
+
+    private const int MaxHp = 5;
+    private const double GroundY = 78;
+    private const double PlayerX = 16;
+    private const double EnemyX = 84;
+    private const double TankHalfWidth = 6;
+    private const double LaunchYOffset = 10; // shell starts a bit above ground, at barrel height
+    private const double Gravity = 150;
+    private const double MinSpeed = 55;
+    private const double MaxSpeed = 130;
+    private const double MinAngleDeg = 12;
+    private const double MaxAngleDeg = 78;
+    private const double MinDragDistance = 4; // percent - shorter drags don't fire
+    private const double MaxDragDistance = 42; // percent - clamps max power
+
+    // Walls of crates force a real arc rather than a flat shot straight
+    // down the field. CrateHeightPercent (field-height percent per crate)
+    // is derived from CrateWidthPercent (the crate's CSS width, in
+    // field-width percent) via the field's fixed 16:10 aspect ratio, so
+    // the stacked crates' hitbox matches how they render.
+    private const double ObstacleHalfWidth = 5;
+    private const double CrateWidthPercent = 5;
+    private const double CrateHeightPercent = CrateWidthPercent * 1.6;
+    private const int MaxCrates = 8;
+
+    private record Obstacle(double X, int CrateCount)
+    {
+        public double Height => CrateCount * CrateHeightPercent;
+        public double TopY => GroundY - Height;
+    }
+
+    // ---- Game state ------------------------------------------------------
+
+    private enum Phase { Setup, PlayerAiming, Busy, RoundEnd }
+
+    private Phase phase = Phase.Setup;
+    private readonly Random rng = new();
+    private ElementReference fieldRef;
+    private IJSObjectReference? _module;
+    private double fieldLeft, fieldTop, fieldWidth, fieldHeight;
+
+    private int level = 1;
+    private readonly List<Obstacle> obstacles = new();
+
+    private int playerHp;
+    private int enemyHp;
+    private bool playerWon;
+    private int shotsFired;
+    private int elapsedSeconds;
+    private System.Threading.Timer? clockTimer;
+    private string statusText = "";
+
+    private double playerBarrelAngleDeg = 45;
+    private double enemyBarrelAngleDeg = 45;
+
+    private bool isDragging;
+    private readonly List<(double X, double Y)> previewPoints = new();
+
+    private bool shellActive;
+    private double shellX, shellY;
+
+    private double? impactX, impactY;
+    private bool impactIsExplosion;
+    private int impactFrame;
+    private System.Threading.Timer? impactTimer;
+
+    // ---- Lifecycle ---------------------------------------------------------
+
+    // Entry point from the setup screen - always a fresh level 1.
+    private void StartNewCampaign()
+    {
+        level = 1;
+        StartGame();
+    }
+
+    // Entry point from "Play Again" - only escalates the obstacle on a
+    // win, so losing gets you a rematch at the same difficulty rather
+    // than a harder one.
+    private void PlayAgain()
+    {
+        if (playerWon) level++;
+        StartGame();
+    }
+
+    private void StartGame()
+    {
+        playerHp = MaxHp;
+        enemyHp = MaxHp;
+        shotsFired = 0;
+        elapsedSeconds = 0;
+        playerBarrelAngleDeg = 45;
+        enemyBarrelAngleDeg = 45;
+        shellActive = false;
+        previewPoints.Clear();
+        ClearImpact();
+        BuildObstacles();
+
+        phase = Phase.PlayerAiming;
+        statusText = "Your turn! Drag on the battlefield to aim, then let go to fire.";
+        StartClock();
+    }
+
+    private void ExitToSetup()
+    {
+        StopClock();
+        StopImpactTimer();
+        phase = Phase.Setup;
+    }
+
+    // ---- Aiming (drag anywhere on the field; aim vector is measured from
+    // the player's tank to the pointer, not from the drag's start point -
+    // more forgiving for small/imprecise taps) ------------------------------
+
+    private async Task OnFieldPointerDown(PointerEventArgs e)
+    {
+        if (phase != Phase.PlayerAiming) return;
+
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        var rect = await _module.InvokeAsync<FieldRect>("getBoundingRect", fieldRef);
+        fieldLeft = rect.Left;
+        fieldTop = rect.Top;
+        fieldWidth = rect.Width;
+        fieldHeight = rect.Height;
+
+        await _module.InvokeVoidAsync("setPointerCapture", fieldRef, e.PointerId);
+
+        isDragging = true;
+        UpdateAim(e.ClientX, e.ClientY);
+    }
+
+    private void OnFieldPointerMove(PointerEventArgs e)
+    {
+        if (!isDragging) return;
+        UpdateAim(e.ClientX, e.ClientY);
+    }
+
+    private async Task OnFieldPointerUp(PointerEventArgs e)
+    {
+        if (!isDragging) return;
+        isDragging = false;
+
+        var (hasShot, angle, speed) = ResolveAim(e.ClientX, e.ClientY);
+        previewPoints.Clear();
+
+        if (!hasShot)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        playerBarrelAngleDeg = angle;
+        await TakePlayerShotAsync(angle, speed);
+    }
+
+    private void UpdateAim(double clientX, double clientY)
+    {
+        var (hasShot, angle, speed) = ResolveAim(clientX, clientY);
+        playerBarrelAngleDeg = hasShot ? angle : playerBarrelAngleDeg;
+
+        previewPoints.Clear();
+        if (hasShot)
+        {
+            var (vx, vy) = VelocityFromAngleSpeed(angle, speed, facingRight: true);
+            previewPoints.AddRange(ComputeTrajectoryPreview(PlayerX, GroundY - LaunchYOffset, vx, vy));
+        }
+
+        StateHasChanged();
+    }
+
+    // Converts a raw pointer position into a clamped (angle, speed) shot,
+    // or (false, _, _) if the drag is too short to count as an aim.
+    private (bool HasShot, double AngleDeg, double Speed) ResolveAim(double clientX, double clientY)
+    {
+        if (fieldWidth <= 0 || fieldHeight <= 0) return (false, 0, 0);
+
+        var pointerXPct = (clientX - fieldLeft) / fieldWidth * 100;
+        var pointerYPct = (clientY - fieldTop) / fieldHeight * 100;
+
+        // Pull vector from tank to pointer; fire direction is the opposite
+        // (slingshot-style: drag back and down, shot goes forward and up).
+        var pullX = pointerXPct - PlayerX;
+        var pullY = pointerYPct - (GroundY - LaunchYOffset);
+        var dragDistance = Math.Sqrt(pullX * pullX + pullY * pullY);
+        if (dragDistance < MinDragDistance) return (false, 0, 0);
+
+        var fireX = -pullX;
+        var fireY = -pullY;
+
+        var angleDeg = Math.Atan2(-fireY, Math.Abs(fireX)) * 180 / Math.PI;
+        angleDeg = Math.Clamp(angleDeg, MinAngleDeg, MaxAngleDeg);
+
+        var clampedDrag = Math.Clamp(dragDistance, MinDragDistance, MaxDragDistance);
+        var t = (clampedDrag - MinDragDistance) / (MaxDragDistance - MinDragDistance);
+        var speed = MinSpeed + t * (MaxSpeed - MinSpeed);
+
+        return (true, angleDeg, speed);
+    }
+
+    private static (double Vx, double Vy) VelocityFromAngleSpeed(double angleDeg, double speed, bool facingRight)
+    {
+        var rad = angleDeg * Math.PI / 180.0;
+        var vx = Math.Cos(rad) * speed * (facingRight ? 1 : -1);
+        var vy = -Math.Sin(rad) * speed;
+        return (vx, vy);
+    }
+
+    // CSS rotate(0deg) points the barrel straight up; this maps our
+    // "degrees above horizontal, facing right" angle to that.
+    private static double BarrelCssAngle(double elevationAngleDeg) => 90 - elevationAngleDeg;
+
+    // Solves 0.5*g*t^2 + vy*t + (y0-GroundY) = 0 for the time the shell
+    // reaches ground level, analytically - not by stepping - so the
+    // trajectory preview's final dot is the *exact* landing spot rather
+    // than wherever a coarse time-step last happened to land. That
+    // exactness is the whole point of "trajectory assistance": what you
+    // see needs to be what you get.
+    private static double SolveImpactTime(double y0, double vy)
+    {
+        var a = 0.5 * Gravity;
+        var b = vy;
+        var c = y0 - GroundY;
+        var discriminant = b * b - 4 * a * c;
+        if (discriminant < 0) return 0;
+
+        var sqrtDisc = Math.Sqrt(discriminant);
+        return Math.Max((-b + sqrtDisc) / (2 * a), (-b - sqrtDisc) / (2 * a));
+    }
+
+    // True once the shell has descended to or below any wall's top while
+    // still crossing that wall's width - i.e. it didn't clear it.
+    private bool ObstacleBlocks(double x, double y) =>
+        obstacles.Any(o => y >= o.TopY && Math.Abs(x - o.X) <= ObstacleHalfWidth);
+
+    // Layout gets more demanding by level: a single centered wall that
+    // just grows taller, then the same wall shifted off-center (so the
+    // arc's peak needs to line up somewhere new), then two separate walls
+    // to clear in one shot. Rebuilt once per battle (not a pure function
+    // of level) so the off-center position and gap vary between replays
+    // at the same level instead of always looking identical.
+    private void BuildObstacles()
+    {
+        obstacles.Clear();
+        var mainHeight = Math.Min(level + 1, MaxCrates);
+
+        if (level <= 3)
+        {
+            obstacles.Add(new Obstacle(50, mainHeight));
+        }
+        else if (level <= 6)
+        {
+            var offset = 10 + rng.Next(10);
+            var x = rng.Next(2) == 0 ? 50 - offset : 50 + offset;
+            obstacles.Add(new Obstacle(x, mainHeight));
+        }
+        else
+        {
+            var secondaryHeight = Math.Max(2, mainHeight - 3);
+            var gap = 16 + rng.Next(8);
+            var center = 50 + rng.Next(-6, 7);
+            obstacles.Add(new Obstacle(center - gap / 2.0, mainHeight));
+            obstacles.Add(new Obstacle(center + gap / 2.0, secondaryHeight));
+        }
+    }
+
+    private List<(double X, double Y)> ComputeTrajectoryPreview(double x0, double y0, double vx, double vy)
+    {
+        var points = new List<(double, double)>();
+        var impactTime = SolveImpactTime(y0, vy);
+        if (impactTime <= 0) return points;
+
+        const int steps = 14;
+        for (var i = 1; i <= steps; i++)
+        {
+            var t = impactTime * i / steps;
+            var x = x0 + vx * t;
+            var y = y0 + vy * t + 0.5 * Gravity * t * t;
+            if (x < 0 || x > 100) break;
+            points.Add((x, y));
+            if (ObstacleBlocks(x, y)) break; // preview stops exactly where the real shot would
+        }
+        return points;
+    }
+
+    // ---- Firing / turn sequencing ------------------------------------------
+
+    private async Task TakePlayerShotAsync(double angleDeg, double speed)
+    {
+        phase = Phase.Busy;
+        statusText = "Fire!";
+        StateHasChanged();
+
+        var (vx, vy) = VelocityFromAngleSpeed(angleDeg, speed, facingRight: true);
+        var hit = await FlyShellAsync(PlayerX, GroundY - LaunchYOffset, vx, vy, targetIsEnemy: true);
+
+        if (hit) enemyHp--;
+        statusText = hit ? "Direct hit!" : "Missed - enemy's turn.";
+        StateHasChanged();
+        await Task.Delay(700);
+
+        if (enemyHp <= 0)
+        {
+            await EndRoundAsync(didPlayerWin: true);
+            return;
+        }
+
+        await TakeEnemyTurnAsync();
+    }
+
+    private async Task TakeEnemyTurnAsync()
+    {
+        phase = Phase.Busy;
+        statusText = "Enemy is taking aim...";
+        StateHasChanged();
+        await Task.Delay(800);
+
+        var (angleDeg, speed) = ComputeEnemyShot();
+        enemyBarrelAngleDeg = angleDeg;
+        StateHasChanged();
+        await Task.Delay(400);
+
+        statusText = "Incoming!";
+        StateHasChanged();
+
+        var (vx, vy) = VelocityFromAngleSpeed(angleDeg, speed, facingRight: false);
+        var hit = await FlyShellAsync(EnemyX, GroundY - LaunchYOffset, vx, vy, targetIsEnemy: false);
+
+        if (hit) playerHp--;
+        statusText = hit ? "You've been hit!" : "Enemy missed - your turn!";
+        StateHasChanged();
+        await Task.Delay(700);
+
+        if (playerHp <= 0)
+        {
+            await EndRoundAsync(didPlayerWin: false);
+            return;
+        }
+
+        phase = Phase.PlayerAiming;
+        statusText = "Your turn! Drag on the battlefield to aim, then let go to fire.";
+        StateHasChanged();
+    }
+
+    // Aims for the player's tank using the standard level-ground range
+    // formula, then deliberately misjudges it a bit so the CPU isn't
+    // unbeatable - "very simple" difficulty, not perfect aim. The
+    // misjudgment shrinks with level (±30% at level 1 down to a ±6%
+    // floor) so the obstacle isn't the only thing that gets harder -
+    // the CPU's aim genuinely improves too, rather than only the terrain.
+    private (double AngleDeg, double Speed) ComputeEnemyShot()
+    {
+        var angleDeg = 40 + rng.NextDouble() * 20;
+        var angleRad = angleDeg * Math.PI / 180;
+        var trueRange = EnemyX - PlayerX;
+        var spread = Math.Max(0.06, 0.3 - (level - 1) * 0.03);
+        var accuracy = (1 - spread) + rng.NextDouble() * (2 * spread);
+        var targetRange = trueRange * accuracy;
+
+        // The flat-ground range formula (Range = v^2 sin(2θ)/g) assumes
+        // launch and impact happen at the same height, but the shell
+        // actually launches from barrel height, above the ground line it
+        // lands on - that extra fall adds hang time and therefore range,
+        // so a naive formula-only shot systematically overshoots. A
+        // couple of correction passes against the real (analytical)
+        // flight time fixes that without needing a closed-form solution.
+        var speed = Math.Sqrt(Math.Max(targetRange, 1) * Gravity / Math.Sin(2 * angleRad));
+        for (var i = 0; i < 3; i++)
+        {
+            var vx = speed * Math.Cos(angleRad);
+            var vy = -speed * Math.Sin(angleRad);
+            var impactTime = SolveImpactTime(GroundY - LaunchYOffset, vy);
+            var actualRange = vx * impactTime;
+            if (actualRange > 1)
+                speed *= Math.Sqrt(targetRange / actualRange);
+        }
+
+        speed = Math.Clamp(speed, MinSpeed, MaxSpeed);
+        return (angleDeg, speed);
+    }
+
+    // Steps the shell along its parabola in real time, updating shellX/Y
+    // each tick so the preview line and the actual flight always match.
+    // Returns whether it hit the target tank.
+    private async Task<bool> FlyShellAsync(double x0, double y0, double vx, double vy, bool targetIsEnemy)
+    {
+        shotsFired += targetIsEnemy ? 1 : 0; // only count the player's own shots
+        shellActive = true;
+        var targetX = targetIsEnemy ? EnemyX : PlayerX;
+        var t = 0.0;
+        const double dt = 0.035;
+        var hit = false;
+
+        await PlaySoundAsync("playFireSound");
+
+        while (true)
+        {
+            t += dt;
+            var x = x0 + vx * t;
+            var y = y0 + vy * t + 0.5 * Gravity * t * t;
+            shellX = x;
+            shellY = y;
+            StateHasChanged();
+            await Task.Delay((int)(dt * 1000));
+
+            if (ObstacleBlocks(x, y))
+            {
+                await ShowImpactAsync(x, Math.Clamp(y, 2, GroundY), isExplosion: false);
+                break;
+            }
+
+            if (y >= GroundY)
+            {
+                hit = Math.Abs(x - targetX) <= TankHalfWidth;
+                await ShowImpactAsync(Math.Clamp(x, 2, 98), GroundY, hit);
+                break;
+            }
+
+            if (x < -8 || x > 108)
+            {
+                break;
+            }
+        }
+
+        shellActive = false;
+        StateHasChanged();
+        return hit;
+    }
+
+    // ---- Impact / explosion animation --------------------------------------
+
+    private static readonly string[] SmallImpactFrames = { "1", "3", "5" };
+    private static readonly string[] BigImpactFrames = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12" };
+
+    private async Task ShowImpactAsync(double x, double y, bool isExplosion)
+    {
+        impactX = x;
+        impactY = y;
+        impactIsExplosion = isExplosion;
+        impactFrame = 0;
+
+        var frames = isExplosion ? BigImpactFrames : SmallImpactFrames;
+        var frameDelayMs = isExplosion ? 55 : 90;
+
+        await PlaySoundAsync(isExplosion ? "playExplosionSound" : "playImpactSound");
+
+        for (var i = 0; i < frames.Length; i++)
+        {
+            impactFrame = i;
+            StateHasChanged();
+            await Task.Delay(frameDelayMs);
+        }
+
+        ClearImpact();
+        StateHasChanged();
+    }
+
+    private void ClearImpact()
+    {
+        impactX = null;
+        impactY = null;
+        impactFrame = 0;
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private string ImpactFrameSrc()
+    {
+        var frames = impactIsExplosion ? BigImpactFrames : SmallImpactFrames;
+        var frame = frames[Math.Clamp(impactFrame, 0, frames.Length - 1)];
+        return $"images/tanks/explosion-{frame}.png";
+    }
+
+    private void StopImpactTimer()
+    {
+        impactTimer?.Dispose();
+        impactTimer = null;
+    }
+
+    // ---- Round end -----------------------------------------------------------
+
+    private async Task EndRoundAsync(bool didPlayerWin)
+    {
+        StopClock();
+        playerWon = didPlayerWin;
+        phase = Phase.RoundEnd;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new TankDuelResult(
+                Won: didPlayerWin,
+                ShotsFired: shotsFired,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    // ---- Clock ---------------------------------------------------------------
+
+    private void StartClock()
+    {
+        StopClock();
+        clockTimer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopClock()
+    {
+        clockTimer?.Dispose();
+        clockTimer = null;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.Minutes > 0 ? $"{ts.Minutes}:{ts.Seconds:D2}" : $"{ts.Seconds}s";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        StopClock();
+        StopImpactTimer();
+
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    private record FieldRect(double Left, double Top, double Width, double Height);
+
+    // ---- Result payload ------------------------------------------------------
+
+    public record TankDuelResult(bool Won, int ShotsFired, int ElapsedSeconds);
+}

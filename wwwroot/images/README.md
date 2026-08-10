@@ -17,10 +17,11 @@ do not leave blank UI.
 
 ## Sources
 
-- `fishing/*.png` and `manners/benny-bear.png`, `manners/poppy-penguin.png`,
-  `manners/milo-monkey.png` are from [Kenney](https://kenney.nl) ("Fish Pack
-  2" and "Animal Pack Remastered"), CC0 - free for any use, no attribution
-  required (credit given anyway because it's a great resource).
+- `fishing/*.png`, `manners/benny-bear.png`, `manners/poppy-penguin.png`,
+  `manners/milo-monkey.png`, and `tanks/*.png` are all from
+  [Kenney](https://kenney.nl) ("Fish Pack 2", "Animal Pack Remastered", and
+  "Tanks"), CC0 - free for any use, no attribution required (credit given
+  anyway because it's a great resource).
 - `dressup/*.png` - see git history/commit messages for provenance if adding
   more from the same source.
 

@@ -15,6 +15,7 @@ public static class BuiltInGames
     public const string Fishing = "fishing-catch";
     public const string DressUp = "dress-up";
     public const string MannersGarden = "manners-garden";
+    public const string TankDuel = "tank-duel";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -22,5 +23,6 @@ public static class BuiltInGames
         new BuiltInGame("Fishing Catch", "🎣", Fishing),
         new BuiltInGame("Dress Up", "👗", DressUp),
         new BuiltInGame("Manners Garden", "🌷", MannersGarden),
+        new BuiltInGame("Tank Duel", "🎯", TankDuel),
     };
 }

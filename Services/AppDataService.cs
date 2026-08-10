@@ -79,6 +79,7 @@ public class AppDataService
         data.Profiles.RemoveAll(p => p.Id == profileId);
         data.ProfileGameAccess.Remove(profileId);
         data.DailyUsageSeconds.Remove(profileId);
+        data.GardenItems.Remove(profileId);
         await SaveAsync();
     }
 
@@ -238,6 +239,28 @@ public class AppDataService
 
     private static string TodayKey() => DateTime.Now.ToString("yyyy-MM-dd");
 
+    // ---- Manners Garden (persists across sessions - it's meant to keep
+    // growing, not reset every time the game is played) --------------------
+
+    public async Task<List<string>> GetGardenItemsAsync(string profileId)
+    {
+        var data = await LoadAsync();
+        return data.GardenItems.TryGetValue(profileId, out var items) ? items : new List<string>();
+    }
+
+    public async Task AddGardenItemAsync(string profileId, string item)
+    {
+        var data = await LoadAsync();
+        if (!data.GardenItems.TryGetValue(profileId, out var items))
+        {
+            items = new List<string>();
+            data.GardenItems[profileId] = items;
+        }
+
+        items.Add(item);
+        await SaveAsync();
+    }
+
     // ---- Seed data ----
 
     private static AppData SeedDefaultData()
@@ -313,6 +336,20 @@ public class AppDataService
             LaunchMode = GameLaunchMode.ExternalIframe
         };
 
+        // Turn-based artillery duel with tanks exploding after 5 hits -
+        // same reasoning as Crown & Banner: seeded into the catalog, but
+        // not auto-granted, since it's a different tone than the other
+        // built-ins.
+        var tankDuelDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.TankDuel);
+        var tankDuel = new Game
+        {
+            Title = tankDuelDef.Title,
+            ThumbnailImagePath = tankDuelDef.ThumbnailImagePath,
+            ThumbnailEmoji = tankDuelDef.ThumbnailEmoji,
+            LaunchTarget = tankDuelDef.LaunchTarget,
+            LaunchMode = GameLaunchMode.InternalRoute
+        };
+
         var data = new AppData();
         data.Profiles.Add(admin);
         data.Profiles.Add(kid);
@@ -321,6 +358,7 @@ public class AppDataService
         data.Games.Add(dressUp);
         data.Games.Add(mannersGarden);
         data.Games.Add(crownAndBanner);
+        data.Games.Add(tankDuel);
         data.ProfileGameAccess[admin.Id] = new List<string>();
         data.ProfileGameAccess[kid.Id] = new List<string> { memoryMatch.Id, fishing.Id, dressUp.Id, mannersGarden.Id };
 
