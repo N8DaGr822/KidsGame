@@ -26,4 +26,8 @@ public class AppData
     // showing - this is what daily time limits are enforced against, since
     // PlayHistory above only captures completed/exited game sessions.
     public Dictionary<string, Dictionary<string, int>> DailyUsageSeconds { get; set; } = new();
+
+    // profileId -> every Manners Garden item earned, all-time (not reset
+    // per session) - the garden is meant to keep growing across days.
+    public Dictionary<string, List<string>> GardenItems { get; set; } = new();
 }

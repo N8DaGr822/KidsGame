@@ -25,6 +25,7 @@
 *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject AppDataService Data
 
 <div class="mng-game">
 
@@ -44,8 +45,38 @@
                 }
             </div>
 
-            <button class="mng-start-btn" @onclick="StartSession">▶️ Start Playing</button>
+            <div class="mng-setup-actions">
+                <button class="mng-start-btn" @onclick="() => StartSession(null)">▶️ Start Playing</button>
+                @if (persistedGardenItems.Count > 0)
+                {
+                    <button class="mng-restart-btn" @onclick="() => showingGardenAtSetup = true">🌷 View My Garden</button>
+                }
+            </div>
+
+            <h3 class="mng-section-title">Or practice just one skill</h3>
+            <div class="mng-focus-select">
+                @foreach (var lesson in AllLessons)
+                {
+                    <button class="mng-focus-btn" @onclick="() => StartSession(lesson)">@LessonDisplayName(lesson)</button>
+                }
+            </div>
         </div>
+
+        @if (showingGardenAtSetup)
+        {
+            <div class="mng-garden-overlay">
+                <div class="mng-garden-panel">
+                    <h2>🌼 Your Manners Garden!</h2>
+                    <p>Everything you've grown so far.</p>
+
+                    <MannersGardenScene Items="persistedGardenItems" />
+
+                    <div class="mng-garden-actions">
+                        <button class="mng-restart-btn" @onclick="() => showingGardenAtSetup = false">Close</button>
+                    </div>
+                </div>
+            </div>
+        }
     }
     else if (phase == Phase.SessionComplete)
     {
@@ -54,10 +85,10 @@
                 <h2>🌼 Your Manners Garden!</h2>
                 <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") practicing kind manners today!</p>
 
-                <MannersGardenScene Items="gardenItems" />
+                <MannersGardenScene Items="persistedGardenItems" />
 
                 <div class="mng-garden-actions">
-                    <button class="mng-start-btn" @onclick="StartSession">Play Again</button>
+                    <button class="mng-start-btn" @onclick="() => StartSession(null)">Play Again</button>
                     <button class="mng-restart-btn" @onclick="ExitToSetup">Change Game</button>
                 </div>
             </div>
@@ -80,7 +111,7 @@
 
         @if (showingGarden)
         {
-            <MannersGardenScene Items="gardenItems" />
+            <MannersGardenScene Items="persistedGardenItems" />
         }
         else
         {
@@ -233,6 +264,9 @@
     /// <summary>Optional display name, e.g. from the active kid profile.</summary>
     [Parameter] public string? PlayerName { get; set; }
 
+    /// <summary>Active kid profile's Id - keys the persisted, all-time garden.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
     /// <summary>Fired once when the 3-scenario session's garden celebration is shown.</summary>
     [Parameter] public EventCallback<MannersGardenResult> OnComplete { get; set; }
 
@@ -379,10 +413,25 @@
     private string narratorText = "";
     private bool muted;
     private bool showingGarden;
+    private bool showingGardenAtSetup;
+
+    // The full, all-time garden (persisted via AppDataService) - separate
+    // from the session-local gardenItems above, which only tracks what
+    // was earned in the round currently being played (used for the
+    // in-play "+item added!" toast and progress strip).
+    private List<string> persistedGardenItems = new();
 
     private IJSObjectReference? _module;
     private int elapsedSeconds;
     private System.Threading.Timer? timer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            persistedGardenItems = await Data.GetGardenItemsAsync(ProfileId);
+        }
+    }
 
     // ---- Drag state (clean-up toys) ---------------------------------------
 
@@ -394,15 +443,18 @@
 
     // ---- Session flow ------------------------------------------------------
 
-    private async Task StartSession()
+    private async Task StartSession(LessonType? focusLesson)
     {
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
 
-        sessionLessons = AllLessons.OrderBy(_ => rng.Next()).Take(3).ToList();
+        sessionLessons = focusLesson is { } lesson
+            ? Enumerable.Repeat(lesson, 3).ToList()
+            : AllLessons.OrderBy(_ => rng.Next()).Take(3).ToList();
         roundIndex = 0;
         gardenItems.Clear();
         elapsedSeconds = 0;
         showingGarden = false;
+        showingGardenAtSetup = false;
 
         BuildRound(sessionLessons[0]);
         phase = Phase.Playing;
@@ -476,9 +528,17 @@
 
     private async Task CompleteRound()
     {
-        gardenItems.Add(GardenRewardPool[rng.Next(GardenRewardPool.Length)]);
+        var earned = GardenRewardPool[rng.Next(GardenRewardPool.Length)];
+        gardenItems.Add(earned);
+        persistedGardenItems.Add(earned);
         phase = Phase.Reward;
         StateHasChanged();
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            await Data.AddGardenItemAsync(ProfileId, earned);
+        }
+
         await Task.Delay(1300);
 
         if (roundIndex + 1 >= sessionLessons.Count)
@@ -632,6 +692,20 @@
             await CompleteRound();
         }
     }
+
+    private static string LessonDisplayName(LessonType lesson) => lesson switch
+    {
+        LessonType.Please => "Saying Please",
+        LessonType.ThankYou => "Saying Thank You",
+        LessonType.Turns => "Taking Turns",
+        LessonType.Sorry => "Saying Sorry",
+        LessonType.CleanUp => "Cleaning Up",
+        LessonType.Greeting => "Hello & Goodbye",
+        LessonType.Achoo => "Covering a Sneeze",
+        LessonType.GentleHands => "Gentle Hands",
+        LessonType.InsideVoice => "Inside Voice",
+        _ => lesson.ToString(),
+    };
 
     private static string PromptLine(RoundState r) => r.Lesson switch
     {
