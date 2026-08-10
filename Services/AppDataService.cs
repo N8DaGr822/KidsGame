@@ -232,6 +232,20 @@ public class AppDataService
             LaunchMode = GameLaunchMode.InternalRoute
         };
 
+        // Externally-built (React/Vite), loaded via iframe rather than as a
+        // routed component - see wwwroot/games/crown-and-banner. It's a
+        // turn-based strategy game, a different audience than the other
+        // built-ins here, so it's seeded into the catalog but not
+        // auto-granted to the default kid profile; grant it per-kid from
+        // the admin panel.
+        var crownAndBanner = new Game
+        {
+            Title = "Crown & Banner",
+            ThumbnailEmoji = "👑",
+            LaunchTarget = "games/crown-and-banner/index.html",
+            LaunchMode = GameLaunchMode.ExternalIframe
+        };
+
         var data = new AppData();
         data.Profiles.Add(admin);
         data.Profiles.Add(kid);
@@ -239,6 +253,7 @@ public class AppDataService
         data.Games.Add(fishing);
         data.Games.Add(dressUp);
         data.Games.Add(mannersGarden);
+        data.Games.Add(crownAndBanner);
         data.ProfileGameAccess[admin.Id] = new List<string>();
         data.ProfileGameAccess[kid.Id] = new List<string> { memoryMatch.Id, fishing.Id, dressUp.Id, mannersGarden.Id };
 
