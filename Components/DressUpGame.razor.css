@@ -18,9 +18,27 @@
     box-shadow: var(--shadow-sm);
 }
 
+.du-setup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
 .du-setup h2 {
     margin-bottom: 0;
     font-size: clamp(2rem, 7vw, 3.25rem);
+}
+
+.du-fullscreen-btn {
+    min-height: 42px;
+    padding: 0.55rem 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text);
+    font-weight: 900;
 }
 
 .du-setup p {
@@ -96,7 +114,6 @@
 
 .du-restart-btn,
 .du-start-btn,
-.du-mode-btn,
 .du-done-btn {
     min-height: 42px;
     border-radius: var(--radius-sm);
@@ -104,17 +121,10 @@
     font-weight: 900;
 }
 
-.du-restart-btn,
-.du-mode-btn {
+.du-restart-btn {
     border: 1px solid var(--line);
     background: rgba(255, 255, 255, 0.08);
     color: var(--text);
-}
-
-.du-mode-btn.active {
-    border-color: var(--accent);
-    background: rgba(78, 205, 196, 0.18);
-    color: var(--accent-strong);
 }
 
 .du-start-btn,
@@ -193,12 +203,27 @@
 .du-placed-sticker {
     position: absolute;
     z-index: 3;
-    font-size: clamp(2.7rem, 8vw, 3.6rem);
+    font-size: calc(clamp(2.7rem, 8vw, 3.6rem) * var(--du-scale, 1));
     line-height: 1;
     cursor: grab;
     filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.3));
     touch-action: none;
     transform: translate(-50%, -50%);
+    user-select: none;
+    -webkit-touch-callout: none;
+}
+
+.du-placed-sticker-img {
+    display: block;
+    height: calc(clamp(2.7rem, 8vw, 3.6rem) * var(--du-scale, 1));
+    width: auto;
+    max-width: none;
+    object-fit: contain;
+    /* The parent span owns the pointerdown that starts a drag - the image
+       is purely visual, and disabling its own drag/selection stops the
+       browser's native image-drag ghost from fighting our custom one. */
+    pointer-events: none;
+    -webkit-user-drag: none;
     user-select: none;
     -webkit-touch-callout: none;
 }
@@ -212,6 +237,35 @@
 .du-placed-sticker.over-trash {
     opacity: 0.42;
     transform: translate(-50%, -50%) scale(0.82);
+}
+
+.du-placed-sticker.selected {
+    outline: 2px dashed rgba(255, 255, 255, 0.7);
+    outline-offset: 6px;
+    border-radius: 999px;
+}
+
+.du-resize-handle {
+    position: absolute;
+    right: -18px;
+    bottom: -18px;
+    z-index: 4;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 2px solid var(--accent);
+    background: var(--surface);
+    color: var(--accent-strong);
+    display: grid;
+    place-items: center;
+    font-size: 1.1rem;
+    font-weight: 900;
+    line-height: 1;
+    cursor: nwse-resize;
+    touch-action: none;
+    box-shadow: var(--shadow-sm);
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 
 .du-trash-zone {
@@ -288,6 +342,29 @@
     transform: translateX(0);
 }
 
+.du-drawer-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.du-drawer-tab {
+    min-height: 46px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-soft);
+    font-weight: 900;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.du-drawer-tab.active {
+    border-color: var(--accent);
+    background: rgba(78, 205, 196, 0.18);
+    color: var(--accent-strong);
+}
+
 .du-drawer-hint {
     margin: 0.35rem 0 0.75rem;
     color: var(--text-muted);
@@ -297,9 +374,6 @@
 .du-draw-tools {
     display: grid;
     gap: 0.6rem;
-    margin: 0.5rem 0 1.25rem;
-    padding-bottom: 1.25rem;
-    border-bottom: 1px solid var(--line);
 }
 
 .du-color-row {
@@ -372,6 +446,17 @@
 .du-tray-emoji {
     font-size: 1.8rem;
     line-height: 1;
+}
+
+.du-tray-img {
+    display: block;
+    width: 2.4rem;
+    height: 2.4rem;
+    object-fit: contain;
+    pointer-events: none;
+    -webkit-user-drag: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 
 .du-tray-label {

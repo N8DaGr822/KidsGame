@@ -26,7 +26,10 @@
     @if (selectedCharacter is null)
     {
         <div class="du-setup">
-            <h2>Dress Up</h2>
+            <div class="du-setup-header">
+                <h2>Dress Up</h2>
+                <button class="du-fullscreen-btn" @onclick="ToggleFullscreen">@(isFullscreen ? "⛶ Exit Full Screen" : "⛶ Full Screen")</button>
+            </div>
             <p>Pick a character, then drag stickers onto them to build an outfit!</p>
 
             <h3 class="du-section-title">Choose a character</h3>
@@ -46,22 +49,38 @@
         <div class="du-hud">
             <button class="du-restart-btn" @onclick="() => selectedCharacter = null">← Change Character</button>
             <span class="du-character-title">@selectedCharacter.Name</span>
+            <button class="du-restart-btn" @onclick="ToggleFullscreen">@(isFullscreen ? "⛶ Exit Full Screen" : "⛶ Full Screen")</button>
             <button class="du-restart-btn" disabled="@(undoStack.Count == 0)" @onclick="UndoAsync">↩️ Undo</button>
             <button class="du-restart-btn" @onclick="ExportOutfitAsync">💾 Save Picture</button>
             <button class="du-restart-btn" @onclick="ResetOutfit">Reset Outfit</button>
         </div>
 
         <div class="du-play" @ref="playRef" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointercancel="OnPointerUp">
-            <div class="du-stage @(drawMode ? "draw-mode" : "")" @ref="stageRef" @onpointerdown="OnStagePointerDown">
+            <div class="du-stage @(DrawMode ? "draw-mode" : "")" @ref="stageRef" @onpointerdown="OnStagePointerDown">
                 <img class="du-base" @ref="baseImageRef" src="@selectedCharacter.ImagePath" alt="@selectedCharacter.Name" />
 
                 @foreach (var placed in placedStickers)
                 {
-                    <span @key="placed.Id" class="du-placed-sticker @(dragging == placed ? "dragging" : "") @(dragging == placed && overTrash ? "over-trash" : "")"
-                          style="left:@(placed.X.ToString(Inv))%; top:@(placed.Y.ToString(Inv))%;"
+                    <span @key="placed.Id" class="du-placed-sticker @(dragging == placed ? "dragging" : "") @(dragging == placed && overTrash ? "over-trash" : "") @(selectedSticker == placed ? "selected" : "")"
+                          style="left:@(placed.X.ToString(Inv))%; top:@(placed.Y.ToString(Inv))%; --du-scale:@(placed.Scale.ToString(Inv));"
                           @onpointerdown="e => StartDragPlaced(e, placed)"
                           @onpointerdown:preventDefault>
-                        @placed.Emoji
+                        @if (ImagePathFor(placed.StickerId) is { } placedImgPath)
+                        {
+                            <img class="du-placed-sticker-img" src="@placedImgPath" alt="" draggable="false" />
+                        }
+                        else
+                        {
+                            @placed.Emoji
+                        }
+
+                        @if (selectedSticker == placed && !DrawMode)
+                        {
+                            <span class="du-resize-handle"
+                                  @onpointerdown="e => StartResize(e, placed)"
+                                  @onpointerdown:preventDefault
+                                  @onpointerdown:stopPropagation>↔</span>
+                        }
                     </span>
                 }
 
@@ -75,14 +94,18 @@
             </button>
 
             <div class="du-drawer @(drawerOpen ? "open" : "")">
-                <h3 class="du-section-title">Draw</h3>
-                <div class="du-draw-tools">
-                    <button class="du-mode-btn @(drawMode ? "active" : "")" @onclick="() => drawMode = !drawMode">
-                        🖍️ @(drawMode ? "Drawing on" : "Draw")
+                <div class="du-drawer-tabs">
+                    <button class="du-drawer-tab @(activeTab == DrawerTab.Stickers ? "active" : "")" @onclick="() => activeTab = DrawerTab.Stickers">
+                        🎒 Stickers
                     </button>
+                    <button class="du-drawer-tab @(activeTab == DrawerTab.Draw ? "active" : "")" @onclick="() => activeTab = DrawerTab.Draw">
+                        🖍️ Draw
+                    </button>
+                </div>
 
-                    @if (drawMode)
-                    {
+                @if (activeTab == DrawerTab.Draw)
+                {
+                    <div class="du-draw-tools">
                         <div class="du-color-row">
                             @foreach (var color in DrawColors)
                             {
@@ -103,22 +126,30 @@
                         </div>
 
                         <button class="du-restart-btn" @onclick="ClearDrawing">Clear Drawing</button>
-                    }
-                </div>
-
-                <h3 class="du-section-title">Stickers</h3>
-                <p class="du-drawer-hint">Drag a sticker onto the character - grab it as many times as you like.</p>
-                <div class="du-tray">
-                    @foreach (var sticker in AllStickers)
-                    {
-                        <div @key="sticker.Id" class="du-tray-item"
-                             @onpointerdown="e => StartDragFromTray(e, sticker)"
-                             @onpointerdown:preventDefault>
-                            <span class="du-tray-emoji">@sticker.Emoji</span>
-                            <span class="du-tray-label">@sticker.Label</span>
-                        </div>
-                    }
-                </div>
+                    </div>
+                }
+                else
+                {
+                    <p class="du-drawer-hint">Drag a sticker onto the character - grab it as many times as you like. Tap a placed sticker to resize it.</p>
+                    <div class="du-tray">
+                        @foreach (var sticker in AllStickers)
+                        {
+                            <div @key="sticker.Id" class="du-tray-item"
+                                 @onpointerdown="e => StartDragFromTray(e, sticker)"
+                                 @onpointerdown:preventDefault>
+                                @if (sticker.ImagePath is not null)
+                                {
+                                    <img class="du-tray-img" src="@sticker.ImagePath" alt="" draggable="false" />
+                                }
+                                else
+                                {
+                                    <span class="du-tray-emoji">@sticker.Emoji</span>
+                                }
+                                <span class="du-tray-label">@sticker.Label</span>
+                            </div>
+                        }
+                    </div>
+                }
             </div>
 
             <button class="du-done-btn" @onclick="FinishDressUp">Done! 🎉</button>
@@ -153,40 +184,45 @@
 
     // ---- Character catalog -------------------------------------------------
 
-    public record StickerDef(string Id, string Emoji, string Label);
+    public record StickerDef(string Id, string Emoji, string Label, string? ImagePath = null);
     public record CharacterOption(string Name, string ImagePath);
 
+    private const string StickerArt = "images/dressup/stickers/";
+
     // Every sticker is available for every character - drag any of these
-    // onto whichever character is selected.
+    // onto whichever character is selected. Stickers without an ImagePath
+    // fall back to their emoji - either no matching art exists yet, or
+    // the available art was rejected (stock-photo watermarks on
+    // sword/horse/dress; wings/helmet were the wrong style/theme).
     private static readonly List<StickerDef> AllStickers = new()
     {
-        new StickerDef("crown", "👑", "Crown"),
+        new StickerDef("crown", "👑", "Crown", StickerArt + "Crown.jpg"),
         new StickerDef("gem", "💎", "Gem"),
         new StickerDef("dress", "👗", "Dress"),
         new StickerDef("ring", "💍", "Ring"),
-        new StickerDef("rose", "🌹", "Rose"),
-        new StickerDef("purse", "👛", "Purse"),
-        new StickerDef("hat", "🎩", "Hat"),
+        new StickerDef("rose", "🌹", "Rose", StickerArt + "Rose.jpg"),
+        new StickerDef("purse", "👛", "Purse", StickerArt + "Bag.jpg"),
+        new StickerDef("hat", "🎩", "Hat", StickerArt + "Hat.jpg"),
         new StickerDef("broom", "🧹", "Broom"),
-        new StickerDef("crystal-ball", "🔮", "Crystal Ball"),
-        new StickerDef("cat", "🐈‍⬛", "Black Cat"),
+        new StickerDef("crystal-ball", "🔮", "Crystal Ball", StickerArt + "Orb.jpg"),
+        new StickerDef("cat", "🐈‍⬛", "Black Cat", StickerArt + "Cat.jpg"),
         new StickerDef("potion", "🧪", "Potion"),
-        new StickerDef("star", "⭐", "Star"),
-        new StickerDef("rainbow", "🌈", "Rainbow"),
-        new StickerDef("bow", "🎀", "Bow"),
+        new StickerDef("star", "⭐", "Star", StickerArt + "Star.jpg"),
+        new StickerDef("rainbow", "🌈", "Rainbow", StickerArt + "Rainbow.jpg"),
+        new StickerDef("bow", "🎀", "Bow", StickerArt + "Bow.jpg"),
         new StickerDef("flowers", "💐", "Flowers"),
-        new StickerDef("sparkles", "✨", "Sparkles"),
-        new StickerDef("heart", "💖", "Heart"),
+        new StickerDef("sparkles", "✨", "Sparkles", StickerArt + "Sparkle.png"),
+        new StickerDef("heart", "💖", "Heart", StickerArt + "Heart.jpg"),
         new StickerDef("sword", "⚔️", "Sword"),
         new StickerDef("shield", "🛡️", "Shield"),
         new StickerDef("horse", "🐴", "Horse"),
         new StickerDef("medal", "🎖️", "Medal"),
         new StickerDef("helmet", "🪖", "Helmet"),
         new StickerDef("bow-arrow", "🏹", "Bow & Arrow"),
-        new StickerDef("fire", "🔥", "Fire"),
+        new StickerDef("fire", "🔥", "Fire", StickerArt + "Fire.jpg"),
         new StickerDef("lightning", "⚡", "Lightning"),
         new StickerDef("wings", "🦇", "Wings"),
-        new StickerDef("volcano", "🌋", "Volcano"),
+        new StickerDef("volcano", "🌋", "Volcano", StickerArt + "Volcano.jpg"),
     };
 
     private static readonly List<CharacterOption> Characters = new()
@@ -211,6 +247,7 @@
         public string Emoji { get; set; } = "";
         public double X { get; set; } = 50;
         public double Y { get; set; } = 50;
+        public double Scale { get; set; } = 1;
     }
 
     // ---- State ---------------------------------------------------------------
@@ -224,6 +261,36 @@
     private ElementReference baseImageRef;
     private ElementReference playRef;
     private IJSObjectReference? _module;
+
+    // ---- Fullscreen (tablet kiosk-style play) -------------------------------
+
+    private bool isFullscreen;
+    private bool fullscreenWatching;
+    private DotNetObjectReference<DressUpGame>? _dotNetRef;
+
+    private async Task ToggleFullscreen()
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+
+        if (!fullscreenWatching)
+        {
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            await _module.InvokeVoidAsync("watchFullscreen", _dotNetRef);
+            fullscreenWatching = true;
+        }
+
+        await _module.InvokeVoidAsync(isFullscreen ? "exitFullscreen" : "requestFullscreen");
+    }
+
+    // Fires on ANY fullscreen change, not just ones triggered by our own
+    // button - e.g. a kid hitting Esc or swiping to exit at the OS level -
+    // so the button's label always reflects what's actually on screen.
+    [JSInvokable]
+    public void OnFullscreenChanged(bool nowFullscreen)
+    {
+        isFullscreen = nowFullscreen;
+        StateHasChanged();
+    }
 
     // ---- Undo -----------------------------------------------------------
     //
@@ -256,16 +323,50 @@
     private static readonly List<double> BrushSizes = new() { 4, 10, 18 };
 
     private ElementReference canvasRef;
-    private bool drawMode;
     private bool isDrawing;
     private string drawColor = DrawColors[0];
     private double brushSize = BrushSizes[1];
+
+    // ---- Drawer tabs --------------------------------------------------------
+    //
+    // The active tab IS the mode switch (not a separate toggle) - picking
+    // "Draw" both shows the drawing tools and puts the stage into draw
+    // mode, so there's exactly one obvious thing controlling whether a
+    // tap on the character draws or drags a sticker.
+
+    private enum DrawerTab { Stickers, Draw }
+
+    private DrawerTab activeTab = DrawerTab.Stickers;
+
+    private bool DrawMode => activeTab == DrawerTab.Draw;
+
+    // ---- Sticker resize -------------------------------------------------
+
+    private PlacedSticker? selectedSticker;
+    private PlacedSticker? resizing;
+    private double resizeStartClientX, resizeStartClientY, resizeStartScale;
+
+    private const double MinScale = 0.5;
+    private const double MaxScale = 2.5;
+
+    private async Task StartResize(PointerEventArgs e, PlacedSticker placed)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync("setPointerCapture", playRef, e.PointerId);
+
+        resizing = placed;
+        selectedSticker = placed;
+        resizeStartClientX = e.ClientX;
+        resizeStartClientY = e.ClientY;
+        resizeStartScale = placed.Scale;
+    }
 
     private void ChooseCharacter(CharacterOption character)
     {
         selectedCharacter = character;
         placedStickers.Clear();
         undoStack.Clear();
+        selectedSticker = null;
     }
 
     // A full reset also resets undo history - keeping stale sticker/stroke
@@ -276,13 +377,14 @@
     {
         placedStickers.Clear();
         undoStack.Clear();
+        selectedSticker = null;
     }
 
     // ---- Drag and drop (Pointer Events - works for mouse, touch, pen) ------
 
     private async Task StartDragFromTray(PointerEventArgs e, StickerDef sticker)
     {
-        if (drawMode) return;
+        if (DrawMode) return;
 
         // Always a new instance (rather than reusing one already on the
         // stage) so the same sticker can be stacked as many times as a kid
@@ -296,7 +398,7 @@
 
     private async Task StartDragPlaced(PointerEventArgs e, PlacedSticker placed)
     {
-        if (drawMode) return;
+        if (DrawMode) return;
         await BeginDrag(e, placed);
     }
 
@@ -325,6 +427,7 @@
         await _module.InvokeVoidAsync("setPointerCapture", playRef, e.PointerId);
 
         dragging = placed;
+        selectedSticker = placed;
         overTrash = IsOverTrash(e.ClientX, e.ClientY);
         SetDragPosition(e.ClientX, e.ClientY, clamp: true);
     }
@@ -336,6 +439,18 @@
             // Fire-and-forget: the canvas paints itself in JS, so there's
             // nothing here that needs a Blazor re-render per point.
             _ = _module!.InvokeVoidAsync("drawMove", canvasRef, e.ClientX - stageLeft, e.ClientY - stageTop);
+            return;
+        }
+
+        if (resizing is not null)
+        {
+            // Dragging the handle down-right grows the sticker, up-left
+            // shrinks it - averaging both axes so a diagonal drag (the
+            // natural motion toward/away from a corner handle) reads
+            // cleanly as a single "bigger/smaller" gesture.
+            var delta = ((e.ClientX - resizeStartClientX) + (e.ClientY - resizeStartClientY)) / 2;
+            resizing.Scale = Math.Clamp(resizeStartScale + delta / 100.0, MinScale, MaxScale);
+            StateHasChanged();
             return;
         }
 
@@ -356,12 +471,20 @@
             return;
         }
 
+        if (resizing is not null)
+        {
+            resizing = null;
+            StateHasChanged();
+            return;
+        }
+
         if (dragging is null) return;
 
         if (overTrash)
         {
             placedStickers.Remove(dragging);
             undoStack.Push(new StickerRemovedEntry(dragging));
+            if (selectedSticker == dragging) selectedSticker = null;
         }
 
         overTrash = false;
@@ -374,7 +497,15 @@
 
     private async Task OnStagePointerDown(PointerEventArgs e)
     {
-        if (!drawMode) return;
+        if (!DrawMode)
+        {
+            // Tapping empty stage space (this fires after any child sticker's
+            // own pointerdown too, via bubbling, but that's harmless - this
+            // just re-clears a selection the child handler is about to set
+            // again on its own pointerup) deselects, hiding the resize handle.
+            selectedSticker = null;
+            return;
+        }
 
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
         var rect = await _module.InvokeAsync<StageRect>("getBoundingRect", stageRef);
@@ -429,13 +560,20 @@
     {
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
 
-        var stickers = placedStickers
+        // Image-backed stickers are read straight off the DOM by exportOutfit
+        // (see interop.js) - only stickers still on emoji fallback need to be
+        // passed in for canvas text drawing.
+        var emojiStickers = placedStickers
+            .Where(s => ImagePathFor(s.StickerId) is null)
             .Select(s => new { emoji = s.Emoji, xPercent = s.X, yPercent = s.Y })
             .ToArray();
         var filename = $"dress-up-{selectedCharacter!.Name.ToLowerInvariant()}.png";
 
-        await _module.InvokeVoidAsync("exportOutfit", stageRef, baseImageRef, stickers, canvasRef, filename);
+        await _module.InvokeVoidAsync("exportOutfit", stageRef, baseImageRef, emojiStickers, canvasRef, filename);
     }
+
+    private static string? ImagePathFor(string stickerId) =>
+        AllStickers.FirstOrDefault(s => s.Id == stickerId)?.ImagePath;
 
     private bool IsOverTrash(double clientX, double clientY) =>
         trashWidth > 0 && trashHeight > 0 &&
@@ -485,9 +623,18 @@
     {
         if (_module is not null)
         {
-            try { await _module.DisposeAsync(); }
+            try
+            {
+                if (fullscreenWatching)
+                {
+                    await _module.InvokeVoidAsync("unwatchFullscreen");
+                }
+                await _module.DisposeAsync();
+            }
             catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
         }
+
+        _dotNetRef?.Dispose();
     }
 
     // ---- Result payload ------------------------------------------------------

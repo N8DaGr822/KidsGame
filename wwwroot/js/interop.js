@@ -103,7 +103,7 @@ export function undoLastStroke(canvas) {
 // getBoundingClientRect) rather than reimplementing its CSS layout rules
 // (centered, aspect-preserved, height-capped) in JS, so the export always
 // matches what's on screen even if that CSS changes later.
-export function exportOutfit(stageEl, baseImageEl, stickers, drawCanvas, filename) {
+export function exportOutfit(stageEl, baseImageEl, emojiStickers, drawCanvas, filename) {
     const stageRect = stageEl.getBoundingClientRect();
     const width = Math.max(1, Math.round(stageRect.width));
     const height = Math.max(1, Math.round(stageRect.height));
@@ -127,12 +127,25 @@ export function exportOutfit(stageEl, baseImageEl, stickers, drawCanvas, filenam
         baseRect.height
     );
 
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const stickerFontPx = Math.round(height * 0.12);
-    ctx.font = `${stickerFontPx}px "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
-    for (const sticker of stickers) {
-        ctx.fillText(sticker.emoji, (sticker.xPercent / 100) * width, (sticker.yPercent / 100) * height);
+    // Image-backed stickers are real <img> elements on the stage - draw
+    // each at its actual on-screen position/size rather than
+    // reimplementing the drag-position-to-CSS math here.
+    const stickerImgs = stageEl.querySelectorAll('.du-placed-sticker-img');
+    for (const img of stickerImgs) {
+        const r = img.getBoundingClientRect();
+        ctx.drawImage(img, r.left - stageRect.left, r.top - stageRect.top, r.width, r.height);
+    }
+
+    // Stickers still on emoji fallback (no matching art yet) have no DOM
+    // image to read, so those are passed in and drawn as text.
+    if (emojiStickers && emojiStickers.length) {
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        const stickerFontPx = Math.round(height * 0.12);
+        ctx.font = `${stickerFontPx}px "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+        for (const sticker of emojiStickers) {
+            ctx.fillText(sticker.emoji, (sticker.xPercent / 100) * width, (sticker.yPercent / 100) * height);
+        }
     }
 
     ctx.drawImage(drawCanvas, 0, 0, width, height);
@@ -166,6 +179,44 @@ export function speak(text) {
 
 export function stopSpeaking() {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+}
+
+// ---- Fullscreen (tablet kiosk-style play) --------------------------------
+//
+// Fullscreens the whole page (not just one component's element) since the
+// point is hiding the browser chrome/address bar on a tablet. The watcher
+// notifies Blazor on ANY fullscreen change (including the kid hitting Esc
+// or swiping to exit at the OS level) so a toggle button stays in sync
+// instead of just assuming its own last action succeeded.
+
+let fullscreenDotNetRef = null;
+
+function notifyFullscreenChange() {
+    const active = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    fullscreenDotNetRef?.invokeMethodAsync('OnFullscreenChanged', active);
+}
+
+export function watchFullscreen(dotNetRef) {
+    fullscreenDotNetRef = dotNetRef;
+    document.addEventListener('fullscreenchange', notifyFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', notifyFullscreenChange);
+}
+
+export function unwatchFullscreen() {
+    document.removeEventListener('fullscreenchange', notifyFullscreenChange);
+    document.removeEventListener('webkitfullscreenchange', notifyFullscreenChange);
+    fullscreenDotNetRef = null;
+}
+
+export function requestFullscreen() {
+    const el = document.documentElement;
+    if (el.requestFullscreen) return el.requestFullscreen();
+    if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
+}
+
+export function exitFullscreen() {
+    if (document.exitFullscreen) return document.exitFullscreen();
+    if (document.webkitExitFullscreen) return document.webkitExitFullscreen();
 }
 
 // ---- Simple procedural sound effects (Web Audio API) --------------------

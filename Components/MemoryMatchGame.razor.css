@@ -1,10 +1,15 @@
 .memory-game {
-    width: min(760px, 100%);
+    /* Wide rather than tall, so the board spreads out on a tablet in
+       landscape instead of stacking into a tall, narrow scroll on a
+       screen that has plenty of width to spare. */
+    width: min(1200px, 100%);
     margin: 0 auto;
     color: var(--text);
 }
 
 .mg-setup {
+    width: min(760px, 100%);
+    margin: 0 auto;
     display: grid;
     gap: 1rem;
     padding: clamp(1rem, 4vw, 2rem);
@@ -156,7 +161,10 @@
 }
 
 .mg-card {
-    aspect-ratio: 3 / 4;
+    /* Landscape rather than portrait - combined with the wider board
+       container above, this keeps the whole grid shorter than it is
+       wide instead of growing tall with extra rows. */
+    aspect-ratio: 4 / 3;
     min-width: 0;
     padding: 0;
     background: transparent;
