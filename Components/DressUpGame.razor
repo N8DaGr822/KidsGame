@@ -25,18 +25,18 @@
 
     @if (selectedCharacter is null)
     {
-        <div class="du-setup">
+        <div class="du-setup game-setup-panel">
             <div class="du-setup-header">
                 <h2>Dress Up</h2>
                 <button class="du-fullscreen-btn" @onclick="ToggleFullscreen">@(isFullscreen ? "⛶ Exit Full Screen" : "⛶ Full Screen")</button>
             </div>
             <p>Pick a character, then drag stickers onto them to build an outfit!</p>
 
-            <h3 class="du-section-title">Choose a character</h3>
-            <div class="du-character-select">
+            <h3 class="du-section-title game-section-title">Choose a character</h3>
+            <div class="du-character-select game-option-grid">
                 @foreach (var character in Characters)
                 {
-                    <button class="du-character-btn" @onclick="() => ChooseCharacter(character)">
+                    <button class="du-character-btn game-option-button" @onclick="() => ChooseCharacter(character)">
                         <img class="du-character-icon" src="@character.ImagePath" alt="@character.Name" />
                         <span class="du-character-name">@character.Name</span>
                     </button>
@@ -61,8 +61,8 @@
 
                 @foreach (var placed in placedStickers)
                 {
-                    <span @key="placed.Id" class="du-placed-sticker @(dragging == placed ? "dragging" : "") @(dragging == placed && overTrash ? "over-trash" : "") @(selectedSticker == placed ? "selected" : "")"
-                          style="left:@(placed.X.ToString(Inv))%; top:@(placed.Y.ToString(Inv))%; --du-scale:@(placed.Scale.ToString(Inv));"
+                    <span @key="placed.Id" class="du-placed-sticker @(IsBehindCharacter(placed.StickerId) ? "behind" : "") @(dragging == placed ? "dragging" : "") @(dragging == placed && overTrash ? "over-trash" : "") @(selectedSticker == placed ? "selected" : "")"
+                          style="left:@(placed.X.ToString(Inv))%; top:@(placed.Y.ToString(Inv))%; --du-scale:@(placed.Scale.ToString(Inv)); --du-rotate:@(placed.RotationDeg.ToString(Inv))deg;"
                           @onpointerdown="e => StartDragPlaced(e, placed)"
                           @onpointerdown:preventDefault>
                         @if (ImagePathFor(placed.StickerId) is { } placedImgPath)
@@ -80,13 +80,17 @@
                                   @onpointerdown="e => StartResize(e, placed)"
                                   @onpointerdown:preventDefault
                                   @onpointerdown:stopPropagation>↔</span>
+                            <span class="du-rotate-handle"
+                                  @onpointerdown="e => StartRotate(e, placed)"
+                                  @onpointerdown:preventDefault
+                                  @onpointerdown:stopPropagation>↻</span>
                         }
                     </span>
                 }
 
                 <canvas class="du-draw-canvas" @ref="canvasRef"></canvas>
 
-                <div class="du-trash-zone @(dragging is not null ? "visible" : "") @(overTrash ? "active" : "")" @ref="trashRef">🗑️</div>
+                <div class="du-trash-zone @(dragging is not null || (drawerOpen && activeTab == DrawerTab.Stickers) ? "visible" : "") @(overTrash ? "active" : "")" @ref="trashRef">🗑️</div>
             </div>
 
             <button class="du-drawer-toggle" @onclick="() => drawerOpen = !drawerOpen" aria-label="@(drawerOpen ? "Close stickers and drawing tools" : "Open stickers and drawing tools")">
@@ -130,7 +134,7 @@
                 }
                 else
                 {
-                    <p class="du-drawer-hint">Drag a sticker onto the character - grab it as many times as you like. Tap a placed sticker to resize it.</p>
+                    <p class="du-drawer-hint">Drag a sticker onto the character - grab it as many times as you like. Tap a placed sticker to resize or rotate it.</p>
                     <div class="du-tray">
                         @foreach (var sticker in AllStickers)
                         {
@@ -157,12 +161,12 @@
 
         @if (celebrate)
         {
-            <div class="du-win-overlay">
-                <div class="du-win-panel">
+            <div class="du-win-overlay game-result-overlay">
+                <div class="du-win-panel game-result-panel">
                     <h2>🎉 All dressed up!</h2>
                     <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great styling" : PlayerName + ", great styling") on your @selectedCharacter.Name!</p>
-                    <div class="du-win-actions">
-                        <button class="du-start-btn" @onclick="() => { celebrate = false; selectedCharacter = null; }">Dress Another</button>
+                    <div class="du-win-actions game-result-actions">
+                        <button class="du-start-btn game-primary-action" @onclick="() => { celebrate = false; selectedCharacter = null; }">Dress Another</button>
                     </div>
                 </div>
             </div>
@@ -184,25 +188,34 @@
 
     // ---- Character catalog -------------------------------------------------
 
-    public record StickerDef(string Id, string Emoji, string Label, string? ImagePath = null);
+    public record StickerDef(string Id, string Emoji, string Label, string? ImagePath = null, bool BehindCharacter = false);
     public record CharacterOption(string Name, string ImagePath);
 
     private const string StickerArt = "images/dressup/stickers/";
 
     // Every sticker is available for every character - drag any of these
     // onto whichever character is selected. Stickers without an ImagePath
-    // fall back to their emoji - either no matching art exists yet, or
-    // the available art was rejected (stock-photo watermarks on
-    // sword/horse/dress; wings/helmet were the wrong style/theme).
+    // fall back to their emoji - no matching art exists for those yet.
+    // Candidate art gets reviewed before wiring in (see git history for
+    // what's been rejected and why - watermarks, wrong art style, a
+    // non-transparent background, or a duplicate/glitched render - rather
+    // than re-deriving reasons from scratch each time more art shows up).
     private static readonly List<StickerDef> AllStickers = new()
     {
         new StickerDef("crown", "👑", "Crown", StickerArt + "Crown.jpg"),
         new StickerDef("gem", "💎", "Gem"),
-        new StickerDef("dress", "👗", "Dress"),
+        new StickerDef("dress", "👗", "Dress", StickerArt + "Dress1.png"),
+        new StickerDef("emerald-gown", "👗", "Emerald Gown", StickerArt + "Dress2.png"),
+        new StickerDef("sapphire-gown", "👗", "Sapphire Gown", StickerArt + "Dress3.png"),
+        new StickerDef("purple-gown", "👗", "Purple Gown", StickerArt + "dress-purple.png"),
         new StickerDef("ring", "💍", "Ring"),
+        new StickerDef("necklace", "📿", "Necklace", StickerArt + "Necklace1.png"),
+        new StickerDef("silver-necklace", "📿", "Silver Necklace", StickerArt + "Necklace2.png"),
         new StickerDef("rose", "🌹", "Rose", StickerArt + "Rose.jpg"),
         new StickerDef("purse", "👛", "Purse", StickerArt + "Bag.jpg"),
         new StickerDef("hat", "🎩", "Hat", StickerArt + "Hat.jpg"),
+        new StickerDef("shoes", "👠", "Shoes", StickerArt + "Shoes1.png"),
+        new StickerDef("tiara", "👑", "Tiara", StickerArt + "Tiara.png"),
         new StickerDef("broom", "🧹", "Broom"),
         new StickerDef("crystal-ball", "🔮", "Crystal Ball", StickerArt + "Orb.jpg"),
         new StickerDef("cat", "🐈‍⬛", "Black Cat", StickerArt + "Cat.jpg"),
@@ -221,7 +234,9 @@
         new StickerDef("bow-arrow", "🏹", "Bow & Arrow"),
         new StickerDef("fire", "🔥", "Fire", StickerArt + "Fire.jpg"),
         new StickerDef("lightning", "⚡", "Lightning"),
-        new StickerDef("wings", "🦇", "Wings"),
+        new StickerDef("wings", "🦋", "Wings", StickerArt + "FairyWings2.png", BehindCharacter: true),
+        new StickerDef("fairy-wings", "🧚", "Fairy Wings", StickerArt + "FairyWings3.png", BehindCharacter: true),
+        new StickerDef("jeweled-wings", "🧚", "Jeweled Wings", StickerArt + "FairyWings1.png", BehindCharacter: true),
         new StickerDef("volcano", "🌋", "Volcano", StickerArt + "Volcano.jpg"),
     };
 
@@ -248,6 +263,7 @@
         public double X { get; set; } = 50;
         public double Y { get; set; } = 50;
         public double Scale { get; set; } = 1;
+        public double RotationDeg { get; set; } = 0;
     }
 
     // ---- State ---------------------------------------------------------------
@@ -361,6 +377,39 @@
         resizeStartScale = placed.Scale;
     }
 
+    // ---- Sticker rotate ---------------------------------------------------
+    //
+    // Angle-based (rather than resize's simpler linear-delta approach) -
+    // dragging the handle around the sticker's own center reads as an
+    // actual "spin" gesture, which matters more for rotation than it does
+    // for size since the handle's own position moves along an arc.
+
+    private PlacedSticker? rotating;
+    private double rotateCenterClientX, rotateCenterClientY;
+    private double rotateStartAngleDeg, rotateStartRotationDeg;
+
+    private async Task StartRotate(PointerEventArgs e, PlacedSticker placed)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        var rect = await _module.InvokeAsync<StageRect>("getBoundingRect", stageRef);
+        stageLeft = rect.Left;
+        stageTop = rect.Top;
+        stageWidth = rect.Width;
+        stageHeight = rect.Height;
+
+        await _module.InvokeVoidAsync("setPointerCapture", playRef, e.PointerId);
+
+        rotating = placed;
+        selectedSticker = placed;
+        rotateCenterClientX = stageLeft + (placed.X / 100.0) * stageWidth;
+        rotateCenterClientY = stageTop + (placed.Y / 100.0) * stageHeight;
+        rotateStartAngleDeg = AngleDeg(e.ClientX, e.ClientY);
+        rotateStartRotationDeg = placed.RotationDeg;
+    }
+
+    private double AngleDeg(double clientX, double clientY) =>
+        Math.Atan2(clientY - rotateCenterClientY, clientX - rotateCenterClientX) * 180.0 / Math.PI;
+
     private void ChooseCharacter(CharacterOption character)
     {
         selectedCharacter = character;
@@ -454,6 +503,15 @@
             return;
         }
 
+        if (rotating is not null)
+        {
+            var currentAngle = AngleDeg(e.ClientX, e.ClientY);
+            var delta = currentAngle - rotateStartAngleDeg;
+            rotating.RotationDeg = ((rotateStartRotationDeg + delta) % 360 + 360) % 360;
+            StateHasChanged();
+            return;
+        }
+
         if (dragging is null) return;
         overTrash = IsOverTrash(e.ClientX, e.ClientY);
         SetDragPosition(e.ClientX, e.ClientY, clamp: true);
@@ -474,6 +532,13 @@
         if (resizing is not null)
         {
             resizing = null;
+            StateHasChanged();
+            return;
+        }
+
+        if (rotating is not null)
+        {
+            rotating = null;
             StateHasChanged();
             return;
         }
@@ -565,7 +630,7 @@
         // passed in for canvas text drawing.
         var emojiStickers = placedStickers
             .Where(s => ImagePathFor(s.StickerId) is null)
-            .Select(s => new { emoji = s.Emoji, xPercent = s.X, yPercent = s.Y })
+            .Select(s => new { emoji = s.Emoji, xPercent = s.X, yPercent = s.Y, scale = s.Scale, rotationDeg = s.RotationDeg })
             .ToArray();
         var filename = $"dress-up-{selectedCharacter!.Name.ToLowerInvariant()}.png";
 
@@ -574,6 +639,12 @@
 
     private static string? ImagePathFor(string stickerId) =>
         AllStickers.FirstOrDefault(s => s.Id == stickerId)?.ImagePath;
+
+    // Wings render behind the character (see .du-placed-sticker.behind)
+    // so they read as sprouting from the back rather than sitting flat on
+    // top like a badge - everything else stays in front as normal.
+    private static bool IsBehindCharacter(string stickerId) =>
+        AllStickers.FirstOrDefault(s => s.Id == stickerId)?.BehindCharacter ?? false;
 
     private bool IsOverTrash(double clientX, double clientY) =>
         trashWidth > 0 && trashHeight > 0 &&

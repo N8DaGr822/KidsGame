@@ -14,7 +14,7 @@
     padding: clamp(1rem, 4vw, 2rem);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    background: rgba(32, 36, 49, 0.82);
+    background: var(--panel-bg);
     box-shadow: var(--shadow-sm);
 }
 
@@ -36,7 +36,7 @@
     padding: 0.55rem 0.9rem;
     border: 1px solid var(--line);
     border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--control-bg);
     color: var(--text);
     font-weight: 900;
 }
@@ -66,7 +66,7 @@
     padding: 0.9rem;
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--control-bg-subtle);
     color: var(--text);
     display: grid;
     place-items: center;
@@ -123,7 +123,7 @@
 
 .du-restart-btn {
     border: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--control-bg);
     color: var(--text);
 }
 
@@ -165,6 +165,16 @@
        itself, so the stage reads as one continuous scene instead of a
        card floating on the app's dark theme. */
     background: linear-gradient(180deg, #c9c2ea 0%, #dcd8f0 35%, #eef1fb 75%, #f5f4fa 100%);
+    /* Lets sticker sizing below use cqh (container query height) instead
+       of vw - the character's own height is capped by the stage's actual
+       rendered height (see .du-base), not by viewport width, so tying
+       stickers to vw let them drift wildly out of proportion with the
+       character on wide-but-short viewports (a typical laptop browser
+       window). cqh keeps stickers sized relative to the same box the
+       character is sized relative to, so they scale together. inset:0
+       above already gives this a definite size from its positioned
+       ancestor, so container-type:size doesn't fight anything here. */
+    container-type: size;
 }
 
 .du-stage.draw-mode {
@@ -203,19 +213,25 @@
 .du-placed-sticker {
     position: absolute;
     z-index: 3;
-    font-size: calc(clamp(2.7rem, 8vw, 3.6rem) * var(--du-scale, 1));
+    /* 12cqh matches the 12%-of-stage-height ratio exportOutfit uses in
+       interop.js, so the live view and the exported PNG agree on size. */
+    font-size: calc(clamp(2.2rem, 12cqh, 4.5rem) * var(--du-scale, 1));
     line-height: 1;
     cursor: grab;
     filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.3));
     touch-action: none;
-    transform: translate(-50%, -50%);
+    /* translate centers the sticker on its X/Y%; rotate is this sticker's
+       own angle (--du-rotate, set inline per-instance) - order matters,
+       rotating after centering spins it around its own middle rather than
+       the stage's. */
+    transform: translate(-50%, -50%) rotate(var(--du-rotate, 0deg));
     user-select: none;
     -webkit-touch-callout: none;
 }
 
 .du-placed-sticker-img {
     display: block;
-    height: calc(clamp(2.7rem, 8vw, 3.6rem) * var(--du-scale, 1));
+    height: calc(clamp(2.2rem, 12cqh, 4.5rem) * var(--du-scale, 1));
     width: auto;
     max-width: none;
     object-fit: contain;
@@ -228,6 +244,16 @@
     -webkit-touch-callout: none;
 }
 
+/* Wings sit behind the character (a lower z-index than .du-base) so they
+   read as sprouting from the back instead of a badge stuck on top. This
+   has to come before .dragging/.selected below so those still win the
+   cascade (equal specificity, later rule wins) when a wing sticker is
+   actively being manipulated - see the .selected z-index note below for
+   why that matters beyond just visually looking right while dragging. */
+.du-placed-sticker.behind {
+    z-index: 0;
+}
+
 .du-placed-sticker.dragging {
     z-index: 5;
     cursor: grabbing;
@@ -236,19 +262,25 @@
 
 .du-placed-sticker.over-trash {
     opacity: 0.42;
-    transform: translate(-50%, -50%) scale(0.82);
+    transform: translate(-50%, -50%) rotate(var(--du-rotate, 0deg)) scale(0.82);
 }
 
 .du-placed-sticker.selected {
+    /* The resize/rotate handles are children of this span, so a behind-
+       the-character sticker would otherwise hide its own handles behind
+       the character too (a child can't escape its ancestor's stacking
+       context via z-index alone) - bring it to front whenever it's
+       selected (i.e. whenever those handles are visible and need to be
+       tappable), the same way .dragging already does. */
+    z-index: 5;
     outline: 2px dashed rgba(255, 255, 255, 0.7);
     outline-offset: 6px;
     border-radius: 999px;
 }
 
-.du-resize-handle {
+.du-resize-handle,
+.du-rotate-handle {
     position: absolute;
-    right: -18px;
-    bottom: -18px;
     z-index: 4;
     width: 34px;
     height: 34px;
@@ -261,16 +293,28 @@
     font-size: 1.1rem;
     font-weight: 900;
     line-height: 1;
-    cursor: nwse-resize;
     touch-action: none;
     box-shadow: var(--shadow-sm);
     user-select: none;
     -webkit-touch-callout: none;
 }
 
+.du-resize-handle {
+    right: -18px;
+    bottom: -18px;
+    cursor: nwse-resize;
+}
+
+.du-rotate-handle {
+    top: -18px;
+    left: 50%;
+    margin-left: -17px;
+    cursor: grab;
+}
+
 .du-trash-zone {
     position: absolute;
-    right: 1rem;
+    left: 1rem;
     bottom: 1rem;
     z-index: 6;
     width: 58px;
@@ -353,7 +397,7 @@
     min-height: 46px;
     border: 1px solid var(--line);
     border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--control-bg-subtle);
     color: var(--text-soft);
     font-weight: 900;
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
@@ -406,7 +450,7 @@
     height: 40px;
     border: 1px solid var(--line);
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--control-bg-subtle);
     display: grid;
     place-items: center;
 }
@@ -474,7 +518,7 @@
     display: grid;
     place-items: center;
     padding: 1rem;
-    background: rgba(8, 10, 16, 0.72);
+    background: var(--overlay-bg);
     backdrop-filter: blur(8px);
 }
 

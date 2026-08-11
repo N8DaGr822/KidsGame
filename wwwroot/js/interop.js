@@ -129,11 +129,28 @@ export function exportOutfit(stageEl, baseImageEl, emojiStickers, drawCanvas, fi
 
     // Image-backed stickers are real <img> elements on the stage - draw
     // each at its actual on-screen position/size rather than
-    // reimplementing the drag-position-to-CSS math here.
+    // reimplementing the drag-position-to-CSS math here. Rotation is a
+    // CSS transform on the parent .du-placed-sticker, which enlarges what
+    // getBoundingClientRect reports (the rotated bounding box) rather
+    // than the image's true size - offsetWidth/offsetHeight are layout
+    // dimensions and unaffected by transforms, so those give the real
+    // (unrotated) size, while the bounding box's center point is still
+    // accurate (rotating about the center doesn't move the center).
     const stickerImgs = stageEl.querySelectorAll('.du-placed-sticker-img');
     for (const img of stickerImgs) {
+        const stickerEl = img.closest('.du-placed-sticker');
         const r = img.getBoundingClientRect();
-        ctx.drawImage(img, r.left - stageRect.left, r.top - stageRect.top, r.width, r.height);
+        const centerX = r.left + r.width / 2 - stageRect.left;
+        const centerY = r.top + r.height / 2 - stageRect.top;
+        const w = img.offsetWidth;
+        const h = img.offsetHeight;
+        const rotateDeg = stickerEl ? parseFloat(getComputedStyle(stickerEl).getPropertyValue('--du-rotate')) || 0 : 0;
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate((rotateDeg * Math.PI) / 180);
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        ctx.restore();
     }
 
     // Stickers still on emoji fallback (no matching art yet) have no DOM
@@ -141,10 +158,19 @@ export function exportOutfit(stageEl, baseImageEl, emojiStickers, drawCanvas, fi
     if (emojiStickers && emojiStickers.length) {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const stickerFontPx = Math.round(height * 0.12);
-        ctx.font = `${stickerFontPx}px "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+        const baseFontPx = height * 0.12;
         for (const sticker of emojiStickers) {
-            ctx.fillText(sticker.emoji, (sticker.xPercent / 100) * width, (sticker.yPercent / 100) * height);
+            const x = (sticker.xPercent / 100) * width;
+            const y = (sticker.yPercent / 100) * height;
+            const scale = sticker.scale || 1;
+            const rotation = ((sticker.rotationDeg || 0) * Math.PI) / 180;
+
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(rotation);
+            ctx.font = `${Math.round(baseFontPx * scale)}px "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+            ctx.fillText(sticker.emoji, 0, 0);
+            ctx.restore();
         }
     }
 
