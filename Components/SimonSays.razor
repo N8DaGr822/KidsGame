@@ -19,21 +19,21 @@
 
     @if (phase == Phase.Setup)
     {
-        <div class="simon-setup">
+        <div class="simon-setup game-setup-panel">
             <h2>Simon Says</h2>
             <p>Watch the pattern light up, then tap the pads in the same order. Each round adds one more step!</p>
 
-            <h3 class="simon-section-title">Choose a difficulty</h3>
+            <h3 class="simon-section-title game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
             {
                 <p class="simon-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
             }
             else
             {
-                <div class="simon-difficulty-select">
+                <div class="simon-difficulty-select game-option-grid">
                     @foreach (var diff in Difficulties)
                     {
-                        <button class="simon-diff-btn @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                        <button class="simon-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
                             <span class="simon-diff-name">@DifficultyName(diff)</span>
                             <span class="simon-diff-detail">@DifficultyDetail(diff)</span>
                         </button>
@@ -41,16 +41,16 @@
                 </div>
             }
 
-            <button class="simon-start-btn" @onclick="StartGame">Start Game</button>
+            <button class="simon-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
         </div>
     }
     else
     {
-        <div class="simon-hud">
+        <div class="simon-hud game-hud">
             <span class="simon-title">Simon Says</span>
             <span class="simon-round">Round @Math.Max(sequence.Count, 1)</span>
             <span class="simon-mistakes">@MistakesText()</span>
-            <button class="simon-restart-btn" @onclick="() => phase = Phase.Setup">← Exit</button>
+            <button class="simon-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
         </div>
 
         <div class="simon-status">@StatusText()</div>
@@ -68,13 +68,13 @@
 
         @if (phase == Phase.RoundEnd)
         {
-            <div class="simon-overlay">
-                <div class="simon-win-panel">
+            <div class="simon-overlay game-result-overlay">
+                <div class="simon-win-panel game-result-panel">
                     <h2>Game Over</h2>
                     <p>You reached round @roundsReached!</p>
-                    <div class="simon-win-actions">
-                        <button class="simon-start-btn" @onclick="StartGame">Play Again</button>
-                        <button class="simon-restart-btn" @onclick="() => phase = Phase.Setup">Exit</button>
+                    <div class="simon-win-actions game-result-actions">
+                        <button class="simon-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="simon-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
                     </div>
                 </div>
             </div>
@@ -178,43 +178,60 @@
         StateHasChanged();
     }
 
+    // Guards against overlapping calls - OnPadTap awaits (sound + a 180ms
+    // beat) before it reads/mutates playerStep and sequence, and nothing
+    // else disables the pads during that window (phase is still Listening
+    // the whole time), so a fast double-tap could otherwise run two calls
+    // concurrently and race on those shared fields - including one call
+    // reading a stale playerStep after another already advanced it past
+    // the end of sequence, throwing ArgumentOutOfRangeException.
+    private bool isHandlingTap;
+
     private async Task OnPadTap(int index)
     {
-        if (phase != Phase.Listening) return;
+        if (phase != Phase.Listening || isHandlingTap) return;
+        isHandlingTap = true;
 
-        pressedIndex = index;
-        StateHasChanged();
-        await PlaySoundAsync("playSimonTone", index);
-        await Task.Delay(180);
-        pressedIndex = -1;
-        StateHasChanged();
-
-        if (sequence[playerStep] != index)
+        try
         {
-            mistakesMade++;
-            StateHasChanged(); // reflect the new mistake count immediately, not only once retry playback starts
-            if (mistakesMade >= MaxMistakes(selectedDifficulty))
+            pressedIndex = index;
+            StateHasChanged();
+            await PlaySoundAsync("playSimonTone", index);
+            await Task.Delay(180);
+            pressedIndex = -1;
+            StateHasChanged();
+
+            if (sequence[playerStep] != index)
             {
-                await EndRoundAsync();
+                mistakesMade++;
+                StateHasChanged(); // reflect the new mistake count immediately, not only once retry playback starts
+                if (mistakesMade >= MaxMistakes(selectedDifficulty))
+                {
+                    await EndRoundAsync();
+                    return;
+                }
+
+                // Forgiven mistake (Easy, or Medium under its limit) - replay
+                // the same round from the start rather than growing it, so
+                // the kid gets another shot at the exact sequence they missed.
+                await PlaySoundAsync("playSimonErrorSound", null);
+                await Task.Delay(600);
+                await PlaybackAsync();
                 return;
             }
 
-            // Forgiven mistake (Easy, or Medium under its limit) - replay
-            // the same round from the start rather than growing it, so
-            // the kid gets another shot at the exact sequence they missed.
-            await PlaySoundAsync("playSimonErrorSound", null);
-            await Task.Delay(600);
-            await PlaybackAsync();
-            return;
+            playerStep++;
+            if (playerStep == sequence.Count)
+            {
+                roundsReached = sequence.Count;
+                await Task.Delay(500);
+                sequence.Add(rng.Next(4));
+                await PlaybackAsync();
+            }
         }
-
-        playerStep++;
-        if (playerStep == sequence.Count)
+        finally
         {
-            roundsReached = sequence.Count;
-            await Task.Delay(500);
-            sequence.Add(rng.Next(4));
-            await PlaybackAsync();
+            isHandlingTap = false;
         }
     }
 
