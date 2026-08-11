@@ -15,7 +15,7 @@
     padding: clamp(1rem, 4vw, 2rem);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    background: rgba(32, 36, 49, 0.82);
+    background: var(--panel-bg);
     box-shadow: var(--shadow-sm);
 }
 
@@ -60,7 +60,7 @@
     padding: 0.8rem;
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--control-bg-subtle);
     color: var(--text);
     display: grid;
     place-items: center;
@@ -71,13 +71,13 @@
 .mg-theme-btn:hover,
 .mg-diff-btn:hover {
     transform: translateY(-2px);
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--control-bg-hover);
 }
 
 .mg-theme-btn.selected,
 .mg-diff-btn.selected {
     border-color: rgba(78, 205, 196, 0.75);
-    background: rgba(78, 205, 196, 0.14);
+    background: var(--selected-bg);
 }
 
 .mg-theme-icon {
@@ -115,7 +115,7 @@
 
 .mg-restart-btn {
     border: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--control-bg);
     color: var(--text);
 }
 
@@ -252,7 +252,7 @@
     display: grid;
     place-items: center;
     padding: 1rem;
-    background: rgba(8, 10, 16, 0.72);
+    background: var(--overlay-bg);
     backdrop-filter: blur(8px);
 }
 

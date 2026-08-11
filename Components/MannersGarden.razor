@@ -31,7 +31,7 @@
 
     @if (phase == Phase.Setup)
     {
-        <div class="mng-setup">
+        <div class="mng-setup game-setup-panel">
             <h2>🌷 Manners Garden</h2>
             <p>Help Benny, Poppy, Milo, Lulu, and Tilly practice kind manners - and grow a beautiful garden together!</p>
 
@@ -46,33 +46,33 @@
             </div>
 
             <div class="mng-setup-actions">
-                <button class="mng-start-btn" @onclick="() => StartSession(null)">▶️ Start Playing</button>
+                <button class="mng-start-btn game-primary-action" @onclick="() => StartSession(null)">▶️ Start Playing</button>
                 @if (persistedGardenItems.Count > 0)
                 {
-                    <button class="mng-restart-btn" @onclick="() => showingGardenAtSetup = true">🌷 View My Garden</button>
+                    <button class="mng-restart-btn game-secondary-action" @onclick="() => showingGardenAtSetup = true">🌷 View My Garden</button>
                 }
             </div>
 
-            <h3 class="mng-section-title">Or practice just one skill</h3>
-            <div class="mng-focus-select">
+            <h3 class="mng-section-title game-section-title">Or practice just one skill</h3>
+            <div class="mng-focus-select game-option-grid">
                 @foreach (var lesson in AllLessons)
                 {
-                    <button class="mng-focus-btn" @onclick="() => StartSession(lesson)">@LessonDisplayName(lesson)</button>
+                    <button class="mng-focus-btn game-option-button" @onclick="() => StartSession(lesson)">@LessonDisplayName(lesson)</button>
                 }
             </div>
         </div>
 
         @if (showingGardenAtSetup)
         {
-            <div class="mng-garden-overlay">
-                <div class="mng-garden-panel">
+            <div class="mng-garden-overlay game-result-overlay">
+                <div class="mng-garden-panel game-result-panel">
                     <h2>🌼 Your Manners Garden!</h2>
                     <p>Everything you've grown so far.</p>
 
                     <MannersGardenScene Items="persistedGardenItems" />
 
-                    <div class="mng-garden-actions">
-                        <button class="mng-restart-btn" @onclick="() => showingGardenAtSetup = false">Close</button>
+                    <div class="mng-garden-actions game-result-actions">
+                        <button class="mng-restart-btn game-secondary-action" @onclick="() => showingGardenAtSetup = false">Close</button>
                     </div>
                 </div>
             </div>
@@ -80,23 +80,23 @@
     }
     else if (phase == Phase.SessionComplete)
     {
-        <div class="mng-garden-overlay">
-            <div class="mng-garden-panel">
+        <div class="mng-garden-overlay game-result-overlay">
+            <div class="mng-garden-panel game-result-panel">
                 <h2>🌼 Your Manners Garden!</h2>
                 <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") practicing kind manners today!</p>
 
                 <MannersGardenScene Items="persistedGardenItems" />
 
-                <div class="mng-garden-actions">
-                    <button class="mng-start-btn" @onclick="() => StartSession(null)">Play Again</button>
-                    <button class="mng-restart-btn" @onclick="ExitToSetup">Change Game</button>
+                <div class="mng-garden-actions game-result-actions">
+                    <button class="mng-start-btn game-primary-action" @onclick="() => StartSession(null)">Play Again</button>
+                    <button class="mng-restart-btn game-secondary-action" @onclick="ExitToSetup">Change Game</button>
                 </div>
             </div>
         </div>
     }
     else
     {
-        <div class="mng-hud">
+        <div class="mng-hud game-hud">
             <button class="mng-mute-btn" @onclick="ToggleMute" aria-label="@(muted ? "Unmute narration" : "Mute narration")">@(muted ? "🔇" : "🔊")</button>
             <div class="mng-progress">
                 @for (int i = 0; i < sessionLessons.Count; i++)
@@ -106,7 +106,7 @@
                 }
             </div>
             <button class="mng-garden-peek-btn" @onclick="ToggleGarden">@(showingGarden ? "▶️ Back to Play" : "🌷 View Garden")</button>
-            <button class="mng-restart-btn" @onclick="ExitToSetup">Change Game</button>
+            <button class="mng-restart-btn game-secondary-action" @onclick="ExitToSetup">Change Game</button>
         </div>
 
         @if (showingGarden)

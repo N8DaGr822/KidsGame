@@ -10,7 +10,7 @@
     padding: clamp(1rem, 4vw, 2rem);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    background: rgba(32, 36, 49, 0.82);
+    background: var(--panel-bg);
     box-shadow: var(--shadow-sm);
     text-align: center;
     justify-items: center;
@@ -55,7 +55,7 @@
 
 .uno-restart-btn {
     border: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--control-bg);
     color: var(--text);
 }
 
@@ -247,7 +247,7 @@
 .uno-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(10, 12, 18, 0.72);
+    background: var(--overlay-bg);
     display: grid;
     place-items: center;
     z-index: 40;
@@ -256,7 +256,7 @@
 
 .uno-color-picker,
 .uno-win-panel {
-    background: rgba(24, 27, 38, 0.96);
+    background: var(--panel-bg-strong);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);

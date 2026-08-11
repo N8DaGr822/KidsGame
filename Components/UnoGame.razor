@@ -21,7 +21,7 @@
 
     @if (phase == Phase.Setup)
     {
-        <div class="uno-setup">
+        <div class="uno-setup game-setup-panel">
             <h2>UNO</h2>
             <p>Match the top card by color, number, or symbol. First to play all your cards wins!</p>
             <ul class="uno-rules">
@@ -30,15 +30,15 @@
                 <li>🔁 <strong>Reverse</strong> - play switches direction.</li>
                 <li>+2 / +4 - the next player draws extra cards, then plays as normal.</li>
             </ul>
-            <button class="uno-start-btn" @onclick="StartGame">Start Game</button>
+            <button class="uno-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
         </div>
     }
     else
     {
-        <div class="uno-hud">
+        <div class="uno-hud game-hud">
             <span class="uno-title">UNO</span>
             <span class="uno-direction" title="@(direction == 1 ? "Clockwise" : "Counter-clockwise")">@(direction == 1 ? "↻" : "↺")</span>
-            <button class="uno-restart-btn" @onclick="() => phase = Phase.Setup">← Exit</button>
+            <button class="uno-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
         </div>
 
         <div class="uno-table">
@@ -93,8 +93,8 @@
 
         @if (phase == Phase.ChoosingColor)
         {
-            <div class="uno-overlay">
-                <div class="uno-color-picker">
+            <div class="uno-overlay game-result-overlay">
+                <div class="uno-color-picker game-result-panel">
                     <h3>Pick a color</h3>
                     <div class="uno-color-grid">
                         @foreach (var color in new[] { CardColor.Red, CardColor.Yellow, CardColor.Green, CardColor.Blue })
@@ -108,13 +108,13 @@
 
         @if (phase == Phase.RoundEnd)
         {
-            <div class="uno-overlay">
-                <div class="uno-win-panel">
+            <div class="uno-overlay game-result-overlay">
+                <div class="uno-win-panel game-result-panel">
                     <h2>@(winner == players[0] ? "🎉 You win!" : $"{winner?.Name} wins!")</h2>
                     <p>@(winner == players[0] ? "Great playing" + (string.IsNullOrWhiteSpace(PlayerName) ? "!" : $", {PlayerName}!") : "Better luck next hand!")</p>
-                    <div class="uno-win-actions">
-                        <button class="uno-start-btn" @onclick="StartGame">Play Again</button>
-                        <button class="uno-restart-btn" @onclick="() => phase = Phase.Setup">Exit</button>
+                    <div class="uno-win-actions game-result-actions">
+                        <button class="uno-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="uno-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
                     </div>
                 </div>
             </div>

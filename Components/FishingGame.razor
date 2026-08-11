@@ -27,15 +27,15 @@
 
     @if (!started)
     {
-        <div class="fg-setup">
+        <div class="fg-setup game-setup-panel">
             <h2>Fishing Time</h2>
             <p>Catch 3 fish that match your basket, then keep going until you've caught them all!</p>
 
-            <h3 class="fg-section-title">Choose a mode</h3>
-            <div class="fg-mode-select">
+            <h3 class="fg-section-title game-section-title">Choose a mode</h3>
+            <div class="fg-mode-select game-option-grid">
                 @foreach (var mode in Modes)
                 {
-                    <button class="fg-mode-btn @(mode.Name == selectedMode.Name ? "selected" : "")"
+                    <button class="fg-mode-btn game-option-button @(mode.Name == selectedMode.Name ? "selected" : "")"
                             @onclick="() => selectedMode = mode">
                         <span class="fg-mode-icon">@mode.Icon</span>
                         <span class="fg-mode-name">@mode.Name</span>
@@ -43,35 +43,35 @@
                 }
             </div>
 
-            <h3 class="fg-section-title">Difficulty</h3>
-            <div class="fg-mode-select">
-                <button class="fg-mode-btn @(!strikesEnabled ? "selected" : "")" @onclick="() => strikesEnabled = false">
+            <h3 class="fg-section-title game-section-title">Difficulty</h3>
+            <div class="fg-mode-select game-option-grid">
+                <button class="fg-mode-btn game-option-button @(!strikesEnabled ? "selected" : "")" @onclick="() => strikesEnabled = false">
                     <span class="fg-mode-icon">🌤️</span>
                     <span class="fg-mode-name">Relaxed</span>
                 </button>
-                <button class="fg-mode-btn @(strikesEnabled ? "selected" : "")" @onclick="() => strikesEnabled = true">
+                <button class="fg-mode-btn game-option-button @(strikesEnabled ? "selected" : "")" @onclick="() => strikesEnabled = true">
                     <span class="fg-mode-icon">⚡</span>
                     <span class="fg-mode-name">3 Strikes</span>
                 </button>
             </div>
 
-            <button class="fg-start-btn" @onclick="StartGame">Start Fishing</button>
+            <button class="fg-start-btn game-primary-action" @onclick="StartGame">Start Fishing</button>
         </div>
     }
     else
     {
-        <div class="fg-hud">
-            <div class="fg-stat">
-                <span class="fg-stat-label">Target</span>
-                <span class="fg-stat-value">@target <span class="fg-stat-sub">(@(targetIndex + 1)/@selectedMode.Sequence.Count)</span></span>
+        <div class="fg-hud game-hud">
+            <div class="fg-stat game-stat">
+                <span class="fg-stat-label game-stat-label">Target</span>
+                <span class="fg-stat-value game-stat-value">@target <span class="fg-stat-sub">(@(targetIndex + 1)/@selectedMode.Sequence.Count)</span></span>
             </div>
-            <div class="fg-stat"><span class="fg-stat-label">Caught</span><span class="fg-stat-value">@caughtCount / @WinCount</span></div>
+            <div class="fg-stat game-stat"><span class="fg-stat-label game-stat-label">Caught</span><span class="fg-stat-value game-stat-value">@caughtCount / @WinCount</span></div>
             @if (strikesEnabled)
             {
-                <div class="fg-stat"><span class="fg-stat-label">Strikes</span><span class="fg-stat-value">@strikes / @MaxStrikes</span></div>
+                <div class="fg-stat game-stat"><span class="fg-stat-label game-stat-label">Strikes</span><span class="fg-stat-value game-stat-value">@strikes / @MaxStrikes</span></div>
             }
-            <div class="fg-stat"><span class="fg-stat-label">Time</span><span class="fg-stat-value">@FormatTime(elapsedSeconds)</span></div>
-            <button class="fg-restart-btn" @onclick="ResetToSetup">Change Game</button>
+            <div class="fg-stat game-stat"><span class="fg-stat-label game-stat-label">Time</span><span class="fg-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
+            <button class="fg-restart-btn game-secondary-action" @onclick="ResetToSetup">Change Game</button>
         </div>
 
         <div class="fg-scene">
@@ -112,35 +112,35 @@
 
         @if (gameWon)
         {
-            <div class="fg-win-overlay">
-                <div class="fg-win-panel">
+            <div class="fg-win-overlay game-result-overlay">
+                <div class="fg-win-panel game-result-panel">
                     <h2>🎣 You caught them all!</h2>
                     <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") catching every @ModeUnitLabel()!</p>
-                    <div class="fg-win-stats">
-                        <div><span class="fg-stat-label">Completed</span><span class="fg-stat-value">@selectedMode.Sequence.Count</span></div>
-                        <div><span class="fg-stat-label">Attempts</span><span class="fg-stat-value">@attempts</span></div>
-                        <div><span class="fg-stat-label">Time</span><span class="fg-stat-value">@FormatTime(elapsedSeconds)</span></div>
+                    <div class="fg-win-stats game-result-stats">
+                        <div><span class="fg-stat-label game-stat-label">Completed</span><span class="fg-stat-value game-stat-value">@selectedMode.Sequence.Count</span></div>
+                        <div><span class="fg-stat-label game-stat-label">Attempts</span><span class="fg-stat-value game-stat-value">@attempts</span></div>
+                        <div><span class="fg-stat-label game-stat-label">Time</span><span class="fg-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
                     </div>
-                    <div class="fg-win-actions">
-                        <button class="fg-start-btn" @onclick="StartGame">Play Again</button>
-                        <button class="fg-restart-btn" @onclick="ResetToSetup">Change Game</button>
+                    <div class="fg-win-actions game-result-actions">
+                        <button class="fg-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="fg-restart-btn game-secondary-action" @onclick="ResetToSetup">Change Game</button>
                     </div>
                 </div>
             </div>
         }
         else if (gameOver)
         {
-            <div class="fg-win-overlay">
-                <div class="fg-win-panel">
+            <div class="fg-win-overlay game-result-overlay">
+                <div class="fg-win-panel game-result-panel">
                     <h2>🐟💨 Out of strikes!</h2>
                     <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "No worries" : PlayerName + ", no worries") - give it another go!</p>
-                    <div class="fg-win-stats">
-                        <div><span class="fg-stat-label">Reached</span><span class="fg-stat-value">@target</span></div>
-                        <div><span class="fg-stat-label">Time</span><span class="fg-stat-value">@FormatTime(elapsedSeconds)</span></div>
+                    <div class="fg-win-stats game-result-stats">
+                        <div><span class="fg-stat-label game-stat-label">Reached</span><span class="fg-stat-value game-stat-value">@target</span></div>
+                        <div><span class="fg-stat-label game-stat-label">Time</span><span class="fg-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
                     </div>
-                    <div class="fg-win-actions">
-                        <button class="fg-start-btn" @onclick="StartGame">Try Again</button>
-                        <button class="fg-restart-btn" @onclick="ResetToSetup">Change Game</button>
+                    <div class="fg-win-actions game-result-actions">
+                        <button class="fg-start-btn game-primary-action" @onclick="StartGame">Try Again</button>
+                        <button class="fg-restart-btn game-secondary-action" @onclick="ResetToSetup">Change Game</button>
                     </div>
                 </div>
             </div>

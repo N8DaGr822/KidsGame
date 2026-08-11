@@ -10,7 +10,7 @@
     padding: clamp(1rem, 4vw, 2rem);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
-    background: rgba(32, 36, 49, 0.82);
+    background: var(--panel-bg);
     box-shadow: var(--shadow-sm);
     text-align: center;
     justify-items: center;
@@ -45,7 +45,7 @@
 
 .tk-restart-btn {
     border: 1px solid var(--line);
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--control-bg);
     color: var(--text);
 }
 
@@ -207,7 +207,7 @@
     display: grid;
     place-items: center;
     padding: 1rem;
-    background: rgba(8, 10, 16, 0.72);
+    background: var(--overlay-bg);
     backdrop-filter: blur(8px);
 }
 
