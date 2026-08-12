@@ -674,10 +674,10 @@ h1[tabindex="-1"]:focus {
   object-fit: contain;
 }
 
-/* The source art faces left; flip it to face right for fish swimming
+/* The source art faces right; flip it to face left for fish swimming
    that direction. Scoped to the body only (not the whole .fg-fish
    button) so the letter/number label next to it stays unmirrored. */
-.fg-fish:not(.reverse) .fg-fish-body {
+.fg-fish.reverse .fg-fish-body {
   transform: scaleX(-1);
 }
 
