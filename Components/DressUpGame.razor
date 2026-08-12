@@ -56,7 +56,7 @@
         </div>
 
         <div class="du-play" @ref="playRef" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointercancel="OnPointerUp">
-            <div class="du-stage @(DrawMode ? "draw-mode" : "")" @ref="stageRef" @onpointerdown="OnStagePointerDown">
+            <div class="du-stage @(DrawMode ? "draw-mode" : "") @(DrawMode && drawTool == DrawTool.Fill ? "fill-tool" : "")" @ref="stageRef" @onpointerdown="OnStagePointerDown">
                 <img class="du-base" @ref="baseImageRef" src="@selectedCharacter.ImagePath" alt="@selectedCharacter.Name" />
 
                 @foreach (var placed in placedStickers)
@@ -68,6 +68,11 @@
                         @if (ImagePathFor(placed.StickerId) is { } placedImgPath)
                         {
                             <img class="du-placed-sticker-img" src="@placedImgPath" alt="" draggable="false" />
+                            @if (placed.TintColor is { } tint)
+                            {
+                                <div class="du-placed-sticker-tint"
+                                     style="mask-image:url('@placedImgPath');-webkit-mask-image:url('@placedImgPath');background-color:@tint;"></div>
+                            }
                         }
                         else
                         {
@@ -110,6 +115,19 @@
                 @if (activeTab == DrawerTab.Draw)
                 {
                     <div class="du-draw-tools">
+                        <div class="du-tool-row">
+                            <button class="du-tool-btn @(drawTool == DrawTool.Brush ? "selected" : "")" @onclick="() => drawTool = DrawTool.Brush">
+                                🖌️ Brush
+                            </button>
+                            <button class="du-tool-btn @(drawTool == DrawTool.Fill ? "selected" : "")" @onclick="() => drawTool = DrawTool.Fill">
+                                🪣 Fill
+                            </button>
+                        </div>
+
+                        <p class="du-drawer-hint">
+                            @(drawTool == DrawTool.Fill ? "Tap a sticker to recolor it, or tap inside a drawn shape to fill it." : "Draw with your finger - switch to Fill to color in a closed shape.")
+                        </p>
+
                         <div class="du-color-row">
                             @foreach (var color in DrawColors)
                             {
@@ -120,14 +138,17 @@
                             }
                         </div>
 
-                        <div class="du-brush-row">
-                            @foreach (var size in BrushSizes)
-                            {
-                                <button class="du-brush-btn @(brushSize == size ? "selected" : "")" @onclick="() => brushSize = size" aria-label="Brush size @size">
-                                    <span class="du-brush-dot" style="width:@(size)px; height:@(size)px;"></span>
-                                </button>
-                            }
-                        </div>
+                        @if (drawTool == DrawTool.Brush)
+                        {
+                            <div class="du-brush-row">
+                                @foreach (var size in BrushSizes)
+                                {
+                                    <button class="du-brush-btn @(brushSize == size ? "selected" : "")" @onclick="() => brushSize = size" aria-label="Brush size @size">
+                                        <span class="du-brush-dot" style="width:@(size)px; height:@(size)px;"></span>
+                                    </button>
+                                }
+                            </div>
+                        }
 
                         <button class="du-restart-btn" @onclick="ClearDrawing">Clear Drawing</button>
                     </div>
@@ -188,7 +209,12 @@
 
     // ---- Character catalog -------------------------------------------------
 
-    public record StickerDef(string Id, string Emoji, string Label, string? ImagePath = null, bool BehindCharacter = false);
+    // DefaultScale is what a sticker is placed at when first dragged from
+    // the tray - 1 (the base ~12%-of-stage-height size) suits small props,
+    // but full-body wear needs to start much bigger to already read as
+    // "worn" rather than a badge the kid has to manually blow up every
+    // single time it's placed.
+    public record StickerDef(string Id, string Emoji, string Label, string? ImagePath = null, bool BehindCharacter = false, double DefaultScale = 1.0);
     public record CharacterOption(string Name, string ImagePath);
 
     private const string StickerArt = "images/dressup/stickers/";
@@ -202,42 +228,101 @@
     // than re-deriving reasons from scratch each time more art shows up).
     private static readonly List<StickerDef> AllStickers = new()
     {
-        new StickerDef("crown", "👑", "Crown", StickerArt + "Crown.jpg"),
-        new StickerDef("gem", "💎", "Gem"),
-        new StickerDef("dress", "👗", "Dress", StickerArt + "Dress1.png"),
-        new StickerDef("emerald-gown", "👗", "Emerald Gown", StickerArt + "Dress2.png"),
-        new StickerDef("sapphire-gown", "👗", "Sapphire Gown", StickerArt + "Dress3.png"),
-        new StickerDef("purple-gown", "👗", "Purple Gown", StickerArt + "dress-purple.png"),
-        new StickerDef("ring", "💍", "Ring"),
-        new StickerDef("necklace", "📿", "Necklace", StickerArt + "Necklace1.png"),
-        new StickerDef("silver-necklace", "📿", "Silver Necklace", StickerArt + "Necklace2.png"),
-        new StickerDef("rose", "🌹", "Rose", StickerArt + "Rose.jpg"),
-        new StickerDef("purse", "👛", "Purse", StickerArt + "Bag.jpg"),
-        new StickerDef("hat", "🎩", "Hat", StickerArt + "Hat.jpg"),
-        new StickerDef("shoes", "👠", "Shoes", StickerArt + "Shoes1.png"),
-        new StickerDef("tiara", "👑", "Tiara", StickerArt + "Tiara.png"),
-        new StickerDef("broom", "🧹", "Broom"),
-        new StickerDef("crystal-ball", "🔮", "Crystal Ball", StickerArt + "Orb.jpg"),
-        new StickerDef("cat", "🐈‍⬛", "Black Cat", StickerArt + "Cat.jpg"),
-        new StickerDef("potion", "🧪", "Potion"),
-        new StickerDef("star", "⭐", "Star", StickerArt + "Star.jpg"),
-        new StickerDef("rainbow", "🌈", "Rainbow", StickerArt + "Rainbow.jpg"),
-        new StickerDef("bow", "🎀", "Bow", StickerArt + "Bow.jpg"),
-        new StickerDef("flowers", "💐", "Flowers"),
+        new StickerDef("crown", "👑", "Crown", StickerArt + "Crown.png"),
+        new StickerDef("dress", "👗", "Dress", StickerArt + "Dress1.png", DefaultScale: 4.5),
+        new StickerDef("emerald-gown", "👗", "Emerald Gown", StickerArt + "Dress2.png", DefaultScale: 4.5),
+        new StickerDef("sapphire-gown", "👗", "Sapphire Gown", StickerArt + "Dress3.png", DefaultScale: 4.5),
+        new StickerDef("purple-gown", "👗", "Purple Gown", StickerArt + "Dress12.png", DefaultScale: 4.5),
+        new StickerDef("pink-puff-dress", "👗", "Pink Puff Dress", StickerArt + "Dress5.png", DefaultScale: 4.5),
+        new StickerDef("plaid-dress", "👗", "Plaid Dress", StickerArt + "Dress6.png", DefaultScale: 4.5),
+        new StickerDef("ivory-rose-gown", "👗", "Ivory Rose Gown", StickerArt + "Dress7.png", DefaultScale: 4.5),
+        new StickerDef("teal-starlight-gown", "👗", "Teal Starlight Gown", StickerArt + "Dress8.png", DefaultScale: 4.5),
+        new StickerDef("mustard-pinafore", "👗", "Mustard Pinafore", StickerArt + "Dress9.png", DefaultScale: 4.5),
+        new StickerDef("boho-maxi-dress", "👗", "Boho Maxi Dress", StickerArt + "Dress10.png", DefaultScale: 4.5),
+        new StickerDef("cream-sweater-dress", "👗", "Cream Sweater Dress", StickerArt + "Dress11.png", DefaultScale: 4.5),
+        new StickerDef("daisy-sundress", "👗", "Daisy Sundress", StickerArt + "Dress13.png", DefaultScale: 4.5),
+        new StickerDef("ruby-cocktail-dress", "👗", "Ruby Cocktail Dress", StickerArt + "Dress14.png", DefaultScale: 4.5),
+        new StickerDef("blossom-dress", "👗", "Blossom Dress", StickerArt + "Dress15.png", DefaultScale: 4.5),
+        new StickerDef("unicorn-sparkle-dress", "👗", "Unicorn Sparkle Dress", StickerArt + "Dress16.png", DefaultScale: 4.5),
+        new StickerDef("frost-unicorn-gown", "👗", "Frost Unicorn Gown", StickerArt + "Dress17.png", DefaultScale: 4.5),
+        new StickerDef("frost-star-gown", "👗", "Frost Star Gown", StickerArt + "Dress18.png", DefaultScale: 4.5),
+        new StickerDef("royal-tailcoat", "🤵", "Royal Tailcoat", StickerArt + "Outfit1.png", DefaultScale: 4.5),
+        new StickerDef("crimson-pirate-coat", "🏴‍☠️", "Crimson Pirate Coat", StickerArt + "Pirate1.png", DefaultScale: 4.5),
+        new StickerDef("azure-pirate-coat", "🏴‍☠️", "Azure Pirate Coat", StickerArt + "Pirate2.png", DefaultScale: 4.5),
+        new StickerDef("fae-outfit", "🧝", "Forest Fae Outfit", StickerArt + "Fairy1.png", DefaultScale: 4.5),
+        new StickerDef("necklace", "📿", "Necklace", StickerArt + "Necklace1.png", DefaultScale: 0.9),
+        new StickerDef("silver-necklace", "📿", "Silver Necklace", StickerArt + "Necklace2.png", DefaultScale: 0.9),
+        new StickerDef("pearl-necklace", "📿", "Pearl & Coral Necklace", StickerArt + "Necklace3.png", DefaultScale: 0.9),
+        new StickerDef("necklace-4", "📿", "Necklace 4", StickerArt + "Necklace4.png", DefaultScale: 0.9),
+        new StickerDef("necklace-5", "📿", "Necklace 5", StickerArt + "Necklace5.png", DefaultScale: 0.9),
+        new StickerDef("necklace-6", "📿", "Necklace 6", StickerArt + "Necklace6.png", DefaultScale: 0.9),
+        new StickerDef("necklace-7", "📿", "Necklace 7", StickerArt + "Necklace7.png", DefaultScale: 0.9),
+        new StickerDef("necklace-8", "📿", "Necklace 8", StickerArt + "Necklace8.png", DefaultScale: 0.9),
+        new StickerDef("necklace-9", "📿", "Necklace 9", StickerArt + "Necklace9.png", DefaultScale: 0.9),
+        new StickerDef("necklace-10", "📿", "Necklace 10", StickerArt + "Necklace10.png", DefaultScale: 0.9),
+        new StickerDef("necklace-11", "📿", "Necklace 11", StickerArt + "Necklace11.png", DefaultScale: 0.9),
+        new StickerDef("necklace-12", "📿", "Necklace 12", StickerArt + "Necklace12.png", DefaultScale: 0.9),
+        new StickerDef("necklace-13", "📿", "Necklace 13", StickerArt + "Necklace13.png", DefaultScale: 0.9),
+        new StickerDef("necklace-14", "📿", "Necklace 14", StickerArt + "Necklace14.png", DefaultScale: 0.9),
+        new StickerDef("necklace-15", "📿", "Necklace 15", StickerArt + "Necklace15.png", DefaultScale: 0.9),
+        new StickerDef("necklace-16", "📿", "Necklace 16", StickerArt + "Necklace16.png", DefaultScale: 0.9),
+        new StickerDef("pendant-1", "📿", "Pendant 1", StickerArt + "Pendent1.png", DefaultScale: 0.65),
+        new StickerDef("pendant-2", "📿", "Pendant 2", StickerArt + "Pendent2.png", DefaultScale: 0.65),
+        new StickerDef("rose", "🌹", "Rose", StickerArt + "Rose.png"),
+        new StickerDef("purse", "👛", "Purse", StickerArt + "Bag.png"),
+        new StickerDef("bag-1", "👜", "Bag 1", StickerArt + "Bag1.png", DefaultScale: 1.2),
+        new StickerDef("bag-2", "👜", "Bag 2", StickerArt + "Bag2.png", DefaultScale: 1.2),
+        new StickerDef("bag-3", "👜", "Bag 3", StickerArt + "Bag3.png", DefaultScale: 1.2),
+        new StickerDef("heart-purse", "👛", "Heart Clasp Purse", StickerArt + "Purse1.png", DefaultScale: 1.2),
+        new StickerDef("purse-2", "👛", "Purse 2", StickerArt + "Purse2.png", DefaultScale: 1.2),
+        new StickerDef("purse-3", "👛", "Purse 3", StickerArt + "Purse3.png", DefaultScale: 1.2),
+        new StickerDef("shoes", "👠", "Shoes", StickerArt + "Shoes1.png", DefaultScale: 1.4),
+        new StickerDef("frost-boots", "👢", "Frost Boots", StickerArt + "Boots1.png", DefaultScale: 1.4),
+        new StickerDef("gloves", "🧤", "Starlit Gloves", StickerArt + "Gloves1.png", DefaultScale: 2.15),
+        new StickerDef("belt", "🪢", "Magic Belt", StickerArt + "Belt1.png", DefaultScale: 1.4),
+        new StickerDef("belt-2", "🪢", "Belt 2", StickerArt + "Belt2.png", DefaultScale: 1.4),
+        new StickerDef("belt-3", "🪢", "Belt 3", StickerArt + "Belt3.png", DefaultScale: 1.4),
+        new StickerDef("bracelet-1", "💍", "Bracelet 1", StickerArt + "Braclet1.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-2", "💍", "Bracelet 2", StickerArt + "Braclet2.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-3", "💍", "Bracelet 3", StickerArt + "Braclet3.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-4", "💍", "Bracelet 4", StickerArt + "Braclet4.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-5", "💍", "Bracelet 5", StickerArt + "Braclet5.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-6", "💍", "Bracelet 6", StickerArt + "Braclet6.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-7", "💍", "Bracelet 7", StickerArt + "Braclet7.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-8", "💍", "Bracelet 8", StickerArt + "Braclet8.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-9", "💍", "Bracelet 9", StickerArt + "Braclet9.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-10", "💍", "Bracelet 10", StickerArt + "Braclet10.png", DefaultScale: 0.45),
+        new StickerDef("shoulder-armor", "🐉", "Dragon Shoulder Armor", StickerArt + "Shoulders1.png", DefaultScale: 2.8),
+        new StickerDef("horn-1", "🦄", "Horn 1", StickerArt + "Horn1.png", DefaultScale: 0.6),
+        new StickerDef("horn-2", "🦄", "Horn 2", StickerArt + "Horn2.png", DefaultScale: 0.6),
+        new StickerDef("accessory-1", "💎", "Accessory 1", StickerArt + "Accessory1.png", DefaultScale: 0.65),
+        new StickerDef("accessory-2", "💎", "Accessory 2", StickerArt + "Accessory2.png", DefaultScale: 0.65),
+        new StickerDef("accessory-3", "💎", "Accessory 3", StickerArt + "Accessory3.png", DefaultScale: 0.65),
+        new StickerDef("accessory-4", "💎", "Accessory 4", StickerArt + "Accessory4.png", DefaultScale: 0.65),
+        new StickerDef("accessory-5", "💎", "Accessory 5", StickerArt + "Accessory5.png", DefaultScale: 0.65),
+        new StickerDef("tiara", "👑", "Tiara", StickerArt + "Tiara.png", DefaultScale: 0.75),
+        new StickerDef("frost-crown", "👑", "Frost Crown", StickerArt + "Crown1.png", DefaultScale: 0.9),
+        new StickerDef("flower-crown", "🌸", "Flower Crown", StickerArt + "Decor1.png", DefaultScale: 0.9),
+        new StickerDef("crown-3", "👑", "Crown 3", StickerArt + "Crown3.png", DefaultScale: 0.9),
+        new StickerDef("sun-hat", "👒", "Sun Hat", StickerArt + "Hat1.png", DefaultScale: 0.8),
+        new StickerDef("starry-bandana", "👒", "Starry Bandana", StickerArt + "Hat2.png", DefaultScale: 1.6),
+        new StickerDef("feather-fascinator", "👒", "Feather Fascinator", StickerArt + "Hat3.png", DefaultScale: 1.4),
+        new StickerDef("wizard-hat", "🧙", "Wizard Hat", StickerArt + "Hat4.png", DefaultScale: 1.4),
+        new StickerDef("cowboy-hat", "🤠", "Cowboy Hat", StickerArt + "Hat5.png", DefaultScale: 1.0),
+        new StickerDef("gothic-top-hat", "🎩", "Gothic Top Hat", StickerArt + "Hat6.png", DefaultScale: 1.3),
+        new StickerDef("pirate-hat", "🏴‍☠️", "Pirate Hat", StickerArt + "Hat7.png", DefaultScale: 1.1),
+        new StickerDef("butterfly-sun-hat", "👒", "Butterfly Sun Hat", StickerArt + "Hat8.png", DefaultScale: 0.85),
+        new StickerDef("winter-fur-hat", "🧣", "Winter Fur Hat", StickerArt + "Hat9.png", DefaultScale: 1.1),
+        new StickerDef("moon-tiara", "👑", "Moon Tiara", StickerArt + "Hat10.png", DefaultScale: 0.75),
+        new StickerDef("moon-beret", "🎨", "Moon Beret", StickerArt + "Hat11.png", DefaultScale: 1.0),
+        new StickerDef("sheriff-hat", "🤠", "Sheriff Hat", StickerArt + "Hat12.png", DefaultScale: 0.85),
+        new StickerDef("cat", "🐈‍⬛", "Black Cat", StickerArt + "Cat.png"),
         new StickerDef("sparkles", "✨", "Sparkles", StickerArt + "Sparkle.png"),
-        new StickerDef("heart", "💖", "Heart", StickerArt + "Heart.jpg"),
-        new StickerDef("sword", "⚔️", "Sword"),
-        new StickerDef("shield", "🛡️", "Shield"),
-        new StickerDef("horse", "🐴", "Horse"),
-        new StickerDef("medal", "🎖️", "Medal"),
-        new StickerDef("helmet", "🪖", "Helmet"),
-        new StickerDef("bow-arrow", "🏹", "Bow & Arrow"),
-        new StickerDef("fire", "🔥", "Fire", StickerArt + "Fire.jpg"),
-        new StickerDef("lightning", "⚡", "Lightning"),
-        new StickerDef("wings", "🦋", "Wings", StickerArt + "FairyWings2.png", BehindCharacter: true),
-        new StickerDef("fairy-wings", "🧚", "Fairy Wings", StickerArt + "FairyWings3.png", BehindCharacter: true),
-        new StickerDef("jeweled-wings", "🧚", "Jeweled Wings", StickerArt + "FairyWings1.png", BehindCharacter: true),
-        new StickerDef("volcano", "🌋", "Volcano", StickerArt + "Volcano.jpg"),
+        new StickerDef("heart", "💖", "Heart", StickerArt + "Heart.png"),
+        new StickerDef("fire", "🔥", "Fire", StickerArt + "Fire.png"),
+        new StickerDef("wings", "🦋", "Wings", StickerArt + "FairyWings2.png", BehindCharacter: true, DefaultScale: 4.0),
+        new StickerDef("fairy-wings", "🧚", "Fairy Wings", StickerArt + "FairyWings3.png", BehindCharacter: true, DefaultScale: 4.0),
+        new StickerDef("jeweled-wings", "🧚", "Jeweled Wings", StickerArt + "FairyWings1.png", BehindCharacter: true, DefaultScale: 4.0),
     };
 
     private static readonly List<CharacterOption> Characters = new()
@@ -264,6 +349,12 @@
         public double Y { get; set; } = 50;
         public double Scale { get; set; } = 1;
         public double RotationDeg { get; set; } = 0;
+
+        // Set by the Fill tool when this sticker itself (not the drawing
+        // canvas) is tapped - recolors the sticker's own silhouette via a
+        // CSS mask rather than painting on the shared draw canvas, which
+        // sits behind regular stickers and couldn't visibly tint them.
+        public string? TintColor { get; set; }
     }
 
     // ---- State ---------------------------------------------------------------
@@ -318,6 +409,7 @@
     private abstract record UndoEntry;
     private record StickerAddedEntry(PlacedSticker Sticker) : UndoEntry;
     private record StickerRemovedEntry(PlacedSticker Sticker) : UndoEntry;
+    private record StickerTintedEntry(PlacedSticker Sticker, string? PreviousTint) : UndoEntry;
     private record StrokeEntry : UndoEntry;
 
     private readonly Stack<UndoEntry> undoStack = new();
@@ -343,6 +435,14 @@
     private string drawColor = DrawColors[0];
     private double brushSize = BrushSizes[1];
 
+    // Fill is a single-tap paint-bucket (like Paint's fill tool) rather
+    // than a drag gesture, so it's a separate tool rather than another
+    // brush option - OnStagePointerDown branches on this instead of
+    // starting a stroke.
+    private enum DrawTool { Brush, Fill }
+
+    private DrawTool drawTool = DrawTool.Brush;
+
     // ---- Drawer tabs --------------------------------------------------------
     //
     // The active tab IS the mode switch (not a separate toggle) - picking
@@ -363,7 +463,7 @@
     private double resizeStartClientX, resizeStartClientY, resizeStartScale;
 
     private const double MinScale = 0.5;
-    private const double MaxScale = 2.5;
+    private const double MaxScale = 8.0;
 
     private async Task StartResize(PointerEventArgs e, PlacedSticker placed)
     {
@@ -438,7 +538,7 @@
         // Always a new instance (rather than reusing one already on the
         // stage) so the same sticker can be stacked as many times as a kid
         // wants - e.g. a handful of hearts.
-        var placed = new PlacedSticker { StickerId = sticker.Id, Emoji = sticker.Emoji, X = 50, Y = 50 };
+        var placed = new PlacedSticker { StickerId = sticker.Id, Emoji = sticker.Emoji, X = 50, Y = 50, Scale = sticker.DefaultScale };
         placedStickers.Add(placed);
         undoStack.Push(new StickerAddedEntry(placed));
 
@@ -582,6 +682,44 @@
 
         await _module.InvokeVoidAsync("setPointerCapture", playRef, e.PointerId);
 
+        if (drawTool == DrawTool.Fill)
+        {
+            // Fill on a sticker recolors that sticker (a CSS mask tint on
+            // its own element - see the markup) rather than painting the
+            // shared draw canvas, which sits behind regular stickers and
+            // couldn't visibly tint them. Only falls through to the canvas
+            // flood-fill (background / hand-drawn shapes) when the tap
+            // didn't land on any placed sticker.
+            var stickerIndex = await _module.InvokeAsync<int>("findStickerAt", stageRef, e.ClientX - stageLeft, e.ClientY - stageTop);
+            if (stickerIndex >= 0)
+            {
+                // findStickerAt only ever looks at rendered .du-placed-sticker-img
+                // elements, i.e. exactly the image-backed stickers in this same
+                // order - so the index it returns maps straight back here.
+                var imageBackedStickers = placedStickers.Where(p => ImagePathFor(p.StickerId) is not null).ToList();
+                if (stickerIndex < imageBackedStickers.Count)
+                {
+                    var target = imageBackedStickers[stickerIndex];
+                    if (target.TintColor != drawColor)
+                    {
+                        undoStack.Push(new StickerTintedEntry(target, target.TintColor));
+                        target.TintColor = drawColor;
+                        StateHasChanged();
+                    }
+                }
+                return;
+            }
+
+            // A no-op fill (tapping a region that's already this color)
+            // returns false so it doesn't push a dead undo step - without
+            // that check, Undo would restore the pre-tap canvas (a correct
+            // no-op visually) but still burn a slot a kid would expect to
+            // undo something real.
+            var filled = await _module.InvokeAsync<bool>("floodFill", canvasRef, e.ClientX - stageLeft, e.ClientY - stageTop, drawColor);
+            if (filled) undoStack.Push(new StrokeEntry());
+            return;
+        }
+
         isDrawing = true;
         await _module.InvokeVoidAsync("drawStart", canvasRef, e.ClientX - stageLeft, e.ClientY - stageTop, drawColor, brushSize);
         undoStack.Push(new StrokeEntry());
@@ -610,6 +748,10 @@
 
             case StickerRemovedEntry removed:
                 placedStickers.Add(removed.Sticker);
+                break;
+
+            case StickerTintedEntry tinted:
+                tinted.Sticker.TintColor = tinted.PreviousTint;
                 break;
 
             case StrokeEntry:

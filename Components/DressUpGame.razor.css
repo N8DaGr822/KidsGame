@@ -181,6 +181,10 @@
     cursor: crosshair;
 }
 
+.du-stage.draw-mode.fill-tool {
+    cursor: pointer;
+}
+
 .du-base {
     position: absolute;
     top: 50%;
@@ -214,8 +218,15 @@
     position: absolute;
     z-index: 3;
     /* 12cqh matches the 12%-of-stage-height ratio exportOutfit uses in
-       interop.js, so the live view and the exported PNG agree on size. */
-    font-size: calc(clamp(2.2rem, 12cqh, 4.5rem) * var(--du-scale, 1));
+       interop.js, so the live view and the exported PNG agree on size.
+       The upper clamp bound (9rem) mirrors .du-base's own height cap -
+       .du-base is height:min(96%, 72rem), and 12/96 = 9/72, so a sticker
+       at scale 1 stays a fixed 1/8th of the character's height whether
+       or not the character itself has hit its 72rem ceiling. A looser
+       cap (or none) breaks that lockstep on a tall/large stage: the
+       character stops growing at 72rem but the sticker keeps scaling
+       with stage height past it, so it visibly outgrows her. */
+    font-size: calc(clamp(2.2rem, 12cqh, 9rem) * var(--du-scale, 1));
     line-height: 1;
     cursor: grab;
     filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.3));
@@ -231,7 +242,7 @@
 
 .du-placed-sticker-img {
     display: block;
-    height: calc(clamp(2.2rem, 12cqh, 4.5rem) * var(--du-scale, 1));
+    height: calc(clamp(2.2rem, 12cqh, 9rem) * var(--du-scale, 1));
     width: auto;
     max-width: none;
     object-fit: contain;
@@ -242,6 +253,23 @@
     -webkit-user-drag: none;
     user-select: none;
     -webkit-touch-callout: none;
+}
+
+/* Recolors a placed sticker in-place when the Fill tool taps it - the
+   sticker's own art is used as a mask so only its opaque silhouette picks
+   up the flat fill color, sized/positioned exactly over .du-placed-sticker-img
+   since this is an absolutely-positioned sibling of it within the same
+   (unsized, shrink-to-fit) .du-placed-sticker span. */
+.du-placed-sticker-tint {
+    position: absolute;
+    inset: 0;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    -webkit-mask-size: contain;
+    pointer-events: none;
 }
 
 /* Wings sit behind the character (a lower z-index than .du-base) so they
@@ -418,6 +446,28 @@
 .du-draw-tools {
     display: grid;
     gap: 0.6rem;
+}
+
+.du-tool-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.du-tool-btn {
+    flex: 1;
+    min-height: 42px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+    color: var(--text-soft);
+    font-weight: 900;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.du-tool-btn.selected {
+    border-color: var(--accent);
+    background: rgba(78, 205, 196, 0.18);
+    color: var(--accent-strong);
 }
 
 .du-color-row {

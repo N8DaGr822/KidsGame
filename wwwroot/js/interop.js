@@ -15,6 +15,28 @@ export function setPointerCapture(element, pointerId) {
     element.setPointerCapture(pointerId);
 }
 
+// Finds which placed sticker (if any) sits at (x, y) - CSS-space
+// coordinates relative to the stage, same as drawStart/floodFill take.
+// Checked in reverse DOM order (last-placed/topmost first) against each
+// sticker <img>'s own rendered bounding box - a rotated sticker's box is
+// its axis-aligned enclosing rectangle, a deliberately generous
+// approximation rather than per-pixel alpha testing. Returns the index
+// into the stage's own .du-placed-sticker-img list (which the Blazor side
+// maps back to a PlacedSticker), or -1 if the point hit no sticker.
+export function findStickerAt(stageEl, x, y) {
+    const stageRect = stageEl.getBoundingClientRect();
+    const clientX = stageRect.left + x;
+    const clientY = stageRect.top + y;
+    const stickers = stageEl.querySelectorAll('.du-placed-sticker-img');
+    for (let i = stickers.length - 1; i >= 0; i--) {
+        const r = stickers[i].getBoundingClientRect();
+        if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 // ---- Freehand drawing on a <canvas> overlay --------------------------
 //
 // Drawing happens entirely here rather than round-tripping every
@@ -76,6 +98,92 @@ export function drawMove(canvas, x, y) {
 
 export function drawEnd(canvas) {
     getDrawContext(canvas).closePath();
+}
+
+function hexToRgba(hex) {
+    const h = hex.replace('#', '');
+    const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+    const n = parseInt(full, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 255];
+}
+
+// Squared color distance rather than exact equality - canvas strokes are
+// anti-aliased, so a strict match would leave a thin ring of untouched
+// pixels right at every stroke edge instead of filling flush against it.
+function colorsClose(data, idx, r, g, b, a, tolerance) {
+    const dr = data[idx] - r;
+    const dg = data[idx + 1] - g;
+    const db = data[idx + 2] - b;
+    const da = data[idx + 3] - a;
+    return dr * dr + dg * dg + db * db + da * da <= tolerance * tolerance;
+}
+
+const FILL_TOLERANCE = 48;
+
+// Paint-bucket fill of the contiguous region under (x, y), like Paint's
+// fill tool: flood-fills every 4-connected pixel whose color is close to
+// the clicked pixel's. x/y are CSS-space coordinates (same space
+// drawStart/drawMove take) - converted to backing-store pixels via DPR
+// since getImageData/putImageData operate on the raw canvas buffer.
+// Returns whether anything actually changed, so the caller only records
+// an undo step when there's something to undo.
+export function floodFill(canvas, x, y, colorHex) {
+    const ctx = getDrawContext(canvas);
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.width;
+    const height = canvas.height;
+    const startX = Math.floor(x * dpr);
+    const startY = Math.floor(y * dpr);
+    if (startX < 0 || startY < 0 || startX >= width || startY >= height) return false;
+
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+
+    const startIdx = (startY * width + startX) * 4;
+    const startR = data[startIdx];
+    const startG = data[startIdx + 1];
+    const startB = data[startIdx + 2];
+    const startA = data[startIdx + 3];
+    const [fillR, fillG, fillB, fillA] = hexToRgba(colorHex);
+
+    if (colorsClose(data, startIdx, fillR, fillG, fillB, fillA, FILL_TOLERANCE)) return false;
+
+    // Snapshot before the fill, same as drawStart does before a stroke -
+    // keeps this indistinguishable from a stroke to the undo stack.
+    const stack = drawUndoStacks.get(canvas);
+    stack.push(ctx.getImageData(0, 0, width, height));
+    if (stack.length > MAX_UNDO_STROKES) stack.shift();
+
+    const visited = new Uint8Array(width * height);
+    const pixelStack = [startY * width + startX];
+    visited[startY * width + startX] = 1;
+
+    while (pixelStack.length > 0) {
+        const packed = pixelStack.pop();
+        const py = (packed / width) | 0;
+        const px = packed % width;
+        const idx = packed * 4;
+        data[idx] = fillR;
+        data[idx + 1] = fillG;
+        data[idx + 2] = fillB;
+        data[idx + 3] = fillA;
+
+        const neighbors = [
+            [px + 1, py], [px - 1, py], [px, py + 1], [px, py - 1],
+        ];
+        for (const [nx, ny] of neighbors) {
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+            const nPacked = ny * width + nx;
+            if (visited[nPacked]) continue;
+            const nIdx = nPacked * 4;
+            if (!colorsClose(data, nIdx, startR, startG, startB, startA, FILL_TOLERANCE)) continue;
+            visited[nPacked] = 1;
+            pixelStack.push(nPacked);
+        }
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    return true;
 }
 
 export function clearDrawCanvas(canvas) {
@@ -146,10 +254,35 @@ export function exportOutfit(stageEl, baseImageEl, emojiStickers, drawCanvas, fi
         const h = img.offsetHeight;
         const rotateDeg = stickerEl ? parseFloat(getComputedStyle(stickerEl).getPropertyValue('--du-rotate')) || 0 : 0;
 
+        // A Fill-tool tint on this sticker is a CSS mask on a sibling
+        // .du-placed-sticker-tint div (see the markup) rather than a pixel
+        // change to the <img> itself, so it has to be reapplied here via
+        // canvas compositing or the exported PNG would silently lose it.
+        // Composited on its own small canvas first (source-in recolors
+        // only where the sticker art is opaque) rather than directly on
+        // outCanvas, which already has other content that source-in would
+        // otherwise clobber.
+        const tintEl = stickerEl ? stickerEl.querySelector('.du-placed-sticker-tint') : null;
+        const tintColor = tintEl ? tintEl.style.backgroundColor : '';
+
         ctx.save();
         ctx.translate(centerX, centerY);
         ctx.rotate((rotateDeg * Math.PI) / 180);
-        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        if (tintColor) {
+            const tw = Math.max(1, Math.round(w));
+            const th = Math.max(1, Math.round(h));
+            const tintCanvas = document.createElement('canvas');
+            tintCanvas.width = tw;
+            tintCanvas.height = th;
+            const tctx = tintCanvas.getContext('2d');
+            tctx.drawImage(img, 0, 0, tw, th);
+            tctx.globalCompositeOperation = 'source-in';
+            tctx.fillStyle = tintColor;
+            tctx.fillRect(0, 0, tw, th);
+            ctx.drawImage(tintCanvas, -w / 2, -h / 2, w, h);
+        } else {
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        }
         ctx.restore();
     }
 
