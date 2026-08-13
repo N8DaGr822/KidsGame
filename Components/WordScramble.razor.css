@@ -1,0 +1,205 @@
+.ws-game {
+    width: min(640px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.ws-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.ws-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.ws-setup p {
+    max-width: 30rem;
+    color: var(--text-muted);
+}
+
+.ws-section-title {
+    margin: 0.4rem 0 0;
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.ws-difficulty-locked {
+    margin: 0;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--line);
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.ws-difficulty-select {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 0.7rem;
+}
+
+.ws-diff-btn {
+    min-height: 86px;
+    padding: 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    gap: 0.25rem;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.ws-diff-btn:hover {
+    transform: translateY(-2px);
+    background: var(--control-bg-hover);
+}
+
+.ws-diff-btn.selected {
+    border-color: rgba(78, 205, 196, 0.75);
+    background: var(--selected-bg);
+}
+
+.ws-diff-name {
+    font-weight: 900;
+}
+
+.ws-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.ws-title {
+    font-weight: 900;
+}
+
+.ws-progress {
+    display: flex;
+    gap: 0.3rem;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+.ws-progress-dot {
+    opacity: 0.28;
+    filter: grayscale(1);
+    transition: opacity 0.2s ease, filter 0.2s ease, transform 0.2s ease;
+}
+
+.ws-progress-dot.done {
+    opacity: 1;
+    filter: none;
+}
+
+.ws-progress-dot.active {
+    opacity: 1;
+    filter: none;
+    transform: scale(1.25);
+}
+
+.ws-timer {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-muted);
+}
+
+.ws-emoji-clue {
+    font-size: clamp(3.5rem, 14vw, 5.5rem);
+    line-height: 1;
+    text-align: center;
+}
+
+.ws-answer-row,
+.ws-scramble-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.ws-slot,
+.ws-tile {
+    min-width: 46px;
+    min-height: 52px;
+    padding: 0.4rem;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-display);
+    font-size: 1.4rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 1;
+}
+
+.ws-slot {
+    border: 2px solid var(--line);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+}
+
+.ws-slot.filled {
+    border-color: rgba(78, 205, 196, 0.6);
+    background: var(--control-bg-subtle);
+    cursor: pointer;
+}
+
+.ws-slot.filled:hover {
+    background: var(--control-bg-hover);
+}
+
+.ws-slot.correct {
+    border-color: var(--success);
+    background: rgba(118, 227, 159, 0.18);
+    color: var(--success);
+}
+
+.ws-slot.shake {
+    border-color: var(--danger);
+    background: rgba(255, 107, 107, 0.14);
+    animation: ws-shake 0.5s ease;
+}
+
+.ws-tile {
+    border: 1px solid var(--line);
+    background: var(--control-bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.ws-tile:hover:not(:disabled) {
+    transform: translateY(-3px);
+    background: var(--control-bg-hover);
+}
+
+.ws-tile:disabled {
+    cursor: default;
+}
+
+.ws-clear-btn {
+    justify-self: center;
+    margin: 0 auto;
+}
+
+@keyframes ws-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+}

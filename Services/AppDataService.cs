@@ -411,6 +411,46 @@ public class AppDataService
             LaunchMode = GameLaunchMode.InternalRoute
         };
 
+        var slidingPuzzleDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.SlidingPuzzle);
+        var slidingPuzzle = new Game
+        {
+            Title = slidingPuzzleDef.Title,
+            ThumbnailImagePath = slidingPuzzleDef.ThumbnailImagePath,
+            ThumbnailEmoji = slidingPuzzleDef.ThumbnailEmoji,
+            LaunchTarget = slidingPuzzleDef.LaunchTarget,
+            LaunchMode = GameLaunchMode.InternalRoute
+        };
+
+        var wordScrambleDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.WordScramble);
+        var wordScramble = new Game
+        {
+            Title = wordScrambleDef.Title,
+            ThumbnailImagePath = wordScrambleDef.ThumbnailImagePath,
+            ThumbnailEmoji = wordScrambleDef.ThumbnailEmoji,
+            LaunchTarget = wordScrambleDef.LaunchTarget,
+            LaunchMode = GameLaunchMode.InternalRoute
+        };
+
+        var minesweeperDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.Minesweeper);
+        var minesweeper = new Game
+        {
+            Title = minesweeperDef.Title,
+            ThumbnailImagePath = minesweeperDef.ThumbnailImagePath,
+            ThumbnailEmoji = minesweeperDef.ThumbnailEmoji,
+            LaunchTarget = minesweeperDef.LaunchTarget,
+            LaunchMode = GameLaunchMode.InternalRoute
+        };
+
+        var sudokuDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.Sudoku);
+        var sudoku = new Game
+        {
+            Title = sudokuDef.Title,
+            ThumbnailImagePath = sudokuDef.ThumbnailImagePath,
+            ThumbnailEmoji = sudokuDef.ThumbnailEmoji,
+            LaunchTarget = sudokuDef.LaunchTarget,
+            LaunchMode = GameLaunchMode.InternalRoute
+        };
+
         var data = new AppData();
         data.Profiles.Add(admin);
         data.Profiles.Add(kid);
@@ -422,6 +462,10 @@ public class AppDataService
         data.Games.Add(tankDuel);
         data.Games.Add(uno);
         data.Games.Add(simonSays);
+        data.Games.Add(slidingPuzzle);
+        data.Games.Add(wordScramble);
+        data.Games.Add(minesweeper);
+        data.Games.Add(sudoku);
         data.ProfileGameAccess[admin.Id] = new List<string>();
         data.ProfileGameAccess[kid.Id] = new List<string> { memoryMatch.Id, fishing.Id, dressUp.Id, mannersGarden.Id };
 

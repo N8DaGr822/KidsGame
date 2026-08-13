@@ -1,0 +1,304 @@
+@*
+    SlidingPuzzle.razor
+    Classic 15-puzzle: a picture cut into a grid with one tile missing.
+    Tap any tile next to the blank space to slide it in; reassemble the
+    picture to win. Difficulty picks the grid size (3x3/4x4/5x5) rather
+    than changing any rule. Shuffling is done by making a pile of random
+    *legal* moves from the solved state (never a random permutation),
+    which guarantees the result is always solvable - no separate parity
+    check needed.
+
+    Usage:
+        <SlidingPuzzle OnComplete="HandleGameComplete" />
+*@
+@implements IDisposable
+
+<div class="sp-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="sp-setup game-setup-panel">
+            <h2>🧩 Sliding Puzzle</h2>
+            <p>Slide the tiles to put the picture back together!</p>
+
+            <h3 class="sp-section-title game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="sp-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="sp-difficulty-select game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="sp-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="sp-diff-name">@DifficultyName(diff)</span>
+                            <span class="sp-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="sp-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="sp-hud game-hud">
+            <span class="sp-title">Sliding Puzzle</span>
+            <span class="sp-moves">Moves: @moves</span>
+            <span class="sp-timer">⏱️ @FormatTime(elapsedSeconds)</span>
+            <button class="sp-preview-btn game-secondary-action" @onclick="() => showPreview = !showPreview">@(showPreview ? "Hide Picture" : "Show Picture")</button>
+            <button class="sp-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
+        </div>
+
+        <div class="sp-board-wrap">
+            <div class="sp-board" style="--sp-size:@gridSize;">
+                @for (var position = 0; position < board.Count; position++)
+                {
+                    var pos = position;
+                    var home = board[pos];
+                    @if (home is null)
+                    {
+                        <div class="sp-tile sp-blank"></div>
+                    }
+                    else
+                    {
+                        var homeRow = home.Value / gridSize;
+                        var homeCol = home.Value % gridSize;
+                        <button class="sp-tile @(IsAdjacentToBlank(pos) ? "movable" : "")"
+                                style="background-image:url('@PuzzleImage'); background-size:calc(var(--sp-size) * 100%) calc(var(--sp-size) * 100%); background-position:@(PercentFor(homeCol))% @(PercentFor(homeRow))%;"
+                                @onclick="() => TryMove(pos)">
+                            <span class="sp-tile-number">@(home.Value + 1)</span>
+                        </button>
+                    }
+                }
+            </div>
+
+            @if (showPreview)
+            {
+                <div class="sp-preview">
+                    <img src="@PuzzleImage" alt="Completed picture" />
+                </div>
+            }
+        </div>
+
+        @if (phase == Phase.Won)
+        {
+            <div class="sp-overlay game-result-overlay">
+                <div class="sp-win-panel game-result-panel">
+                    <h2>🎉 Puzzle Solved!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") - @moves moves in @FormatTime(elapsedSeconds)!</p>
+                    <div class="sp-win-actions game-result-actions">
+                        <button class="sp-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="sp-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<SlidingPuzzleResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Won }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int GridSizeFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 3,
+        Difficulty.Medium => 4,
+        _ => 5,
+    };
+
+    // A handful of scenic pieces already in the app, reused here as the
+    // puzzle picture - fully opaque edge-to-edge (unlike the transparent
+    // character cutouts), which is what makes them slice cleanly into
+    // tiles with no see-through edges.
+    private static readonly string[] PuzzleImages =
+    {
+        "images/dressup/Background1.png",
+        "images/dressup/Background2.png",
+        "images/dressup/Background3.png",
+        "images/dressup/Background5.png",
+        "images/dressup/Background7.png",
+        "images/dressup/Background8.png",
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Medium;
+    private int gridSize = 4;
+    private string PuzzleImage { get; set; } = PuzzleImages[0];
+
+    // board[position] = the home index of whichever tile currently sits
+    // at that position, or null for the blank. Solved means board[i] == i
+    // for every i except the last (blank) slot.
+    private List<int?> board = new();
+    private int blankPosition;
+    private int moves;
+    private bool showPreview;
+    private int elapsedSeconds;
+    private readonly Random rng = new();
+    private System.Threading.Timer? timer;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        gridSize = GridSizeFor(selectedDifficulty);
+        PuzzleImage = PuzzleImages[rng.Next(PuzzleImages.Length)];
+        moves = 0;
+        elapsedSeconds = 0;
+        showPreview = false;
+
+        var cellCount = gridSize * gridSize;
+        board = Enumerable.Range(0, cellCount).Select(i => (int?)i).ToList();
+        board[cellCount - 1] = null;
+        blankPosition = cellCount - 1;
+
+        Shuffle();
+
+        phase = Phase.Playing;
+        StartTimer();
+    }
+
+    // Shuffling via random *legal* moves (rather than a random permutation
+    // of tiles) guarantees the result is always solvable - half of all
+    // possible tile permutations are mathematically unsolvable, but every
+    // state reachable by sliding moves from a solved board necessarily is.
+    private void Shuffle()
+    {
+        var lastMoved = -1;
+        var shuffleMoves = 80 + gridSize * 40;
+
+        for (var i = 0; i < shuffleMoves; i++)
+        {
+            var candidates = AdjacentPositions(blankPosition).Where(p => p != lastMoved).ToList();
+            var chosen = candidates[rng.Next(candidates.Count)];
+            lastMoved = blankPosition;
+            SwapWithBlank(chosen);
+        }
+    }
+
+    private IEnumerable<int> AdjacentPositions(int position)
+    {
+        var row = position / gridSize;
+        var col = position % gridSize;
+
+        if (col > 0) yield return position - 1;
+        if (col < gridSize - 1) yield return position + 1;
+        if (row > 0) yield return position - gridSize;
+        if (row < gridSize - 1) yield return position + gridSize;
+    }
+
+    private bool IsAdjacentToBlank(int position) =>
+        phase == Phase.Playing && AdjacentPositions(position).Contains(blankPosition);
+
+    private void SwapWithBlank(int position)
+    {
+        board[blankPosition] = board[position];
+        board[position] = null;
+        blankPosition = position;
+    }
+
+    private async Task TryMove(int position)
+    {
+        if (phase != Phase.Playing || !IsAdjacentToBlank(position)) return;
+
+        SwapWithBlank(position);
+        moves++;
+
+        if (IsSolved())
+        {
+            await FinishAsync();
+        }
+    }
+
+    private bool IsSolved()
+    {
+        for (var i = 0; i < board.Count - 1; i++)
+        {
+            if (board[i] != i) return false;
+        }
+        return true;
+    }
+
+    private async Task FinishAsync()
+    {
+        StopTimer();
+        phase = Phase.Won;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SlidingPuzzleResult(
+                GridSize: gridSize,
+                Moves: moves,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    // Standard CSS sprite-sheet math: with background-size set to
+    // gridSize*100% (the image spans gridSize tile-widths), the percentage
+    // that lands column/row `index` at the tile's origin is index/(N-1)*100,
+    // not index*100 - percentage backgrounds are resolved against
+    // (container - image) size, which is negative here since the image is
+    // larger than the tile.
+    private double PercentFor(int index) => gridSize <= 1 ? 0 : index * 100.0 / (gridSize - 1);
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var span = TimeSpan.FromSeconds(totalSeconds);
+        return span.Minutes > 0 ? $"{span.Minutes}:{span.Seconds:00}" : $"0:{span.Seconds:00}";
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3x3 grid",
+        Difficulty.Medium => "4x4 grid",
+        _ => "5x5 grid",
+    };
+
+    public void Dispose() => StopTimer();
+
+    public record SlidingPuzzleResult(int GridSize, int Moves, int ElapsedSeconds);
+}

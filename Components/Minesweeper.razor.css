@@ -1,0 +1,168 @@
+.ms-game {
+    width: min(640px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.ms-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.ms-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.ms-setup p {
+    max-width: 30rem;
+    color: var(--text-muted);
+}
+
+.ms-section-title {
+    margin: 0.4rem 0 0;
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.ms-difficulty-locked {
+    margin: 0;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--line);
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.ms-difficulty-select {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 0.7rem;
+}
+
+.ms-diff-btn {
+    min-height: 86px;
+    padding: 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    gap: 0.25rem;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.ms-diff-btn:hover {
+    transform: translateY(-2px);
+    background: var(--control-bg-hover);
+}
+
+.ms-diff-btn.selected {
+    border-color: rgba(78, 205, 196, 0.75);
+    background: var(--selected-bg);
+}
+
+.ms-diff-name {
+    font-weight: 900;
+}
+
+.ms-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.ms-title {
+    font-weight: 900;
+}
+
+.ms-mine-count,
+.ms-timer {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-muted);
+}
+
+.ms-mode-toggle {
+    display: flex;
+    gap: 0.35rem;
+}
+
+.ms-mode-btn {
+    min-width: 42px;
+    min-height: 38px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+    font-size: 1.1rem;
+    line-height: 1;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ms-mode-btn.active {
+    border-color: rgba(78, 205, 196, 0.75);
+    background: var(--selected-bg);
+}
+
+.ms-board {
+    display: grid;
+    grid-template-columns: repeat(var(--ms-size), 1fr);
+    gap: 2px;
+    width: min(480px, 92vw);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.ms-cell {
+    border: none;
+    border-radius: 3px;
+    background: var(--control-bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(0.65rem, 2.6cqw, 0.95rem);
+    line-height: 1;
+    display: grid;
+    place-items: center;
+    touch-action: manipulation;
+    transition: background 0.1s ease;
+}
+
+.ms-cell:not(:disabled):not(.revealed):hover {
+    background: var(--control-bg-hover);
+}
+
+.ms-cell.revealed {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.ms-cell.mine {
+    background: var(--danger);
+}
+
+.ms-cell.n1 { color: #6ea8fe; }
+.ms-cell.n2 { color: #76e39f; }
+.ms-cell.n3 { color: #ff6b6b; }
+.ms-cell.n4 { color: #b19cff; }
+.ms-cell.n5 { color: #f5b942; }
+.ms-cell.n6 { color: #4ecdc4; }
+.ms-cell.n7 { color: #f7f8fc; }
+.ms-cell.n8 { color: #9aa0ac; }

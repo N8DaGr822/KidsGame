@@ -18,6 +18,10 @@ public static class BuiltInGames
     public const string TankDuel = "tank-duel";
     public const string Uno = "uno";
     public const string SimonSays = "simon-says";
+    public const string SlidingPuzzle = "sliding-puzzle";
+    public const string WordScramble = "word-scramble";
+    public const string Minesweeper = "minesweeper";
+    public const string Sudoku = "sudoku";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -28,5 +32,9 @@ public static class BuiltInGames
         new BuiltInGame("Tank Duel", "🎯", TankDuel),
         new BuiltInGame("UNO", "🃏", Uno),
         new BuiltInGame("Simon Says", "🔴", SimonSays),
+        new BuiltInGame("Sliding Puzzle", "🧩", SlidingPuzzle),
+        new BuiltInGame("Word Scramble", "🔤", WordScramble),
+        new BuiltInGame("Minesweeper", "💣", Minesweeper),
+        new BuiltInGame("Sudoku", "🔢", Sudoku),
     };
 }

@@ -1,0 +1,340 @@
+@*
+    WordScramble.razor
+    An emoji-clued word underneath a row of scrambled letter tiles - tap
+    tiles in order to spell it, tap a filled slot to send that letter
+    back if you change your mind. A session is 5 words drawn from the
+    chosen difficulty's word list (word length, not vocabulary
+    complexity, is what scales - the emoji clue is always shown so a
+    pre-reader can still play). A wrong guess never ends anything: the
+    letters shake, then return to the scramble pool to try again.
+
+    Usage:
+        <WordScramble OnComplete="HandleGameComplete" />
+*@
+@implements IDisposable
+
+<div class="ws-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="ws-setup game-setup-panel">
+            <h2>🔤 Word Scramble</h2>
+            <p>Unscramble the letters to spell the word. The picture is your clue!</p>
+
+            <h3 class="ws-section-title game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="ws-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="ws-difficulty-select game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="ws-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="ws-diff-name">@DifficultyName(diff)</span>
+                            <span class="ws-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="ws-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="ws-hud game-hud">
+            <span class="ws-title">Word Scramble</span>
+            <div class="ws-progress">
+                @for (var i = 0; i < sessionWords.Count; i++)
+                {
+                    var dotIndex = i;
+                    <span class="ws-progress-dot @(dotIndex < wordIndex ? "done" : "") @(dotIndex == wordIndex ? "active" : "")">🔤</span>
+                }
+            </div>
+            <span class="ws-timer">⏱️ @FormatTime(elapsedSeconds)</span>
+            <button class="ws-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
+        </div>
+
+        <div class="ws-emoji-clue">@CurrentWord.Emoji</div>
+
+        <div class="ws-answer-row">
+            @for (var i = 0; i < answerSlots.Count; i++)
+            {
+                var idx = i;
+                var ch = answerSlots[idx];
+                <button class="ws-slot @(ch is not null ? "filled" : "") @(wrongShake ? "shake" : "") @(justSolved ? "correct" : "")"
+                        disabled="@(ch is null || checking)"
+                        @onclick="() => TapAnswerSlot(idx)">
+                    @(ch?.ToString() ?? "")
+                </button>
+            }
+        </div>
+
+        <div class="ws-scramble-row">
+            @for (var i = 0; i < scrambledLetters.Count; i++)
+            {
+                var idx = i;
+                <button class="ws-tile" disabled="@checking" @onclick="() => TapScrambled(idx)">@scrambledLetters[idx]</button>
+            }
+        </div>
+
+        <button class="ws-clear-btn game-secondary-action" disabled="@(checking || !answerSlots.Any(c => c is not null))" @onclick="ClearAttempt">Clear</button>
+
+        @if (phase == Phase.SessionComplete)
+        {
+            <div class="ws-overlay game-result-overlay">
+                <div class="ws-win-panel game-result-panel">
+                    <h2>🎉 All Words Solved!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") - @sessionWords.Count words in @FormatTime(elapsedSeconds)!</p>
+                    <div class="ws-win-actions game-result-actions">
+                        <button class="ws-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="ws-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<WordScrambleResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, SessionComplete }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private record WordEntry(string Word, string Emoji);
+
+    private const int SessionSize = 5;
+
+    private static readonly List<WordEntry> EasyWords = new()
+    {
+        new("CAT", "🐱"), new("DOG", "🐶"), new("SUN", "☀️"), new("FISH", "🐟"), new("STAR", "⭐"),
+        new("MOON", "🌙"), new("TREE", "🌳"), new("BOOK", "📖"), new("BALL", "⚽"), new("BIRD", "🐦"),
+        new("CAKE", "🎂"), new("FROG", "🐸"), new("DUCK", "🦆"), new("LION", "🦁"), new("BEAR", "🐻"),
+    };
+
+    private static readonly List<WordEntry> MediumWords = new()
+    {
+        new("APPLE", "🍎"), new("HOUSE", "🏠"), new("HORSE", "🐴"), new("TIGER", "🐯"), new("CLOUD", "☁️"),
+        new("SNAKE", "🐍"), new("PLANET", "🪐"), new("RABBIT", "🐰"), new("DRAGON", "🐉"), new("CASTLE", "🏰"),
+        new("ROCKET", "🚀"), new("PENCIL", "✏️"), new("GUITAR", "🎸"), new("WIZARD", "🧙"), new("TURTLE", "🐢"),
+    };
+
+    private static readonly List<WordEntry> HardWords = new()
+    {
+        new("ELEPHANT", "🐘"), new("DINOSAUR", "🦖"), new("BUTTERFLY", "🦋"), new("RAINBOW", "🌈"), new("MOUNTAIN", "🏔️"),
+        new("PINEAPPLE", "🍍"), new("OCTOPUS", "🐙"), new("HELICOPTER", "🚁"), new("STRAWBERRY", "🍓"), new("TREASURE", "💰"),
+        new("UNICORN", "🦄"), new("SANDWICH", "🥪"), new("BACKPACK", "🎒"), new("TELESCOPE", "🔭"), new("WATERMELON", "🍉"),
+    };
+
+    private static List<WordEntry> WordsFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => EasyWords,
+        Difficulty.Medium => MediumWords,
+        _ => HardWords,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Medium;
+    private List<WordEntry> sessionWords = new();
+    private int wordIndex;
+    private WordEntry CurrentWord => sessionWords[wordIndex];
+
+    private List<char> scrambledLetters = new();
+    private List<char?> answerSlots = new();
+    private bool wrongShake;
+    private bool justSolved;
+    private bool checking;
+    private int elapsedSeconds;
+    private readonly Random rng = new();
+    private System.Threading.Timer? timer;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        sessionWords = WordsFor(selectedDifficulty).OrderBy(_ => rng.Next()).Take(SessionSize).ToList();
+        wordIndex = 0;
+        elapsedSeconds = 0;
+        LoadWord();
+        phase = Phase.Playing;
+        StartTimer();
+    }
+
+    private void LoadWord()
+    {
+        wrongShake = false;
+        justSolved = false;
+        checking = false;
+        answerSlots = Enumerable.Repeat((char?)null, CurrentWord.Word.Length).ToList();
+        scrambledLetters = ShuffledDistinctFromOriginal(CurrentWord.Word);
+    }
+
+    // Reshuffles until the order differs from the original word (so the
+    // "scrambled" tiles are never already the answer) - only matters for
+    // short/low-variety words, so a small attempt cap is plenty.
+    private List<char> ShuffledDistinctFromOriginal(string word)
+    {
+        var letters = word.ToCharArray().ToList();
+        if (letters.Count <= 1) return letters;
+
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            var shuffled = letters.OrderBy(_ => rng.Next()).ToList();
+            if (!shuffled.SequenceEqual(letters)) return shuffled;
+        }
+        return letters;
+    }
+
+    private void TapScrambled(int scrambledIndex)
+    {
+        if (phase != Phase.Playing || checking) return;
+
+        var emptySlot = answerSlots.IndexOf(null);
+        if (emptySlot < 0) return;
+
+        var ch = scrambledLetters[scrambledIndex];
+        scrambledLetters.RemoveAt(scrambledIndex);
+        answerSlots[emptySlot] = ch;
+
+        if (!answerSlots.Contains(null))
+        {
+            _ = CheckAnswerAsync();
+        }
+    }
+
+    private void TapAnswerSlot(int slotIndex)
+    {
+        if (phase != Phase.Playing || checking) return;
+
+        var ch = answerSlots[slotIndex];
+        if (ch is null) return;
+
+        answerSlots[slotIndex] = null;
+        scrambledLetters.Add(ch.Value);
+    }
+
+    private void ClearAttempt()
+    {
+        if (phase != Phase.Playing || checking) return;
+
+        foreach (var ch in answerSlots)
+        {
+            if (ch is { } c) scrambledLetters.Add(c);
+        }
+        answerSlots = Enumerable.Repeat((char?)null, CurrentWord.Word.Length).ToList();
+    }
+
+    private async Task CheckAnswerAsync()
+    {
+        checking = true;
+        var attempt = new string(answerSlots.Select(c => c!.Value).ToArray());
+
+        if (attempt == CurrentWord.Word)
+        {
+            justSolved = true;
+            StateHasChanged();
+            await Task.Delay(900);
+            await AdvanceAsync();
+        }
+        else
+        {
+            wrongShake = true;
+            StateHasChanged();
+            await Task.Delay(700);
+
+            // Never a dead end - the same letters go back into a fresh
+            // scramble rather than the round failing.
+            scrambledLetters = attempt.ToCharArray().OrderBy(_ => rng.Next()).ToList();
+            answerSlots = Enumerable.Repeat((char?)null, CurrentWord.Word.Length).ToList();
+            wrongShake = false;
+            checking = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task AdvanceAsync()
+    {
+        if (wordIndex + 1 >= sessionWords.Count)
+        {
+            await FinishAsync();
+        }
+        else
+        {
+            wordIndex++;
+            LoadWord();
+            StateHasChanged();
+        }
+    }
+
+    private async Task FinishAsync()
+    {
+        StopTimer();
+        phase = Phase.SessionComplete;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new WordScrambleResult(
+                WordsCompleted: sessionWords.Count,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var span = TimeSpan.FromSeconds(totalSeconds);
+        return span.Minutes > 0 ? $"{span.Minutes}:{span.Seconds:00}" : $"0:{span.Seconds:00}";
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3-4 letter words",
+        Difficulty.Medium => "5-6 letter words",
+        _ => "7-10 letter words",
+    };
+
+    public void Dispose() => StopTimer();
+
+    public record WordScrambleResult(int WordsCompleted, int ElapsedSeconds);
+}

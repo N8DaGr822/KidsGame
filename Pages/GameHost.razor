@@ -50,6 +50,22 @@
             {
                 <SimonSays PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSimonSaysComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.SlidingPuzzle)
+            {
+                <SlidingPuzzle PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSlidingPuzzleComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.WordScramble)
+            {
+                <WordScramble PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWordScrambleComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.Minesweeper)
+            {
+                <Minesweeper PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMinesweeperComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.Sudoku)
+            {
+                <Sudoku PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSudokuComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -197,6 +213,66 @@
             Theme = "Simon Says",
             Difficulty = $"Round {result.RoundsReached}",
             Moves = result.RoundsReached,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleSlidingPuzzleComplete(SlidingPuzzle.SlidingPuzzleResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = $"{result.GridSize}x{result.GridSize}",
+            Difficulty = $"{result.Moves} moves",
+            Moves = result.Moves,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleWordScrambleComplete(WordScramble.WordScrambleResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = "Word Scramble",
+            Difficulty = $"{result.WordsCompleted} words",
+            Moves = result.WordsCompleted,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleMinesweeperComplete(Minesweeper.MinesweeperResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Won ? "Cleared" : "Boom",
+            Difficulty = $"{result.GridSize}x{result.GridSize}",
+            Moves = result.Won ? 1 : 0,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleSudokuComplete(Sudoku.SudokuResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = $"{result.GridSize}x{result.GridSize}",
+            Difficulty = $"{result.GridSize}x{result.GridSize}",
+            Moves = 1,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

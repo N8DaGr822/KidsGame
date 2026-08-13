@@ -1,0 +1,402 @@
+@*
+    Sudoku.razor
+    Fill every row, column, and box with each number exactly once.
+    Difficulty picks the grid size (4x4/6x6/9x9), not just how many clues
+    are given - a 4x4 is genuinely approachable for a younger kid, where a
+    9x9 is the real thing. Tap a cell, then tap a number to fill it; a
+    wrong entry (always knowable here, since the puzzle is generated with
+    exactly one solution) shows in red immediately rather than only being
+    caught at the end.
+
+    Puzzle generation: fill a full grid via randomized backtracking, then
+    remove clues one at a time, keeping each removal only if a solution-
+    counting solver still finds exactly one solution for the puzzle
+    without it - the standard technique for guaranteeing a sudoku has a
+    unique solution rather than just "a" solution.
+
+    Usage:
+        <Sudoku OnComplete="HandleGameComplete" />
+*@
+@implements IDisposable
+
+<div class="sk-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="sk-setup game-setup-panel">
+            <h2>🔢 Sudoku</h2>
+            <p>Fill the grid so every row, column, and box has each number exactly once.</p>
+
+            <h3 class="sk-section-title game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="sk-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="sk-difficulty-select game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="sk-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="sk-diff-name">@DifficultyName(diff)</span>
+                            <span class="sk-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="sk-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else if (phase == Phase.Generating)
+    {
+        <div class="sk-setup game-setup-panel">
+            <p class="muted">Building your puzzle…</p>
+        </div>
+    }
+    else
+    {
+        <div class="sk-hud game-hud">
+            <span class="sk-title">Sudoku</span>
+            <span class="sk-timer">⏱️ @FormatTime(elapsedSeconds)</span>
+            <button class="sk-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
+        </div>
+
+        <div class="sk-board" style="--sk-size:@size;">
+            @for (var i = 0; i < playerGrid.Length; i++)
+            {
+                var idx = i;
+                var row = idx / size;
+                var col = idx % size;
+                var value = playerGrid[idx];
+                var wrong = value != 0 && value != solution[idx];
+                <button class="sk-cell @(isGiven[idx] ? "given" : "filled") @(wrong ? "wrong" : "") @(selectedIndex == idx ? "selected" : "") @(col % boxCols == 0 && col != 0 ? "bl" : "") @(row % boxRows == 0 && row != 0 ? "bt" : "")"
+                        disabled="@isGiven[idx]"
+                        @onclick="() => SelectCell(idx)">
+                    @(value == 0 ? "" : value.ToString())
+                </button>
+            }
+        </div>
+
+        <div class="sk-number-pad">
+            @for (var n = 1; n <= size; n++)
+            {
+                var num = n;
+                <button class="sk-num-btn" disabled="@(selectedIndex is null)" @onclick="() => PlaceNumber(num)">@num</button>
+            }
+            <button class="sk-num-btn sk-erase-btn" disabled="@(selectedIndex is null)" @onclick="ClearCell">✖</button>
+        </div>
+
+        @if (phase == Phase.Won)
+        {
+            <div class="sk-overlay game-result-overlay">
+                <div class="sk-win-panel game-result-panel">
+                    <h2>🎉 Sudoku Solved!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") - solved in @FormatTime(elapsedSeconds)!</p>
+                    <div class="sk-win-actions game-result-actions">
+                        <button class="sk-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="sk-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<SudokuResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Generating, Playing, Won }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    // TargetClues is deliberately generous (few cells removed) even for
+    // "Hard" - a real newspaper-hard 9x9 needs a much slower carving pass
+    // (down near 25-30 clues) to still guarantee uniqueness, which risks
+    // a noticeable freeze since this all runs synchronously on Blazor
+    // WASM's single UI thread. This app's "Hard" just means "the real
+    // 9x9 grid," not "as hard as physically possible."
+    private static (int Size, int BoxRows, int BoxCols, int TargetClues) ConfigFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => (4, 2, 2, 8),
+        Difficulty.Medium => (6, 2, 3, 20),
+        _ => (9, 3, 3, 40),
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int size = 4;
+    private int boxRows = 2;
+    private int boxCols = 2;
+    private int[] solution = Array.Empty<int>();
+    private int[] playerGrid = Array.Empty<int>();
+    private bool[] isGiven = Array.Empty<bool>();
+    private int? selectedIndex;
+    private int elapsedSeconds;
+    private readonly Random rng = new();
+    private System.Threading.Timer? timer;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private async Task StartGame()
+    {
+        // Generation is CPU-bound and runs synchronously (Blazor WASM has
+        // no background thread to offload it to) - yielding once after
+        // switching to the "Generating" phase lets the browser actually
+        // paint that message before the generation loop blocks the UI
+        // thread, rather than the button just sitting unresponsive for
+        // however long a Hard grid takes.
+        phase = Phase.Generating;
+        StateHasChanged();
+        await Task.Delay(1);
+
+        (size, boxRows, boxCols, var targetClues) = ConfigFor(selectedDifficulty);
+
+        solution = GenerateSolvedGrid(size, boxRows, boxCols);
+        var puzzle = CarvePuzzle(solution, size, boxRows, boxCols, targetClues);
+
+        playerGrid = (int[])puzzle.Clone();
+        isGiven = puzzle.Select(v => v != 0).ToArray();
+        selectedIndex = null;
+        elapsedSeconds = 0;
+
+        phase = Phase.Playing;
+        StartTimer();
+    }
+
+    private void SelectCell(int index)
+    {
+        if (phase != Phase.Playing || isGiven[index]) return;
+        selectedIndex = index;
+    }
+
+    private void PlaceNumber(int value)
+    {
+        if (phase != Phase.Playing || selectedIndex is not { } idx || isGiven[idx]) return;
+
+        playerGrid[idx] = value;
+
+        if (IsComplete())
+        {
+            StopTimer();
+            phase = Phase.Won;
+            _ = InvokeCompleteAsync();
+        }
+    }
+
+    private void ClearCell()
+    {
+        if (phase != Phase.Playing || selectedIndex is not { } idx || isGiven[idx]) return;
+        playerGrid[idx] = 0;
+    }
+
+    // The puzzle is generated with exactly one solution (see CarvePuzzle),
+    // so matching that known solution grid cell-for-cell is equivalent to
+    // - and much simpler than - re-validating every row/column/box rule
+    // from scratch.
+    private bool IsComplete()
+    {
+        for (var i = 0; i < playerGrid.Length; i++)
+        {
+            if (playerGrid[i] != solution[i]) return false;
+        }
+        return true;
+    }
+
+    private async Task InvokeCompleteAsync()
+    {
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SudokuResult(
+                GridSize: size,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    // ---- Puzzle generation ---------------------------------------------
+
+    private int[] GenerateSolvedGrid(int size, int boxRows, int boxCols)
+    {
+        var grid = new int[size * size];
+        var rowMask = new int[size];
+        var colMask = new int[size];
+        var boxMask = new int[size];
+        FillRecursive(grid, 0, size, boxRows, boxCols, rowMask, colMask, boxMask);
+        return grid;
+    }
+
+    private bool FillRecursive(int[] grid, int pos, int size, int boxRows, int boxCols, int[] rowMask, int[] colMask, int[] boxMask)
+    {
+        if (pos == grid.Length) return true;
+
+        var row = pos / size;
+        var col = pos % size;
+        var box = BoxIndex(row, col, size, boxRows, boxCols);
+
+        var order = Enumerable.Range(1, size).ToArray();
+        Shuffle(order);
+
+        foreach (var v in order)
+        {
+            var bit = 1 << v;
+            if ((rowMask[row] & bit) != 0 || (colMask[col] & bit) != 0 || (boxMask[box] & bit) != 0) continue;
+
+            grid[pos] = v;
+            rowMask[row] |= bit; colMask[col] |= bit; boxMask[box] |= bit;
+
+            if (FillRecursive(grid, pos + 1, size, boxRows, boxCols, rowMask, colMask, boxMask)) return true;
+
+            grid[pos] = 0;
+            rowMask[row] &= ~bit; colMask[col] &= ~bit; boxMask[box] &= ~bit;
+        }
+
+        return false;
+    }
+
+    private int[] CarvePuzzle(int[] solved, int size, int boxRows, int boxCols, int targetClues)
+    {
+        var puzzle = (int[])solved.Clone();
+        var positions = Enumerable.Range(0, size * size).ToArray();
+        Shuffle(positions);
+
+        var clueCount = size * size;
+
+        foreach (var pos in positions)
+        {
+            if (clueCount <= targetClues) break;
+
+            var backup = puzzle[pos];
+            puzzle[pos] = 0;
+
+            if (CountSolutions((int[])puzzle.Clone(), size, boxRows, boxCols, limit: 2) == 1)
+            {
+                clueCount--;
+            }
+            else
+            {
+                puzzle[pos] = backup;
+            }
+        }
+
+        return puzzle;
+    }
+
+    private static int CountSolutions(int[] grid, int size, int boxRows, int boxCols, int limit)
+    {
+        var rowMask = new int[size];
+        var colMask = new int[size];
+        var boxMask = new int[size];
+
+        for (var pos = 0; pos < grid.Length; pos++)
+        {
+            var v = grid[pos];
+            if (v == 0) continue;
+            var row = pos / size;
+            var col = pos % size;
+            var box = BoxIndex(row, col, size, boxRows, boxCols);
+            var bit = 1 << v;
+            rowMask[row] |= bit; colMask[col] |= bit; boxMask[box] |= bit;
+        }
+
+        return CountSolutionsRecursive(grid, 0, size, boxRows, boxCols, rowMask, colMask, boxMask, limit);
+    }
+
+    private static int CountSolutionsRecursive(int[] grid, int pos, int size, int boxRows, int boxCols, int[] rowMask, int[] colMask, int[] boxMask, int limit)
+    {
+        while (pos < grid.Length && grid[pos] != 0) pos++;
+        if (pos == grid.Length) return 1;
+
+        var row = pos / size;
+        var col = pos % size;
+        var box = BoxIndex(row, col, size, boxRows, boxCols);
+        var count = 0;
+
+        for (var v = 1; v <= size; v++)
+        {
+            var bit = 1 << v;
+            if ((rowMask[row] & bit) != 0 || (colMask[col] & bit) != 0 || (boxMask[box] & bit) != 0) continue;
+
+            grid[pos] = v;
+            rowMask[row] |= bit; colMask[col] |= bit; boxMask[box] |= bit;
+
+            count += CountSolutionsRecursive(grid, pos + 1, size, boxRows, boxCols, rowMask, colMask, boxMask, limit);
+
+            grid[pos] = 0;
+            rowMask[row] &= ~bit; colMask[col] &= ~bit; boxMask[box] &= ~bit;
+
+            if (count >= limit) break;
+        }
+
+        return count;
+    }
+
+    private static int BoxIndex(int row, int col, int size, int boxRows, int boxCols) =>
+        (row / boxRows) * (size / boxCols) + (col / boxCols);
+
+    private void Shuffle<T>(T[] array)
+    {
+        for (var i = array.Length - 1; i > 0; i--)
+        {
+            var j = rng.Next(i + 1);
+            (array[i], array[j]) = (array[j], array[i]);
+        }
+    }
+
+    // ---- Misc ------------------------------------------------------------
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var span = TimeSpan.FromSeconds(totalSeconds);
+        return span.Minutes > 0 ? $"{span.Minutes}:{span.Seconds:00}" : $"0:{span.Seconds:00}";
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "4x4 grid",
+        Difficulty.Medium => "6x6 grid",
+        _ => "9x9 grid",
+    };
+
+    public void Dispose() => StopTimer();
+
+    public record SudokuResult(int GridSize, int ElapsedSeconds);
+}

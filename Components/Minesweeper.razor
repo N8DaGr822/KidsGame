@@ -1,0 +1,336 @@
+@*
+    Minesweeper.razor
+    Classic minesweeper. Tap a cell to reveal it (an empty result cascades
+    to its neighbors automatically); flag suspected mines with the flag
+    toggle (or right-click on a mouse) so a stray tap doesn't reveal them
+    by accident. The very first tap can never be a mine or touch one -
+    mines are placed only after that tap, avoiding the safe zone around
+    it, so nobody loses on their opening move before they've learned
+    anything about the board.
+
+    Usage:
+        <Minesweeper OnComplete="HandleGameComplete" />
+*@
+@implements IDisposable
+
+<div class="ms-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="ms-setup game-setup-panel">
+            <h2>💣 Minesweeper</h2>
+            <p>Reveal every safe square without setting off a mine. Numbers tell you how many mines are touching that square.</p>
+
+            <h3 class="ms-section-title game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="ms-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="ms-difficulty-select game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="ms-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="ms-diff-name">@DifficultyName(diff)</span>
+                            <span class="ms-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="ms-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="ms-hud game-hud">
+            <span class="ms-title">Minesweeper</span>
+            <span class="ms-mine-count">💣 @Math.Max(0, mineCount - flagsPlaced)</span>
+            <span class="ms-timer">⏱️ @FormatTime(elapsedSeconds)</span>
+            <div class="ms-mode-toggle">
+                <button class="ms-mode-btn @(tapMode == TapMode.Reveal ? "active" : "")" @onclick="() => tapMode = TapMode.Reveal" aria-label="Reveal mode">🔍</button>
+                <button class="ms-mode-btn @(tapMode == TapMode.Flag ? "active" : "")" @onclick="() => tapMode = TapMode.Flag" aria-label="Flag mode">🚩</button>
+            </div>
+            <button class="ms-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
+        </div>
+
+        <div class="ms-board" style="--ms-size:@gridSize;">
+            @for (var i = 0; i < cells.Length; i++)
+            {
+                var idx = i;
+                var cell = cells[idx];
+                <button class="ms-cell @(cell.Revealed ? "revealed" : "") @(cell.Revealed && !cell.IsMine ? $"n{cell.AdjacentMines}" : "") @(cell.Revealed && cell.IsMine ? "mine" : "")"
+                        disabled="@(phase != Phase.Playing)"
+                        @onclick="() => TapCell(idx)"
+                        @oncontextmenu="() => ToggleFlag(idx)"
+                        @oncontextmenu:preventDefault>
+                    @if (cell.Revealed)
+                    {
+                        @(cell.IsMine ? "💣" : (cell.AdjacentMines > 0 ? cell.AdjacentMines.ToString() : ""))
+                    }
+                    else if (cell.Flagged)
+                    {
+                        @("🚩")
+                    }
+                </button>
+            }
+        </div>
+
+        @if (phase == Phase.Won || phase == Phase.Lost)
+        {
+            <div class="ms-overlay game-result-overlay">
+                <div class="ms-win-panel game-result-panel">
+                    @if (phase == Phase.Won)
+                    {
+                        <h2>🎉 Minefield Cleared!</h2>
+                        <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") - cleared in @FormatTime(elapsedSeconds)!</p>
+                    }
+                    else
+                    {
+                        <h2>💥 Boom!</h2>
+                        <p>That one was a mine - want to try again?</p>
+                    }
+                    <div class="ms-win-actions game-result-actions">
+                        <button class="ms-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="ms-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<MinesweeperResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Won, Lost }
+    private enum TapMode { Reveal, Flag }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static (int Size, int Mines) ConfigFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => (8, 10),
+        Difficulty.Medium => (10, 16),
+        _ => (12, 24),
+    };
+
+    private class Cell
+    {
+        public bool IsMine;
+        public bool Revealed;
+        public bool Flagged;
+        public int AdjacentMines;
+    }
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private TapMode tapMode = TapMode.Reveal;
+    private int gridSize = 8;
+    private int mineCount = 10;
+    private Cell[] cells = Array.Empty<Cell>();
+    private bool minesPlaced;
+    private int flagsPlaced;
+    private int revealedSafeCount;
+    private int elapsedSeconds;
+    private readonly Random rng = new();
+    private System.Threading.Timer? timer;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        (gridSize, mineCount) = ConfigFor(selectedDifficulty);
+        cells = Enumerable.Range(0, gridSize * gridSize).Select(_ => new Cell()).ToArray();
+        minesPlaced = false;
+        flagsPlaced = 0;
+        revealedSafeCount = 0;
+        elapsedSeconds = 0;
+        tapMode = TapMode.Reveal;
+        StopTimer();
+        phase = Phase.Playing;
+    }
+
+    private IEnumerable<int> AdjacentIndexes(int index)
+    {
+        var row = index / gridSize;
+        var col = index % gridSize;
+
+        for (var dr = -1; dr <= 1; dr++)
+        {
+            for (var dc = -1; dc <= 1; dc++)
+            {
+                if (dr == 0 && dc == 0) continue;
+                var r = row + dr;
+                var c = col + dc;
+                if (r < 0 || r >= gridSize || c < 0 || c >= gridSize) continue;
+                yield return r * gridSize + c;
+            }
+        }
+    }
+
+    // Mines are placed only after the first tap, excluding that cell and
+    // its neighbors - so the opening move is always safe and always
+    // reveals at least a small opening rather than a lone single-digit
+    // square, which is what a real first play needs to get started.
+    private void PlaceMinesAvoiding(int safeIndex)
+    {
+        var safeZone = new HashSet<int>(AdjacentIndexes(safeIndex)) { safeIndex };
+        var candidates = Enumerable.Range(0, cells.Length)
+            .Where(i => !safeZone.Contains(i))
+            .OrderBy(_ => rng.Next())
+            .Take(mineCount);
+
+        foreach (var i in candidates)
+        {
+            cells[i].IsMine = true;
+        }
+
+        for (var i = 0; i < cells.Length; i++)
+        {
+            cells[i].AdjacentMines = AdjacentIndexes(i).Count(n => cells[n].IsMine);
+        }
+
+        minesPlaced = true;
+    }
+
+    private void TapCell(int index)
+    {
+        if (phase != Phase.Playing) return;
+        var cell = cells[index];
+
+        if (tapMode == TapMode.Flag)
+        {
+            ToggleFlag(index);
+            return;
+        }
+
+        if (cell.Flagged || cell.Revealed) return;
+
+        if (!minesPlaced)
+        {
+            PlaceMinesAvoiding(index);
+            StartTimer();
+        }
+
+        if (cell.IsMine)
+        {
+            foreach (var c in cells.Where(c => c.IsMine)) c.Revealed = true;
+            StopTimer();
+            phase = Phase.Lost;
+            _ = InvokeCompleteAsync(won: false);
+            return;
+        }
+
+        RevealFlood(index);
+
+        if (revealedSafeCount == cells.Length - mineCount)
+        {
+            StopTimer();
+            phase = Phase.Won;
+            _ = InvokeCompleteAsync(won: true);
+        }
+    }
+
+    private void ToggleFlag(int index)
+    {
+        if (phase != Phase.Playing) return;
+        var cell = cells[index];
+        if (cell.Revealed) return;
+
+        cell.Flagged = !cell.Flagged;
+        flagsPlaced += cell.Flagged ? 1 : -1;
+    }
+
+    private void RevealFlood(int start)
+    {
+        var stack = new Stack<int>();
+        stack.Push(start);
+
+        while (stack.Count > 0)
+        {
+            var i = stack.Pop();
+            var cell = cells[i];
+            if (cell.Revealed || cell.Flagged || cell.IsMine) continue;
+
+            cell.Revealed = true;
+            revealedSafeCount++;
+
+            if (cell.AdjacentMines == 0)
+            {
+                foreach (var n in AdjacentIndexes(i))
+                {
+                    if (!cells[n].Revealed) stack.Push(n);
+                }
+            }
+        }
+    }
+
+    private async Task InvokeCompleteAsync(bool won)
+    {
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MinesweeperResult(
+                Won: won,
+                GridSize: gridSize,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var span = TimeSpan.FromSeconds(totalSeconds);
+        return span.Minutes > 0 ? $"{span.Minutes}:{span.Seconds:00}" : $"0:{span.Seconds:00}";
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "8x8, 10 mines",
+        Difficulty.Medium => "10x10, 16 mines",
+        _ => "12x12, 24 mines",
+    };
+
+    public void Dispose() => StopTimer();
+
+    public record MinesweeperResult(bool Won, int GridSize, int ElapsedSeconds);
+}

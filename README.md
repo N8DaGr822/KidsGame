@@ -1,7 +1,7 @@
 # Kids Game Launcher
 
 A Blazor WebAssembly PWA game launcher for kids: a profile picker
-(parent/admin + kid accounts), a per-kid game carousel, seven built-in
+(parent/admin + kid accounts), a per-kid game carousel, eleven built-in
 games, and an admin panel for managing profiles, which games each kid
 can access, and daily screen time. Works fully offline — no backend, no
 server, no account — everything is stored locally in the browser.
@@ -20,9 +20,10 @@ dotnet run
 Then open the URL it prints (typically `http://localhost:5000`).
 
 On first launch it seeds two profiles — an Admin ("Parent") and a Kid
-("Buddy") — with four of the seven built-in games already unlocked for
-Buddy (Tank Duel, UNO, and Simon Says aren't auto-granted, see below),
-so there's something to click on right away.
+("Buddy") — with four of the eleven built-in games already unlocked for
+Buddy (Tank Duel, UNO, Simon Says, Sliding Puzzle, Word Scramble,
+Minesweeper, and Sudoku aren't auto-granted, see below), so there's
+something to click on right away.
 
 ## Install it on a tablet
 
@@ -87,12 +88,13 @@ browser, so there's no separate "enable sound" step.
   entry shows a 🏆 Won/Lost badge for games with a real outcome (Tank
   Duel, UNO) so you can tell at a glance whether a kid is winning or
   struggling — and set or reset their daily time limit. "Manage games"
-  (`/admin/access/{id}`) also lets you lock Memory Match or Simon Says to
-  a specific difficulty per kid, so a young kid can't set it too hard for
-  themselves and older ones don't have to be asked each time; leave it on
-  "Let \{kid\} choose" to keep showing them the in-game picker.
+  (`/admin/access/{id}`) also lets you lock Memory Match, Simon Says,
+  Sliding Puzzle, Word Scramble, Minesweeper, or Sudoku to a specific
+  difficulty per kid, so a young kid can't set it too hard for themselves
+  and older ones don't have to be asked each time; leave it on "Let
+  \{kid\} choose" to keep showing them the in-game picker.
 
-### The seven built-in games
+### The eleven built-in games
 
 - **Memory Match** — flip cards to find matching pairs. Choose Animals,
   ABC (uppercase↔lowercase), Numbers, or **Math** (an equation card like
@@ -156,6 +158,31 @@ browser, so there's no separate "enable sound" step.
   ends on the very first one. Reports how far you got either way. Seeded
   into the catalog but not auto-granted - grant it per-kid from the admin
   panel, optionally locking its difficulty there too.
+- **Sliding Puzzle** — the classic 15-puzzle: a picture (one of the Dress
+  Up scene backdrops) cut into a 3x3/4x4/5x5 grid with one tile missing;
+  tap a tile next to the gap to slide it in. Shuffled by making a pile of
+  random *legal* moves from the solved state rather than a random tile
+  permutation, which guarantees every shuffle is solvable - no separate
+  parity check needed. "Show Picture" reveals the target image at any time.
+- **Word Scramble** — unscramble a row of letter tiles to spell the word
+  shown by a big emoji clue (so it's playable before a kid can read the
+  category, not just the word). Difficulty picks word length (3-4 / 5-6 /
+  7-10 letters). A wrong guess shakes and the letters go back into the
+  scramble to try again - never a dead end.
+- **Minesweeper** — reveal every safe square without hitting a mine;
+  numbers tell you how many mines touch that square, and revealing an
+  empty one cascades outward automatically. Mines are placed only after
+  your first tap and never under it (or its neighbors), so the opening
+  move is always safe. A flag-mode toggle (or right-click on a mouse)
+  marks suspected mines so a stray tap doesn't set one off.
+- **Sudoku** — fill the grid so every row, column, and box has each
+  number exactly once. Difficulty picks the grid size (4x4/6x6/9x9), not
+  just how many clues are given, so a younger kid gets a genuinely
+  smaller puzzle rather than the real thing with more numbers filled in.
+  Every generated puzzle is checked to have exactly one solution (a
+  solution-counting solver backs out any cell removal that would make it
+  ambiguous), and a wrong entry shows in red immediately since the one
+  correct answer is already known.
 
 ## Screen time tracking and limits
 

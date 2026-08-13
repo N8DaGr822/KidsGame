@@ -1,0 +1,194 @@
+.sk-game {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.sk-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.sk-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.sk-setup p {
+    max-width: 30rem;
+    color: var(--text-muted);
+}
+
+.sk-section-title {
+    margin: 0.4rem 0 0;
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.sk-difficulty-locked {
+    margin: 0;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--line);
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.sk-difficulty-select {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 0.7rem;
+}
+
+.sk-diff-btn {
+    min-height: 86px;
+    padding: 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    gap: 0.25rem;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.sk-diff-btn:hover {
+    transform: translateY(-2px);
+    background: var(--control-bg-hover);
+}
+
+.sk-diff-btn.selected {
+    border-color: rgba(78, 205, 196, 0.75);
+    background: var(--selected-bg);
+}
+
+.sk-diff-name {
+    font-weight: 900;
+}
+
+.sk-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.sk-title {
+    font-weight: 900;
+}
+
+.sk-timer {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-muted);
+}
+
+.sk-board {
+    display: grid;
+    grid-template-columns: repeat(var(--sk-size), 1fr);
+    gap: 1px;
+    width: min(440px, 92vw);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    padding: 2px;
+    border: 2px solid var(--text-soft);
+    border-radius: var(--radius-sm);
+    background: var(--line);
+    /* .sk-cell's font-size uses cqw, which needs a containment context to
+       resolve against at all (otherwise it computes to 0, not just "a
+       default size") - this is that context. */
+    container-type: inline-size;
+}
+
+.sk-cell {
+    border: none;
+    background: var(--surface);
+    color: var(--text);
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(0.85rem, 3.6cqw, 1.3rem);
+    line-height: 1;
+    display: grid;
+    place-items: center;
+}
+
+.sk-cell.given {
+    font-weight: 900;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-soft);
+}
+
+.sk-cell.filled {
+    color: var(--accent-strong);
+    cursor: pointer;
+}
+
+.sk-cell.wrong {
+    color: var(--danger);
+}
+
+.sk-cell.selected {
+    background: var(--selected-bg);
+    box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.sk-cell.bl {
+    box-shadow: inset 2px 0 0 0 var(--text-soft);
+}
+
+.sk-cell.bt {
+    box-shadow: inset 0 2px 0 0 var(--text-soft);
+}
+
+.sk-cell.bl.bt {
+    box-shadow: inset 2px 0 0 0 var(--text-soft), inset 0 2px 0 0 var(--text-soft);
+}
+
+.sk-cell.selected.bl {
+    box-shadow: inset 0 0 0 2px var(--accent), inset 2px 0 0 0 var(--text-soft);
+}
+
+.sk-cell.selected.bt {
+    box-shadow: inset 0 0 0 2px var(--accent), inset 0 2px 0 0 var(--text-soft);
+}
+
+.sk-number-pad {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.sk-num-btn {
+    min-width: 48px;
+    min-height: 48px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--control-bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 900;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.sk-num-btn:not(:disabled):hover {
+    background: var(--control-bg-hover);
+    border-color: rgba(78, 205, 196, 0.6);
+}
+
+.sk-erase-btn {
+    color: var(--danger);
+}
