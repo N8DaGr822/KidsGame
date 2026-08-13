@@ -511,6 +511,109 @@
     to { transform: translateY(-26px); opacity: 0; }
 }
 
+/* ---- Manners Quiz (older kids, reading required) ---- */
+
+.mng-quiz-intro {
+    max-width: 32rem;
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.mng-quiz {
+    display: grid;
+    justify-items: stretch;
+    gap: 1rem;
+    width: 100%;
+}
+
+.mng-quiz-choices {
+    display: grid;
+    gap: 0.75rem;
+    width: 100%;
+}
+
+.mng-quiz-choice {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    min-height: 56px;
+    padding: 0.85rem 1.1rem;
+    border: 2px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    text-align: left;
+    font-weight: 700;
+    line-height: 1.35;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.mng-quiz-choice:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: rgba(78, 205, 196, 0.7);
+    background: rgba(78, 205, 196, 0.12);
+}
+
+.mng-quiz-choice:disabled {
+    cursor: default;
+}
+
+.mng-quiz-choice.correct {
+    border-color: var(--success);
+    background: rgba(118, 227, 159, 0.16);
+}
+
+.mng-quiz-choice.wrong {
+    border-color: var(--danger);
+    background: rgba(255, 107, 107, 0.12);
+    opacity: 0.75;
+}
+
+.mng-quiz-choice-letter {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--surface-raised);
+    font-family: var(--font-display);
+    font-weight: 900;
+}
+
+.mng-quiz-choice-text {
+    font-family: var(--font-display);
+}
+
+.mng-quiz-feedback {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.85rem 1.1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--line);
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.mng-quiz-feedback.correct {
+    border-color: var(--success);
+    background: rgba(118, 227, 159, 0.14);
+}
+
+.mng-quiz-feedback.wrong {
+    border-color: var(--danger);
+    background: rgba(255, 107, 107, 0.1);
+}
+
+.mng-quiz-skill {
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
 @keyframes mng-target-pulse {
     0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
     50% { transform: translate(-50%, -50%) scale(1.08); opacity: 0.75; }

@@ -60,6 +60,12 @@
                     <button class="mng-focus-btn game-option-button" @onclick="() => StartSession(lesson)">@LessonDisplayName(lesson)</button>
                 }
             </div>
+
+            <h3 class="mng-section-title game-section-title">Ready for a challenge?</h3>
+            <p class="mng-quiz-intro">Read short everyday scenarios and pick the best response - for kids comfortable reading on their own.</p>
+            <div class="mng-setup-actions">
+                <button class="mng-start-btn game-primary-action" @onclick="StartQuizSession">📝 Manners Quiz</button>
+            </div>
         </div>
 
         @if (showingGardenAtSetup)
@@ -88,7 +94,7 @@
                 <MannersGardenScene Items="persistedGardenItems" />
 
                 <div class="mng-garden-actions game-result-actions">
-                    <button class="mng-start-btn game-primary-action" @onclick="() => StartSession(null)">Play Again</button>
+                    <button class="mng-start-btn game-primary-action" @onclick="() => (quizMode ? StartQuizSession() : StartSession(null))">Play Again</button>
                     <button class="mng-restart-btn game-secondary-action" @onclick="ExitToSetup">Change Game</button>
                 </div>
             </div>
@@ -99,10 +105,11 @@
         <div class="mng-hud game-hud">
             <button class="mng-mute-btn" @onclick="ToggleMute" aria-label="@(muted ? "Unmute narration" : "Mute narration")">@(muted ? "🔇" : "🔊")</button>
             <div class="mng-progress">
-                @for (int i = 0; i < sessionLessons.Count; i++)
+                @{ var progressTotal = quizMode ? sessionQuiz.Count : sessionLessons.Count; var progressCurrent = quizMode ? quizIndex : roundIndex; }
+                @for (int i = 0; i < progressTotal; i++)
                 {
                     var dotIndex = i;
-                    <span class="mng-progress-dot @(dotIndex < roundIndex ? "done" : "") @(dotIndex == roundIndex ? "active" : "")">🌱</span>
+                    <span class="mng-progress-dot @(dotIndex < progressCurrent ? "done" : "") @(dotIndex == progressCurrent ? "active" : "")">🌱</span>
                 }
             </div>
             <button class="mng-garden-peek-btn" @onclick="ToggleGarden">@(showingGarden ? "▶️ Back to Play" : "🌷 View Garden")</button>
@@ -128,7 +135,39 @@
         <div class="mng-stage">
             <div class="mng-speech-bubble">@narratorText</div>
 
-            @if (round.Lesson == LessonType.CleanUp)
+            @if (quizMode)
+            {
+                var scenario = sessionQuiz[quizIndex];
+                var answeredCorrectly = selectedChoiceIndex is { } sel && shuffledChoices[sel].IsCorrect;
+                <div class="mng-quiz">
+                    <div class="mng-quiz-choices">
+                        @for (int i = 0; i < shuffledChoices.Count; i++)
+                        {
+                            var idx = i;
+                            var choice = shuffledChoices[idx];
+                            var isSelected = selectedChoiceIndex == idx;
+                            <button class="mng-quiz-choice @(isSelected && choice.IsCorrect ? "correct" : "") @(isSelected && !choice.IsCorrect ? "wrong" : "")"
+                                    disabled="@(answeredCorrectly || (isSelected && !choice.IsCorrect))"
+                                    @onclick="() => ChooseQuizAnswer(idx)">
+                                <span class="mng-quiz-choice-letter">@((char)('A' + idx))</span>
+                                <span class="mng-quiz-choice-text">@choice.Text</span>
+                            </button>
+                        }
+                    </div>
+
+                    @if (selectedChoiceIndex is { } si)
+                    {
+                        <div class="mng-quiz-feedback @(shuffledChoices[si].IsCorrect ? "correct" : "wrong")">
+                            @shuffledChoices[si].Feedback
+                            @if (shuffledChoices[si].IsCorrect)
+                            {
+                                <span class="mng-quiz-skill">Skill: @scenario.Skill</span>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else if (round.Lesson == LessonType.CleanUp)
             {
                 <div class="mng-cleanup-area" @ref="cleanupAreaRef" @onpointermove="OnCleanupPointerMove" @onpointerup="OnCleanupPointerUp" @onpointercancel="OnCleanupPointerUp">
                     @foreach (var toy in round.Toys)
@@ -367,6 +406,198 @@
         "🌸", "🌷", "🌻", "🌼", "🌹", "🦋", "🐦", "🍎", "🐞", "🌳", "✨", "🍓",
     };
 
+    // ---- Manners Quiz content ---------------------------------------------
+    //
+    // Wrong choices are deliberately plausible - a reasonable-sounding
+    // response with a real (if minor) downside - rather than cartoonishly
+    // rude, so the feedback can teach the reasoning behind the manner
+    // rather than just rewarding pattern-matching "which one is nice."
+    public sealed record QuizChoice(string Text, bool IsCorrect, string Feedback);
+    public sealed record QuizScenario(string Title, string Skill, string Prompt, List<QuizChoice> Choices);
+
+    private static readonly List<QuizScenario> QuizScenarios = new()
+    {
+        new("Someone Holds the Door", "Saying thank you",
+            "You're walking into a building and someone holds the door open for you. What do you do?",
+            new()
+            {
+                new("Walk through without saying anything.", false, "It's easy to forget, but a quick \"thank you\" lets them know you noticed their kindness."),
+                new("Say \"Thank you!\" as you walk through.", true, "That's it! A quick thank you shows you appreciate their kindness."),
+                new("Rush past quickly so you don't hold them up.", false, "Being quick is thoughtful, but you can walk normally and still say thank you - it only takes a second."),
+            }),
+
+        new("The Last Cookie", "Sharing / consideration",
+            "There is one cookie left on the plate. You and your friend both want it.",
+            new()
+            {
+                new("Grab it quickly before your friend can.", false, "Grabbing it fast might get you the cookie, but it could hurt your friend's feelings and doesn't feel fair to them."),
+                new("Ask, \"Do you want to split it?\"", true, "Great idea! Splitting it means you both get some, and nobody feels left out."),
+                new("Tell your friend you deserve it because you saw it first.", false, "Seeing it first doesn't make it more yours than theirs - sharing feels better for both of you."),
+            }),
+
+        new("Interrupting a Conversation", "Waiting politely / saying \"excuse me\"",
+            "Two adults are talking and you need to ask one of them something.",
+            new()
+            {
+                new("Shout their name from across the room until they notice.", false, "Shouting can startle people and interrupt their conversation. There's a quieter way to get noticed."),
+                new("Walk up, wait for a pause, and say \"Excuse me.\"", true, "That's it! Waiting for a pause and saying \"excuse me\" lets them know you have something to say without cutting them off."),
+                new("Tap their arm right away and start talking.", false, "It's okay to get their attention, but jumping straight into talking cuts off what they were saying. Try saying \"excuse me\" and waiting a moment."),
+            }),
+
+        new("A Friend Drops Their Books", "Offering help",
+            "Someone drops their books or belongings in front of you.",
+            new()
+            {
+                new("Walk around them and keep going - it's not your mess.", false, "It's not your mess, but helping out anyway is a kind thing to do for someone having a hard moment."),
+                new("Stop and help pick everything up.", true, "Exactly! A small favor like that can really turn someone's day around."),
+                new("Laugh and point out that they dropped everything.", false, "Laughing at someone's accident can really embarrass them - try helping instead."),
+            }),
+
+        new("You Bump Into Someone", "Apologizing",
+            "You accidentally bump into another person while walking.",
+            new()
+            {
+                new("Keep walking like nothing happened.", false, "Even small bumps are nice to acknowledge - a quick apology shows you noticed."),
+                new("Say \"Sorry about that!\" and keep going.", true, "Perfect. A quick apology is all it takes."),
+                new("Blame them for being in your way.", false, "Even if they were partly in the way, blaming them can start an argument over something small. A simple sorry is easier for everyone."),
+            }),
+
+        new("Meeting Someone New", "Greeting people politely",
+            "You are introduced to someone you've never met before.",
+            new()
+            {
+                new("Look at the floor and stay quiet.", false, "It's normal to feel shy, but staying silent can make the other person feel unwelcome too."),
+                new("Say hi, smile, and tell them your name.", true, "That's a great way to make someone feel welcome!"),
+                new("Say hi but keep looking at your phone.", false, "Saying hi is a good start, but looking at your phone can make the other person feel like you're not really interested in meeting them."),
+            }),
+
+        new("Someone Gives You a Gift", "Showing gratitude",
+            "You receive a present that isn't exactly what you wanted.",
+            new()
+            {
+                new("Say \"I already have one of these\" or \"I wanted something else.\"", false, "Even if it's not what you hoped for, saying that can hurt the giver's feelings after they picked something out for you."),
+                new("Say \"Thank you, that's so nice of you!\"", true, "Right! They spent time thinking of you, and showing gratitude matters more than the gift itself."),
+                new("Say thank you, but with a disappointed sigh so they know you're not thrilled.", false, "Saying thank you is good, but a sigh can still show you're disappointed. Try to really mean the thank you instead."),
+            }),
+
+        new("Waiting Your Turn", "Taking turns",
+            "Several kids are waiting to use the same swing, game, or toy.",
+            new()
+            {
+                new("Cut in line because you've been waiting the longest in your head.", false, "Everyone thinks they've waited long enough! Cutting in line isn't fair to the kids who got there first."),
+                new("Wait in line and take your turn when it comes.", true, "That's the way to do it! Waiting your turn is fair to everyone."),
+                new("Ask an adult to let you go first because you really want it.", false, "Wanting something a lot doesn't mean you should skip ahead of everyone else waiting."),
+            }),
+
+        new("Borrowing Something", "Asking permission",
+            "You want to use your friend's markers.",
+            new()
+            {
+                new("Take them without saying anything since you'll give them back.", false, "Even if you plan to give it back, taking something without asking can feel surprising or unfair to your friend."),
+                new("Ask, \"Can I use your markers?\"", true, "That's it! Asking first means your friend gets a say in sharing their things."),
+                new("Wait until your friend isn't looking and quietly borrow them.", false, "Borrowing quietly so they don't notice is still taking without permission - it's better to just ask."),
+            }),
+
+        new("Returning Something You Borrowed", "Returning belongings / gratitude",
+            "You're finished using something a friend loaned you.",
+            new()
+            {
+                new("Leave it in your backpack until they ask for it back.", false, "Your friend might need it before they think to ask - it's kinder to return it as soon as you're done."),
+                new("Give it back and say thank you for letting you use it.", true, "Exactly! Returning it promptly and saying thanks shows you appreciate them sharing."),
+                new("Give it back without saying anything about it.", false, "Returning it is good, but adding a quick thank you shows extra appreciation for the favor."),
+            }),
+
+        new("Someone Is Speaking", "Listening without interrupting",
+            "Your friend is telling a story, but you're excited to tell your own.",
+            new()
+            {
+                new("Jump in and start telling your story right away.", false, "Jumping in can make your friend feel like their story doesn't matter. Try waiting for a pause."),
+                new("Wait until they finish, then share yours.", true, "Perfect. Listening all the way through shows your friend you care about what they're saying."),
+                new("Keep saying \"uh-huh\" impatiently until they hurry up.", false, "Rushing someone with impatient sounds can feel unfriendly, even if you don't mean it that way."),
+            }),
+
+        new("Choosing a Seat", "Consideration for others",
+            "You get on a crowded bus and notice someone who may need your seat more than you do.",
+            new()
+            {
+                new("Sit down quickly so you don't have to stand.", false, "Getting a seat is nice, but someone who needs it more - like an elderly person or someone carrying something heavy - could really use it."),
+                new("Offer your seat to them.", true, "That's very considerate! Offering your seat when someone else needs it more is a kind thing to do."),
+                new("Pretend not to notice them so you don't have to decide.", false, "It's easier to look away, but noticing and offering your seat anyway is the kinder choice."),
+            }),
+
+        new("Eating at Someone Else's House", "Being gracious about food",
+            "You are served a food you don't like.",
+            new()
+            {
+                new("Say \"Ew, I don't like this\" out loud.", false, "That can hurt the cook's feelings after they made food for you. There's a more polite way to handle it."),
+                new("Try a small bite and politely eat what you can.", true, "That's a great approach! Trying it shows respect for the effort someone put into cooking."),
+                new("Quietly push it around your plate so it looks like you ate some.", false, "That might avoid an awkward moment, but it's a little sneaky. It's better to just eat a small polite amount or say something kindly."),
+            }),
+
+        new("Talking With Food in Your Mouth", "Table manners",
+            "Someone asks you a question while you're chewing.",
+            new()
+            {
+                new("Answer right away, even with your mouth full.", false, "It's tempting to answer right away, but talking with food in your mouth is hard to understand and isn't great table manners."),
+                new("Finish chewing, swallow, then answer.", true, "That's the way! Finishing your bite first makes it easier for everyone to understand you."),
+                new("Hold up a finger to say \"wait\" and keep chewing with your mouth open.", false, "Asking them to wait is a good start, but try to keep your mouth closed while you finish chewing."),
+            }),
+
+        new("The Restaurant Server Arrives", "Saying please and thank you",
+            "A server brings your meal or clears your plate.",
+            new()
+            {
+                new("Keep talking to your friends without looking up.", false, "The server is doing something nice for you - a quick thank you only takes a second."),
+                new("Say \"Thank you!\" when they bring or take your plate.", true, "Exactly right! A little thank you goes a long way, even for someone doing their job."),
+                new("Say thank you, but only if your parents remind you to.", false, "It's great to say thank you - try to remember on your own next time instead of waiting to be reminded."),
+            }),
+
+        new("A Friend Makes a Mistake", "Kindness / not embarrassing others",
+            "Your friend answers a question incorrectly and some kids laugh.",
+            new()
+            {
+                new("Laugh along with everyone else.", false, "Laughing along can make your friend feel even more embarrassed, even if you don't mean any harm."),
+                new("Stay quiet and give your friend a supportive look or word.", true, "That's kind. Your friend will remember that you didn't join in."),
+                new("Tell everyone the correct answer loudly to show you know it.", false, "That might seem helpful, but announcing the right answer can make your friend feel even more embarrassed."),
+            }),
+
+        new("Someone Looks Different", "Respectful curiosity / avoiding rude comments",
+            "You notice something unusual about another person's clothes, body, voice, or appearance.",
+            new()
+            {
+                new("Point it out loudly and ask them about it in front of others.", false, "Even if you're just curious, asking loudly in front of others can embarrass someone about something they can't control."),
+                new("Treat them the same as anyone else you'd meet.", true, "That's exactly right. Everyone deserves to be treated with the same kindness and respect."),
+                new("Stare or whisper to a friend about it.", false, "Staring or whispering can make someone feel singled out, even if you don't say anything directly to them."),
+            }),
+
+        new("Playing a Game and Losing", "Good sportsmanship",
+            "You lose a game you really wanted to win.",
+            new()
+            {
+                new("Say the game was unfair or rigged.", false, "It's disappointing to lose, but blaming the game can be unfair to the person who won fairly."),
+                new("Say \"Good game!\" even though you're disappointed.", true, "That's good sportsmanship! It's okay to feel disappointed inside while still being gracious."),
+                new("Ask to play again right away so you can win this time.", false, "Wanting a rematch is fine, but congratulate the winner first before asking to play again."),
+            }),
+
+        new("Winning a Game", "Winning graciously",
+            "You win easily and your friend is disappointed.",
+            new()
+            {
+                new("Celebrate loudly and tell them how easy that was.", false, "Bragging about how easy it was can make your friend feel worse about losing."),
+                new("Say \"Good game, that was close!\" or something encouraging.", true, "That's a gracious way to win - it helps your friend feel better about the game."),
+                new("Suggest a different game where you know you'll win again.", false, "That might feel fun for you, but your friend might feel like you're just trying to beat them again."),
+            }),
+
+        new("Sending a Message", "Digital manners / thinking before sending",
+            "You're upset with a friend and want to send them an angry message right away.",
+            new()
+            {
+                new("Send the message immediately so they know how you feel.", false, "Messages sent in the heat of the moment are hard to take back and can make things worse."),
+                new("Wait until you've calmed down, then decide what to say.", true, "That's smart! Taking a moment to cool off helps you say what you really mean instead of something you'll regret."),
+                new("Send it to another friend first to see if they agree with you.", false, "That might feel satisfying, but talking about your friend behind their back can create more problems."),
+            }),
+    };
+
     // ---- Round state -----------------------------------------------------
 
     public class CleanUpToy
@@ -425,6 +656,24 @@
     private int elapsedSeconds;
     private System.Threading.Timer? timer;
 
+    // ---- Manners Quiz (older kids, reading required) ---------------------
+    //
+    // A separate mode from the tap-a-picture lessons above: a short
+    // written scenario with three answers (one correct, two plausible-
+    // but-not-ideal), so the wrong choices teach a reason rather than
+    // just being obviously silly. Reuses the same stage/HUD/garden-reward
+    // plumbing as the regular lessons (see StartQuizSession/
+    // CompleteQuizQuestion mirroring StartSession/CompleteRound) so both
+    // modes feel like the same game.
+
+    private const int QuizSessionSize = 5;
+
+    private bool quizMode;
+    private List<QuizScenario> sessionQuiz = new();
+    private int quizIndex;
+    private List<QuizChoice> shuffledChoices = new();
+    private int? selectedChoiceIndex;
+
     protected override async Task OnInitializedAsync()
     {
         if (!string.IsNullOrEmpty(ProfileId))
@@ -447,6 +696,7 @@
     {
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
 
+        quizMode = false;
         sessionLessons = focusLesson is { } lesson
             ? Enumerable.Repeat(lesson, 3).ToList()
             : AllLessons.OrderBy(_ => rng.Next()).Take(3).ToList();
@@ -462,12 +712,89 @@
         StateHasChanged();
     }
 
+    private async Task StartQuizSession()
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+
+        quizMode = true;
+        sessionQuiz = QuizScenarios.OrderBy(_ => rng.Next()).Take(QuizSessionSize).ToList();
+        quizIndex = 0;
+        gardenItems.Clear();
+        elapsedSeconds = 0;
+        showingGarden = false;
+        showingGardenAtSetup = false;
+
+        LoadQuizQuestion();
+        phase = Phase.Playing;
+        StartTimer();
+        StateHasChanged();
+    }
+
+    private void LoadQuizQuestion()
+    {
+        selectedChoiceIndex = null;
+        var scenario = sessionQuiz[quizIndex];
+        shuffledChoices = scenario.Choices.OrderBy(_ => rng.Next()).ToList();
+        SetNarration(scenario.Prompt);
+    }
+
+    private async Task ChooseQuizAnswer(int index)
+    {
+        // Already-picked wrong answers stay disabled (see the markup), but
+        // nothing stops re-picking a *different* option after a miss - same
+        // "never a dead end, try again" spirit as the tap-choice lessons.
+        if (selectedChoiceIndex == index && shuffledChoices[index].IsCorrect) return;
+
+        selectedChoiceIndex = index;
+        var choice = shuffledChoices[index];
+        if (!muted)
+        {
+            _ = SpeakAsync(choice.Feedback);
+        }
+        StateHasChanged();
+
+        if (choice.IsCorrect)
+        {
+            await Task.Delay(1600);
+            await CompleteQuizQuestion();
+        }
+    }
+
+    private async Task CompleteQuizQuestion()
+    {
+        var earned = GardenRewardPool[rng.Next(GardenRewardPool.Length)];
+        gardenItems.Add(earned);
+        persistedGardenItems.Add(earned);
+        phase = Phase.Reward;
+        StateHasChanged();
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            await Data.AddGardenItemAsync(ProfileId, earned);
+        }
+
+        await Task.Delay(1300);
+
+        if (quizIndex + 1 >= sessionQuiz.Count)
+        {
+            await FinishSession();
+        }
+        else
+        {
+            quizIndex++;
+            LoadQuizQuestion();
+            phase = Phase.Playing;
+            StateHasChanged();
+        }
+    }
+
     private void ExitToSetup()
     {
         StopTimer();
         _ = StopSpeakingAsync();
         phase = Phase.Setup;
         showingGarden = false;
+        quizMode = false;
     }
 
     private void ToggleGarden() => showingGarden = !showingGarden;
@@ -564,7 +891,7 @@
         if (OnComplete.HasDelegate)
         {
             await OnComplete.InvokeAsync(new MannersGardenResult(
-                ScenariosCompleted: sessionLessons.Count,
+                ScenariosCompleted: quizMode ? sessionQuiz.Count : sessionLessons.Count,
                 GardenItemsEarned: gardenItems.Count,
                 ElapsedSeconds: elapsedSeconds));
         }
