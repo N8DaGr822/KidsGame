@@ -86,6 +86,17 @@
     object-fit: contain;
 }
 
+.du-character-empty-icon {
+    width: 64px;
+    height: 64px;
+    border: 1px dashed rgba(255, 255, 255, 0.42);
+    border-radius: var(--radius-sm);
+    display: grid;
+    place-items: center;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 1.8rem;
+}
+
 .du-character-name {
     font-weight: 900;
 }
@@ -273,6 +284,10 @@
     pointer-events: none;
     transform: translate(-50%, -50%);
     user-select: none;
+}
+
+.du-base.empty {
+    opacity: 0;
 }
 
 .du-draw-canvas {

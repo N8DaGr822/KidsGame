@@ -37,7 +37,14 @@
                 @foreach (var character in Characters)
                 {
                     <button class="du-character-btn game-option-button" @onclick="() => ChooseCharacter(character)">
-                        <img class="du-character-icon" src="@character.ImagePath" alt="@character.Name" />
+                        @if (character.IsEmpty)
+                        {
+                            <span class="du-character-empty-icon" aria-hidden="true">🌄</span>
+                        }
+                        else
+                        {
+                            <img class="du-character-icon" src="@character.ImagePath" alt="@character.Name" />
+                        }
                         <span class="du-character-name">@character.Name</span>
                     </button>
                 }
@@ -52,7 +59,7 @@
                  @ref="stageRef"
                  @onpointerdown="OnStagePointerDown">
                 <div class="du-stage-content">
-                    <img class="du-base" @ref="baseImageRef" src="@selectedCharacter.ImagePath" alt="@selectedCharacter.Name" />
+                    <img class="du-base @(selectedCharacter.IsEmpty ? "empty" : "")" @ref="baseImageRef" src="@selectedCharacter.ImagePath" alt="@selectedCharacter.Name" />
 
                     @foreach (var placed in placedStickers)
                     {
@@ -211,7 +218,9 @@
             <div class="du-win-overlay game-result-overlay">
                 <div class="du-win-panel game-result-panel">
                     <h2>🎉 All dressed up!</h2>
-                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great styling" : PlayerName + ", great styling") on your @selectedCharacter.Name!</p>
+                    <p>@(selectedCharacter.IsEmpty
+                            ? (string.IsNullOrWhiteSpace(PlayerName) ? "Great scene!" : PlayerName + ", great scene!")
+                            : (string.IsNullOrWhiteSpace(PlayerName) ? "Great styling" : PlayerName + ", great styling") + " on your " + selectedCharacter.Name + "!")</p>
                     <div class="du-win-actions game-result-actions">
                         <button class="du-start-btn game-primary-action" @onclick="() => { celebrate = false; selectedCharacter = null; }">Dress Another</button>
                     </div>
@@ -276,9 +285,10 @@
     // single time it's placed.
     public record StickerDef(string Id, string Emoji, string Label, string? ImagePath = null, bool BehindCharacter = false, double DefaultScale = 1.0);
     public record StickerCategoryDef(string Id, string Icon, string Label, Func<StickerDef, bool> Includes);
-    public record CharacterOption(string Name, string ImagePath);
+    public record CharacterOption(string Name, string ImagePath, bool IsEmpty = false);
 
     private const string StickerArt = "images/dressup/stickers/";
+    private const string EmptyCharacterImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='896' height='1200' viewBox='0 0 896 1200'%3E%3C/svg%3E";
 
     // Every sticker is available for every character - drag any of these
     // onto whichever character is selected. Stickers without an ImagePath
@@ -386,6 +396,81 @@
         new StickerDef("wings", "🦋", "Wings", StickerArt + "FairyWings2.png", BehindCharacter: true, DefaultScale: 4.0),
         new StickerDef("fairy-wings", "🧚", "Fairy Wings", StickerArt + "FairyWings3.png", BehindCharacter: true, DefaultScale: 4.0),
         new StickerDef("jeweled-wings", "🧚", "Jeweled Wings", StickerArt + "FairyWings1.png", BehindCharacter: true, DefaultScale: 4.0),
+        new StickerDef("celestial-gown", "👗", "Celestial Gown", StickerArt + "Dress19.png", DefaultScale: 4.5),
+        new StickerDef("butterfly-corset", "🦋", "Butterfly Corset", StickerArt + "ButterflyTop.png", DefaultScale: 3.0),
+        new StickerDef("butterfly-skirt", "🦋", "Butterfly Skirt", StickerArt + "ButterflyBottom.png", DefaultScale: 3.0),
+        new StickerDef("butterfly-floral-crown", "🌸", "Butterfly Floral Crown", StickerArt + "ButterflyHat.png", DefaultScale: 0.85),
+        new StickerDef("butterfly-tiara", "👑", "Butterfly Tiara", StickerArt + "ButterflyTiara.png", DefaultScale: 0.75),
+        new StickerDef("jeweled-crown-2", "👑", "Jeweled Crown", StickerArt + "Crown5.png", DefaultScale: 0.9),
+        new StickerDef("butterfly-necklace", "🦋", "Butterfly Necklace", StickerArt + "ButterflyNecklace.png", DefaultScale: 0.9),
+        new StickerDef("pendant-10", "💎", "Emerald Pendant", StickerArt + "Pendent10.png", DefaultScale: 0.65),
+        new StickerDef("pendant-11", "🧭", "Compass Pendant", StickerArt + "Pendent11.png", DefaultScale: 0.65),
+        new StickerDef("pendant-12", "👁️", "Evil Eye Pendant", StickerArt + "Pendent12.png", DefaultScale: 0.65),
+        new StickerDef("pendant-13", "🐉", "Dragon Gem Pendant", StickerArt + "Pendent13.png", DefaultScale: 0.65),
+        new StickerDef("bag-4", "👜", "Magic Pouch", StickerArt + "Bag4.png", DefaultScale: 1.2),
+        new StickerDef("bag-10", "👜", "Enchanted Sack", StickerArt + "Bag10.png", DefaultScale: 1.2),
+        new StickerDef("fae-wings-2", "🦋", "Jeweled Butterfly Wings", StickerArt + "ButterflyWings.png", BehindCharacter: true, DefaultScale: 4.0),
+        new StickerDef("drinking-horn-1", "🐉", "Dragon Horn", StickerArt + "Horn3.png", DefaultScale: 1.3),
+        new StickerDef("drinking-horn-2", "🦄", "Silver Horn", StickerArt + "Horn4.png", DefaultScale: 1.3),
+        new StickerDef("heart-4", "💗", "Winged Heart", StickerArt + "Heart4.png"),
+        new StickerDef("spellbook-eye", "📖", "Eye Spellbook", StickerArt + "Book1.png", DefaultScale: 1.3),
+        new StickerDef("spellbook-runes", "📖", "Rune Spellbook", StickerArt + "Book2.png", DefaultScale: 1.3),
+        new StickerDef("spellbook-dragon", "📖", "Dragon Spellbook", StickerArt + "Book3.png", DefaultScale: 1.3),
+        new StickerDef("treasure-chest", "🗝️", "Treasure Chest", StickerArt + "Chest1.png", DefaultScale: 1.8),
+        new StickerDef("compass", "🧭", "Compass", StickerArt + "Compass1.png", DefaultScale: 1.0),
+        new StickerDef("dragon-egg-1", "🥚", "Teal Dragon Egg", StickerArt + "Egg1.png", DefaultScale: 1.6),
+        new StickerDef("dragon-egg-2", "🥚", "Stone Dragon Egg", StickerArt + "Egg2.png", DefaultScale: 1.6),
+        new StickerDef("magic-feather", "🪶", "Magic Feather", StickerArt + "Feather1.png", DefaultScale: 1.4),
+        new StickerDef("skeleton-key", "🔑", "Winged Key", StickerArt + "Key1.png", DefaultScale: 0.9),
+        new StickerDef("magic-lantern", "🏮", "Magic Lantern", StickerArt + "Lamp1.png", DefaultScale: 1.4),
+        new StickerDef("magnifying-glass-1", "🔍", "Magnifying Glass", StickerArt + "Micglass1.png", DefaultScale: 1.3),
+        new StickerDef("magnifying-glass-2", "🔍", "Dragon Claw Glass", StickerArt + "Micglass2.png", DefaultScale: 1.3),
+        new StickerDef("crystal-orb-1", "🔮", "Purple Crystal Orb", StickerArt + "Orb2.png", DefaultScale: 1.5),
+        new StickerDef("crystal-orb-2", "🔮", "Dragon Crystal Orb", StickerArt + "Orb3.png", DefaultScale: 1.5),
+        new StickerDef("quill-inkwell", "🖋️", "Quill & Inkwell", StickerArt + "Pen1.png", DefaultScale: 1.1),
+        new StickerDef("magic-potion", "🧪", "Magic Potion", StickerArt + "Potion1.png", DefaultScale: 1.0),
+        new StickerDef("hourglass-1", "⏳", "Emerald Hourglass", StickerArt + "Timer1.png", DefaultScale: 1.5),
+        new StickerDef("hourglass-2", "⏳", "Ruby Hourglass", StickerArt + "Timer2.png", DefaultScale: 1.5),
+        new StickerDef("magic-wand", "🪄", "Fae Wand", StickerArt + "ButterflyWand.png", DefaultScale: 1.6),
+        new StickerDef("crystal-1", "💎", "Pearl Crystal", StickerArt + "Crystal1.png", DefaultScale: 1.6),
+        new StickerDef("space-1", "🌌", "Space Sticker 1", StickerArt + "Space1.png", DefaultScale: 1.6),
+        new StickerDef("space-2", "🌌", "Space Sticker 2", StickerArt + "Space2.png", DefaultScale: 1.6),
+        new StickerDef("space-3", "🌌", "Space Sticker 3", StickerArt + "Space3.png", DefaultScale: 1.6),
+        new StickerDef("space-4", "🌌", "Space Sticker 4", StickerArt + "Space4.png", DefaultScale: 1.6),
+        new StickerDef("space-5", "🌌", "Space Sticker 5", StickerArt + "Space5.png", DefaultScale: 1.6),
+        new StickerDef("space-6", "🌌", "Space Sticker 6", StickerArt + "Space6.png", DefaultScale: 1.6),
+        new StickerDef("space-7", "🌌", "Space Sticker 7", StickerArt + "Space7.png", DefaultScale: 1.6),
+        new StickerDef("space-8", "🌌", "Space Sticker 8", StickerArt + "Space8.png", DefaultScale: 1.6),
+        new StickerDef("extra-sticker-01", "✨", "Sticker 1", StickerArt + "0dacb7f5-55d7-4cae-9c10-cc1f5526b1c0.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-02", "✨", "Sticker 2", StickerArt + "22608aed-6f84-4a6c-924b-b2298a59df6d.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-03", "✨", "Sticker 3", StickerArt + "29438f2d-79b8-4be5-88d4-9e989cd68203.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-04", "✨", "Sticker 4", StickerArt + "2d337018-36a6-40d6-b38b-2bc165b196ed.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-05", "✨", "Sticker 5", StickerArt + "3545f534-ce72-4de6-821e-eadd6e626a3c.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-06", "✨", "Sticker 6", StickerArt + "378f8127-c6fd-4a71-9c7b-ab01cf70802b.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-07", "✨", "Sticker 7", StickerArt + "397a4b5a-9ffd-42b2-928d-5280174359e2.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-08", "✨", "Sticker 8", StickerArt + "3c25ef13-6948-4a68-83f2-8175da4b7d15.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-09", "✨", "Sticker 9", StickerArt + "46796d28-8ab5-434c-af7e-cf4c5bf17e55.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-10", "✨", "Sticker 10", StickerArt + "46c6ab46-e86d-4969-aa66-a2a5e067d831.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-11", "✨", "Sticker 11", StickerArt + "5221a000-9e26-4c16-a88f-85d870195d52.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-12", "✨", "Sticker 12", StickerArt + "5babcc1b-a9f2-4988-afcd-3cf9e81aabe6.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-13", "✨", "Sticker 13", StickerArt + "5f54ed5e-e06d-47dd-ae0e-e384e31a754a.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-14", "✨", "Sticker 14", StickerArt + "69b9cd6b-7d03-429f-a997-a1126ee81017.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-15", "✨", "Sticker 15", StickerArt + "8d30fef5-3566-4a2d-87c8-f86af212b171.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-16", "✨", "Sticker 16", StickerArt + "9442ae7b-fd05-4eba-b220-16a1acd4f7e1.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-17", "✨", "Sticker 17", StickerArt + "a2c99da9-6922-40de-ae64-d423eb6b1458.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-18", "✨", "Sticker 18", StickerArt + "a3cc879e-1028-4980-8448-878f1ffbda49.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-19", "✨", "Sticker 19", StickerArt + "a76b6956-de2b-469c-b754-a89a97020e22.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-20", "✨", "Sticker 20", StickerArt + "b9390023-b529-4b92-bc77-b92be2a35345.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-21", "✨", "Sticker 21", StickerArt + "c0ce210b-ff49-4bde-825d-017b1eb1790b.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-22", "✨", "Sticker 22", StickerArt + "c45d4c01-e131-4265-8c21-9f864583ea5c.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-23", "✨", "Sticker 23", StickerArt + "c5ae3745-ec12-4c3f-9ff0-046a77e80cd0.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-24", "✨", "Sticker 24", StickerArt + "c81d8380-cdeb-46f8-8b18-ae8208396470.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-25", "✨", "Sticker 25", StickerArt + "cb7fbfac-6273-4d33-b862-3555079c44cf.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-26", "✨", "Sticker 26", StickerArt + "f2852fd5-26db-40e7-8357-377b74ace0f4.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-27", "✨", "Sticker 27", StickerArt + "f9d0c1ff-0eb8-49fd-bdde-67722ddf423a.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-28", "✨", "Sticker 28", StickerArt + "ff35b30b-f864-4f70-acd7-e3fffcb66d80.png", DefaultScale: 1.4),
+        new StickerDef("generated-sticker-1", "✨", "Generated Sticker 1", StickerArt + "Gemini_Generated_Image_mrwrobmrwrobmrwr.jpg", DefaultScale: 1.4),
+        new StickerDef("generated-sticker-2", "✨", "Generated Sticker 2", StickerArt + "Gemini_Generated_Image_mveoudmveoudmveo.jpg", DefaultScale: 1.4),
     };
 
     private static readonly List<StickerCategoryDef> StickerCategories = new()
@@ -396,6 +481,8 @@
         new("bags", "👛", "Bags", IsBagSticker),
         new("wearables", "👠", "Wearables", IsWearableSticker),
         new("fantasy", "🧚", "Fantasy", IsFantasySticker),
+        new("space", "🌌", "Space", IsSpaceSticker),
+        new("props", "🔮", "Props", IsPropSticker),
         new("decor", "✨", "Decor", IsDecorSticker),
     };
 
@@ -405,7 +492,9 @@
         sticker.Id.Contains("pinafore", StringComparison.Ordinal) ||
         sticker.Id.Contains("outfit", StringComparison.Ordinal) ||
         sticker.Id.Contains("tailcoat", StringComparison.Ordinal) ||
-        sticker.Id.Contains("pirate-coat", StringComparison.Ordinal);
+        sticker.Id.Contains("pirate-coat", StringComparison.Ordinal) ||
+        sticker.Id.Contains("corset", StringComparison.Ordinal) ||
+        sticker.Id.Contains("skirt", StringComparison.Ordinal);
 
     private static bool IsHeadwearSticker(StickerDef sticker) =>
         sticker.Id.Contains("crown", StringComparison.Ordinal) ||
@@ -433,6 +522,24 @@
         sticker.Id.Contains("wings", StringComparison.Ordinal) ||
         sticker.Id == "fire";
 
+    private static bool IsSpaceSticker(StickerDef sticker) =>
+        sticker.Id.StartsWith("space-", StringComparison.Ordinal);
+
+    // Adventure/treasure items to place in the scene rather than wear -
+    // too varied in kind (book, chest, potion, key...) for a shared
+    // keyword the way outfits/headwear/jewelry match on one, so this is
+    // an explicit id list instead of a substring check.
+    private static readonly HashSet<string> PropStickerIds = new()
+    {
+        "spellbook-eye", "spellbook-runes", "spellbook-dragon", "treasure-chest",
+        "compass", "dragon-egg-1", "dragon-egg-2", "magic-feather", "skeleton-key",
+        "magic-lantern", "magnifying-glass-1", "magnifying-glass-2", "crystal-orb-1",
+        "crystal-orb-2", "quill-inkwell", "magic-potion", "hourglass-1", "hourglass-2",
+        "magic-wand", "crystal-1",
+    };
+
+    private static bool IsPropSticker(StickerDef sticker) => PropStickerIds.Contains(sticker.Id);
+
     private static bool IsDecorSticker(StickerDef sticker) =>
         !StickerCategories
             .Where(category => category.Id != "decor")
@@ -440,13 +547,14 @@
 
     private static readonly List<CharacterOption> Characters = new()
     {
+        new("Empty Scene", EmptyCharacterImage, IsEmpty: true),
         new("Boy", "images/dressup/Boy.png"),
         new("Blonde Boy", "images/dressup/BlondeBoy.png"),
         new("Red Boy", "images/dressup/RedBoy.png"),
         new("Girl", "images/dressup/Girl.png"),
         new("Blonde Girl", "images/dressup/BlondeGirl.png"),
         new("Red Girl", "images/dressup/RedGirl.png"),
-        new("Knight", "images/dressup/knight.png"),
+        new("Knight", "images/dressup/Knight.png"),
         new("Wizard", "images/dressup/Wizard.png"),
         new("Sorceress", "images/dressup/Sorceress.png"),
         new("Dragon", "images/dressup/Dragon.png"),
@@ -596,6 +704,21 @@
         new("potion", "Potion Room", "images/dressup/Background6.png"),
         new("beach", "Seashell Cove", "images/dressup/Background7.png"),
         new("grove", "Fairy Grove", "images/dressup/Background8.png"),
+        new("meadow", "Moonlit Meadow", "images/dressup/Background9.png"),
+        new("garden", "Royal Garden", "images/dressup/Background10.png"),
+        new("starlake", "Star Lake", "images/dressup/Background11.png"),
+        new("rainbow", "Rainbow Path", "images/dressup/Background12.png"),
+        new("observatory", "Observatory", "images/dressup/Background13.png"),
+        new("tower", "Wizard Tower", "images/dressup/Background14.png"),
+        new("throne", "Crystal Throne", "images/dressup/Background15.png"),
+        new("waterfall", "Magic Waterfall", "images/dressup/Background16.png"),
+        new("village", "Storybook Village", "images/dressup/Background17.png"),
+        new("ballroom", "Moon Ballroom", "images/dressup/Background18.png"),
+        new("space-bridge", "Space Bridge", "images/dressup/SpaceBack1.png"),
+        new("space-station", "Space Station", "images/dressup/SpaceBack2.png"),
+        new("space-nebula", "Space Nebula", "images/dressup/SpaceBack3.png"),
+        new("space-planet", "Space Planet", "images/dressup/SpaceBack4.png"),
+        new("space-window", "Space Window", "images/dressup/SpaceBack5.png"),
     };
 
     private SceneDef selectedScene = Scenes[0];
