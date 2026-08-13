@@ -90,16 +90,17 @@
     font-weight: 900;
 }
 
-/* ---- HUD bar above the full-screen stage ---- */
+/* ---- HUD controls, hoisted into GameHost's own title bar via HudSlot ---- */
 
 .du-hud {
+    position: relative;
+    flex: 1;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     flex-wrap: wrap;
     gap: 0.7rem;
-    padding: 0.85rem clamp(0.75rem, 2vw, 1.5rem);
-    border-bottom: 1px solid var(--line);
+    min-width: 0;
 }
 
 .du-character-title {
@@ -113,6 +114,7 @@
 }
 
 .du-restart-btn,
+.du-menu-btn,
 .du-start-btn,
 .du-done-btn {
     min-height: 42px;
@@ -125,6 +127,36 @@
     border: 1px solid var(--line);
     background: var(--control-bg);
     color: var(--text);
+}
+
+.du-menu-btn {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    transform: translateY(-50%);
+    border: 1px solid var(--line);
+    background: var(--control-bg);
+    color: var(--text);
+}
+
+.du-action-menu {
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    right: 0;
+    z-index: 30;
+    width: min(260px, calc(100vw - 2rem));
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: rgba(16, 18, 26, 0.96);
+    box-shadow: var(--shadow-md);
+}
+
+.du-action-menu .du-restart-btn {
+    width: 100%;
+    text-align: left;
 }
 
 .du-start-btn,
@@ -140,12 +172,36 @@
 
 .du-done-btn {
     position: absolute;
-    bottom: 1.25rem;
-    left: 50%;
+    top: 1rem;
+    left: 1rem;
     z-index: 8;
-    transform: translateX(-50%);
     padding-inline: 1.3rem;
     box-shadow: var(--shadow-md);
+}
+
+.du-undo-btn {
+    position: absolute;
+    top: calc(1rem + 42px + 0.6rem);
+    left: 1rem;
+    z-index: 8;
+    min-height: 42px;
+    padding: 0.65rem 1rem;
+    /* var(--control-bg) is a near-transparent white meant for controls
+       sitting on the app's dark chrome - this button floats directly on
+       the light stage/scene art instead, same as .du-trash-zone below,
+       so it needs that same solid dark treatment or it barely tints the
+       background at all. */
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: var(--radius-sm);
+    background: rgba(16, 18, 26, 0.82);
+    color: var(--text);
+    font-weight: 900;
+    box-shadow: var(--shadow-md);
+}
+
+.du-undo-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
 }
 
 /* ---- Full-screen play area ---- */
@@ -161,10 +217,24 @@
     position: absolute;
     inset: 0;
     overflow: hidden;
-    /* Matches the pastel sky/cloud backdrop baked into the character art
-       itself, so the stage reads as one continuous scene instead of a
-       card floating on the app's dark theme. */
-    background: linear-gradient(180deg, #c9c2ea 0%, #dcd8f0 35%, #eef1fb 75%, #f5f4fa 100%);
+    /* background-image/background-size are set inline (see the markup),
+       since they depend on which scene is selected. The default "Sky"
+       scene shares the exact same 896x1200 canvas as every character
+       portrait, with a ground shadow pre-drawn at the spot a standing
+       character's feet land on - sizing it with the same
+       height:min(96%,72rem)/auto-width/centered rule as .du-base (rather
+       than background-size:cover) keeps the two images in lockstep so
+       that shadow stays under the feet at every viewport size. The other
+       scenes are plain landscape art at much lower native resolution
+       (~300-400px) than the stage renders at - background-size:cover
+       upscaled them to fill the stage completely, which blew them up
+       into a blurry, over-zoomed crop. contain keeps the whole scene
+       visible and never scales past its native size, at the cost of
+       letterbox bars (background-color below) where the aspect ratio
+       doesn't match (see selectedScene.Aligned). */
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-color: #eef1fb;
     /* Lets sticker sizing below use cqh (container query height) instead
        of vw - the character's own height is capped by the stage's actual
        rendered height (see .du-base), not by viewport width, so tying
@@ -183,6 +253,11 @@
 
 .du-stage.draw-mode.fill-tool {
     cursor: pointer;
+}
+
+.du-stage-content {
+    position: absolute;
+    inset: 0;
 }
 
 .du-base {
@@ -238,6 +313,21 @@
     transform: translate(-50%, -50%) rotate(var(--du-rotate, 0deg));
     user-select: none;
     -webkit-touch-callout: none;
+    pointer-events: none;
+}
+
+.du-placed-sticker-hitbox {
+    position: absolute;
+    inset: 14%;
+    z-index: 2;
+    border-radius: 999px;
+    cursor: grab;
+    pointer-events: auto;
+    touch-action: none;
+}
+
+.du-placed-sticker.dragging .du-placed-sticker-hitbox {
+    cursor: grabbing;
 }
 
 .du-placed-sticker-img {
@@ -325,6 +415,12 @@
     box-shadow: var(--shadow-sm);
     user-select: none;
     -webkit-touch-callout: none;
+    /* .du-placed-sticker (the parent) is pointer-events:none so stray
+       clicks near a sticker's edges don't catch it - only
+       .du-placed-sticker-hitbox opts back into auto for dragging. These
+       handles need the same opt-in, or they inherit none from the parent
+       and become unclickable despite being visibly rendered. */
+    pointer-events: auto;
 }
 
 .du-resize-handle {
@@ -338,6 +434,20 @@
     left: 50%;
     margin-left: -17px;
     cursor: grab;
+}
+
+/* Touch devices get pinch-to-resize instead (see TryBeginStickerPinch in
+   the code-behind) - these small drag handles are fiddly to hit with a
+   finger and redundant once pinch works, especially for a kid too young
+   to understand "drag this tiny dot." Keyed off pointer precision rather
+   than screen width: a tablet can be exactly as wide as a laptop window
+   (or wider), so a width breakpoint would misclassify it either way,
+   while pointer:coarse reliably means "no mouse/trackpad here." */
+@media (pointer: coarse) {
+    .du-resize-handle,
+    .du-rotate-handle {
+        display: none;
+    }
 }
 
 .du-trash-zone {
@@ -515,6 +625,46 @@
     background: var(--text);
 }
 
+.du-sticker-categories {
+    /* position: sticky; */
+    top: 0;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+    margin-bottom: 0.75rem;
+    padding: 0.25rem 0 0.65rem;
+    background: rgba(16, 18, 26, 0.96);
+}
+
+.du-sticker-category {
+    min-height: 42px;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+    color: var(--text-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    font-weight: 900;
+    line-height: 1;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.du-sticker-category.active {
+    border-color: var(--accent);
+    background: rgba(78, 205, 196, 0.18);
+    color: var(--accent-strong);
+}
+
+.du-sticker-category-icon {
+    font-size: 1rem;
+    line-height: 1;
+}
+
 .du-tray {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
@@ -555,6 +705,44 @@
 
 .du-tray-label {
     color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 900;
+    line-height: 1.1;
+    text-align: center;
+}
+
+.du-scene-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 0.6rem;
+}
+
+.du-scene-item {
+    padding: 0.4rem;
+    border: 2px solid var(--line);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    display: grid;
+    justify-items: center;
+    gap: 0.35rem;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.du-scene-item.active {
+    border-color: var(--accent);
+    background: rgba(78, 205, 196, 0.18);
+}
+
+.du-scene-thumb {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+}
+
+.du-scene-label {
     font-size: 0.72rem;
     font-weight: 900;
     line-height: 1.1;

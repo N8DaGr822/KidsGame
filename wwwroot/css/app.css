@@ -742,6 +742,14 @@ h1[tabindex="-1"]:focus {
 }
 
 .game-host-bar {
+  /* backdrop-filter below creates its own stacking context, which traps
+     any z-index set on a descendant (e.g. DressUpGame's .du-action-menu,
+     hoisted in here via HudSlot) inside it - without an explicit position
+     + z-index here, that trapped popup can't out-rank .game-host-surface
+     (painted later in DOM order) once it overflows past the bar's own
+     height, and ends up unclickable behind the game surface. */
+  position: relative;
+  z-index: 5;
   display: flex;
   align-items: center;
   gap: 0.75rem;

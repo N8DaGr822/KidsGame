@@ -211,7 +211,7 @@ export function undoLastStroke(canvas) {
 // getBoundingClientRect) rather than reimplementing its CSS layout rules
 // (centered, aspect-preserved, height-capped) in JS, so the export always
 // matches what's on screen even if that CSS changes later.
-export function exportOutfit(stageEl, baseImageEl, emojiStickers, drawCanvas, filename) {
+export async function exportOutfit(stageEl, baseImageEl, emojiStickers, drawCanvas, filename, sceneUrl, sceneAligned) {
     const stageRect = stageEl.getBoundingClientRect();
     const width = Math.max(1, Math.round(stageRect.width));
     const height = Math.max(1, Math.round(stageRect.height));
@@ -221,19 +221,42 @@ export function exportOutfit(stageEl, baseImageEl, emojiStickers, drawCanvas, fi
     outCanvas.height = height;
     const ctx = outCanvas.getContext('2d');
 
-    // Matches the stage's own pastel backdrop so the export doesn't have
-    // transparent edges around the character.
+    // Flat fallback in case the scene image below fails to load in time -
+    // matches .du-stage's own background-color fallback, so there's never
+    // a transparent gap around the character either way.
     ctx.fillStyle = '#eef1fb';
     ctx.fillRect(0, 0, width, height);
 
     const baseRect = baseImageEl.getBoundingClientRect();
-    ctx.drawImage(
-        baseImageEl,
-        baseRect.left - stageRect.left,
-        baseRect.top - stageRect.top,
-        baseRect.width,
-        baseRect.height
-    );
+
+    // Draw the selected scene the same way .du-stage's CSS does (see
+    // DressUpGame.razor.css): the aligned "Sky" scene shares the
+    // character's own sizing rule exactly, so it's drawn at baseRect's
+    // own position/size rather than recomputing that math here; the rest
+    // are plain landscape art at much lower native resolution than the
+    // stage, sized like background-size:contain so they're never
+    // upscaled past their native size into a blurry, over-zoomed crop.
+    if (sceneUrl) {
+        try {
+            const sceneImg = await loadImage(sceneUrl);
+            if (sceneAligned) {
+                ctx.drawImage(
+                    sceneImg,
+                    baseRect.left - stageRect.left,
+                    baseRect.top - stageRect.top,
+                    baseRect.width,
+                    baseRect.height
+                );
+            } else {
+                const containScale = Math.min(width / sceneImg.naturalWidth, height / sceneImg.naturalHeight);
+                const drawWidth = sceneImg.naturalWidth * containScale;
+                const drawHeight = sceneImg.naturalHeight * containScale;
+                ctx.drawImage(sceneImg, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+            }
+        } catch {
+            // Flat fallback fill above already covers this.
+        }
+    }
 
     // Image-backed stickers are real <img> elements on the stage - draw
     // each at its actual on-screen position/size rather than
@@ -244,46 +267,29 @@ export function exportOutfit(stageEl, baseImageEl, emojiStickers, drawCanvas, fi
     // dimensions and unaffected by transforms, so those give the real
     // (unrotated) size, while the bounding box's center point is still
     // accurate (rotating about the center doesn't move the center).
-    const stickerImgs = stageEl.querySelectorAll('.du-placed-sticker-img');
-    for (const img of stickerImgs) {
-        const stickerEl = img.closest('.du-placed-sticker');
-        const r = img.getBoundingClientRect();
-        const centerX = r.left + r.width / 2 - stageRect.left;
-        const centerY = r.top + r.height / 2 - stageRect.top;
-        const w = img.offsetWidth;
-        const h = img.offsetHeight;
-        const rotateDeg = stickerEl ? parseFloat(getComputedStyle(stickerEl).getPropertyValue('--du-rotate')) || 0 : 0;
+    //
+    // Wings use the "behind" class (see .du-placed-sticker.behind) to
+    // render behind the character on screen - split them out and draw
+    // them before the base image so the export matches, instead of every
+    // sticker landing on top of the character regardless of that class.
+    const stickerImgs = [...stageEl.querySelectorAll('.du-placed-sticker-img')];
+    const behindImgs = stickerImgs.filter((img) => img.closest('.du-placed-sticker')?.classList.contains('behind'));
+    const frontImgs = stickerImgs.filter((img) => !behindImgs.includes(img));
 
-        // A Fill-tool tint on this sticker is a CSS mask on a sibling
-        // .du-placed-sticker-tint div (see the markup) rather than a pixel
-        // change to the <img> itself, so it has to be reapplied here via
-        // canvas compositing or the exported PNG would silently lose it.
-        // Composited on its own small canvas first (source-in recolors
-        // only where the sticker art is opaque) rather than directly on
-        // outCanvas, which already has other content that source-in would
-        // otherwise clobber.
-        const tintEl = stickerEl ? stickerEl.querySelector('.du-placed-sticker-tint') : null;
-        const tintColor = tintEl ? tintEl.style.backgroundColor : '';
+    for (const img of behindImgs) {
+        drawStickerImg(ctx, img, stageRect);
+    }
 
-        ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.rotate((rotateDeg * Math.PI) / 180);
-        if (tintColor) {
-            const tw = Math.max(1, Math.round(w));
-            const th = Math.max(1, Math.round(h));
-            const tintCanvas = document.createElement('canvas');
-            tintCanvas.width = tw;
-            tintCanvas.height = th;
-            const tctx = tintCanvas.getContext('2d');
-            tctx.drawImage(img, 0, 0, tw, th);
-            tctx.globalCompositeOperation = 'source-in';
-            tctx.fillStyle = tintColor;
-            tctx.fillRect(0, 0, tw, th);
-            ctx.drawImage(tintCanvas, -w / 2, -h / 2, w, h);
-        } else {
-            ctx.drawImage(img, -w / 2, -h / 2, w, h);
-        }
-        ctx.restore();
+    ctx.drawImage(
+        baseImageEl,
+        baseRect.left - stageRect.left,
+        baseRect.top - stageRect.top,
+        baseRect.width,
+        baseRect.height
+    );
+
+    for (const img of frontImgs) {
+        drawStickerImg(ctx, img, stageRect);
     }
 
     // Stickers still on emoji fallback (no matching art yet) have no DOM
@@ -315,6 +321,57 @@ export function exportOutfit(stageEl, baseImageEl, emojiStickers, drawCanvas, fi
     document.body.appendChild(link);
     link.click();
     link.remove();
+}
+
+// Shared by exportOutfit's behind/front sticker passes above.
+function drawStickerImg(ctx, img, stageRect) {
+    const stickerEl = img.closest('.du-placed-sticker');
+    const r = img.getBoundingClientRect();
+    const centerX = r.left + r.width / 2 - stageRect.left;
+    const centerY = r.top + r.height / 2 - stageRect.top;
+    const w = img.offsetWidth;
+    const h = img.offsetHeight;
+    const rotateDeg = stickerEl ? parseFloat(getComputedStyle(stickerEl).getPropertyValue('--du-rotate')) || 0 : 0;
+
+    // A Fill-tool tint on this sticker is a CSS mask on a sibling
+    // .du-placed-sticker-tint div (see the markup) rather than a pixel
+    // change to the <img> itself, so it has to be reapplied here via
+    // canvas compositing or the exported PNG would silently lose it.
+    // Composited on its own small canvas first (source-in recolors only
+    // where the sticker art is opaque) rather than directly on ctx's
+    // canvas, which already has other content that source-in would
+    // otherwise clobber.
+    const tintEl = stickerEl ? stickerEl.querySelector('.du-placed-sticker-tint') : null;
+    const tintColor = tintEl ? tintEl.style.backgroundColor : '';
+
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    ctx.rotate((rotateDeg * Math.PI) / 180);
+    if (tintColor) {
+        const tw = Math.max(1, Math.round(w));
+        const th = Math.max(1, Math.round(h));
+        const tintCanvas = document.createElement('canvas');
+        tintCanvas.width = tw;
+        tintCanvas.height = th;
+        const tctx = tintCanvas.getContext('2d');
+        tctx.drawImage(img, 0, 0, tw, th);
+        tctx.globalCompositeOperation = 'source-in';
+        tctx.fillStyle = tintColor;
+        tctx.fillRect(0, 0, tw, th);
+        ctx.drawImage(tintCanvas, -w / 2, -h / 2, w, h);
+    } else {
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
+    }
+    ctx.restore();
+}
+
+function loadImage(src) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
 }
 
 // ---- Spoken narration (Web Speech API) --------------------------------

@@ -14,6 +14,7 @@
         <div class="game-host-bar">
             <button class="btn-secondary" @onclick="GoBack">← Exit game</button>
             <span class="game-host-title">@_game.Title</span>
+            @_hudSlot.Content
         </div>
 
         <div class="game-host-surface">
@@ -31,7 +32,7 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.DressUp)
             {
-                <DressUpGame PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleDressUpComplete" />
+                <DressUpGame PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleDressUpComplete" HudSlot="_hudSlot" />
             }
             else if (_game.LaunchTarget == BuiltInGames.MannersGarden)
             {
@@ -70,9 +71,12 @@
     private Game? _game;
     private DateTime? _sessionStartedAtUtc;
     private string? _difficultyOverride;
+    private readonly GameHudSlot _hudSlot = new();
 
     protected override async Task OnInitializedAsync()
     {
+        _hudSlot.Changed += HandleHudChanged;
+
         if (State.CurrentProfile is null)
         {
             Nav.NavigateTo("");
@@ -199,6 +203,8 @@
 
     private void GoBack() => Nav.NavigateTo("games");
 
+    private void HandleHudChanged() => InvokeAsync(StateHasChanged);
+
     // Built-in games log their own PlayHistoryEntry on completion (with
     // real gameplay stats). Iframe-hosted games have no completion signal
     // at all, so this is the only place their play time is ever recorded -
@@ -207,6 +213,8 @@
     // a "finish" that may never come.
     public async ValueTask DisposeAsync()
     {
+        _hudSlot.Changed -= HandleHudChanged;
+
         if (_game is { LaunchMode: GameLaunchMode.ExternalIframe } game
             && _sessionStartedAtUtc is { } startedAt
             && State.CurrentProfile is { } profile)

@@ -46,54 +46,53 @@
     }
     else
     {
-        <div class="du-hud">
-            <button class="du-restart-btn" @onclick="() => selectedCharacter = null">← Change Character</button>
-            <span class="du-character-title">@selectedCharacter.Name</span>
-            <button class="du-restart-btn" @onclick="ToggleFullscreen">@(isFullscreen ? "⛶ Exit Full Screen" : "⛶ Full Screen")</button>
-            <button class="du-restart-btn" disabled="@(undoStack.Count == 0)" @onclick="UndoAsync">↩️ Undo</button>
-            <button class="du-restart-btn" @onclick="ExportOutfitAsync">💾 Save Picture</button>
-            <button class="du-restart-btn" @onclick="ResetOutfit">Reset Outfit</button>
-        </div>
-
         <div class="du-play" @ref="playRef" @onpointermove="OnPointerMove" @onpointerup="OnPointerUp" @onpointercancel="OnPointerUp">
-            <div class="du-stage @(DrawMode ? "draw-mode" : "") @(DrawMode && drawTool == DrawTool.Fill ? "fill-tool" : "")" @ref="stageRef" @onpointerdown="OnStagePointerDown">
-                <img class="du-base" @ref="baseImageRef" src="@selectedCharacter.ImagePath" alt="@selectedCharacter.Name" />
+            <div class="du-stage @(DrawMode ? "draw-mode" : "") @(DrawMode && drawTool == DrawTool.Fill ? "fill-tool" : "")"
+                 style="background-image:url('@selectedScene.ImagePath'); background-size:@(selectedScene.Aligned ? "auto min(96%, 72rem)" : "contain");"
+                 @ref="stageRef"
+                 @onpointerdown="OnStagePointerDown">
+                <div class="du-stage-content">
+                    <img class="du-base" @ref="baseImageRef" src="@selectedCharacter.ImagePath" alt="@selectedCharacter.Name" />
 
-                @foreach (var placed in placedStickers)
-                {
-                    <span @key="placed.Id" class="du-placed-sticker @(IsBehindCharacter(placed.StickerId) ? "behind" : "") @(dragging == placed ? "dragging" : "") @(dragging == placed && overTrash ? "over-trash" : "") @(selectedSticker == placed ? "selected" : "")"
-                          style="left:@(placed.X.ToString(Inv))%; top:@(placed.Y.ToString(Inv))%; --du-scale:@(placed.Scale.ToString(Inv)); --du-rotate:@(placed.RotationDeg.ToString(Inv))deg;"
-                          @onpointerdown="e => StartDragPlaced(e, placed)"
-                          @onpointerdown:preventDefault>
-                        @if (ImagePathFor(placed.StickerId) is { } placedImgPath)
-                        {
-                            <img class="du-placed-sticker-img" src="@placedImgPath" alt="" draggable="false" />
-                            @if (placed.TintColor is { } tint)
+                    @foreach (var placed in placedStickers)
+                    {
+                        <span @key="placed.Id" class="du-placed-sticker @(IsBehindCharacter(placed.StickerId) ? "behind" : "") @(dragging == placed ? "dragging" : "") @(dragging == placed && overTrash ? "over-trash" : "") @(selectedSticker == placed ? "selected" : "")"
+                              style="left:@(placed.X.ToString(Inv))%; top:@(placed.Y.ToString(Inv))%; --du-scale:@(placed.Scale.ToString(Inv)); --du-rotate:@(placed.RotationDeg.ToString(Inv))deg;">
+                            <span class="du-placed-sticker-hitbox"
+                                  @onpointerdown="e => StartDragPlaced(e, placed)"
+                                  @onpointerdown:preventDefault
+                                  @onpointerdown:stopPropagation></span>
+
+                            @if (ImagePathFor(placed.StickerId) is { } placedImgPath)
                             {
-                                <div class="du-placed-sticker-tint"
-                                     style="mask-image:url('@placedImgPath');-webkit-mask-image:url('@placedImgPath');background-color:@tint;"></div>
+                                <img class="du-placed-sticker-img" src="@placedImgPath" alt="" draggable="false" />
+                                @if (placed.TintColor is { } tint)
+                                {
+                                    <div class="du-placed-sticker-tint"
+                                         style="mask-image:url('@placedImgPath');-webkit-mask-image:url('@placedImgPath');background-color:@tint;"></div>
+                                }
                             }
-                        }
-                        else
-                        {
-                            @placed.Emoji
-                        }
+                            else
+                            {
+                                @placed.Emoji
+                            }
 
-                        @if (selectedSticker == placed && !DrawMode)
-                        {
-                            <span class="du-resize-handle"
-                                  @onpointerdown="e => StartResize(e, placed)"
-                                  @onpointerdown:preventDefault
-                                  @onpointerdown:stopPropagation>↔</span>
-                            <span class="du-rotate-handle"
-                                  @onpointerdown="e => StartRotate(e, placed)"
-                                  @onpointerdown:preventDefault
-                                  @onpointerdown:stopPropagation>↻</span>
-                        }
-                    </span>
-                }
+                            @if (selectedSticker == placed && !DrawMode)
+                            {
+                                <span class="du-resize-handle"
+                                      @onpointerdown="e => StartResize(e, placed)"
+                                      @onpointerdown:preventDefault
+                                      @onpointerdown:stopPropagation>↔</span>
+                                <span class="du-rotate-handle"
+                                      @onpointerdown="e => StartRotate(e, placed)"
+                                      @onpointerdown:preventDefault
+                                      @onpointerdown:stopPropagation>↻</span>
+                            }
+                        </span>
+                    }
 
-                <canvas class="du-draw-canvas" @ref="canvasRef"></canvas>
+                    <canvas class="du-draw-canvas" @ref="canvasRef"></canvas>
+                </div>
 
                 <div class="du-trash-zone @(dragging is not null || (drawerOpen && activeTab == DrawerTab.Stickers) ? "visible" : "") @(overTrash ? "active" : "")" @ref="trashRef">🗑️</div>
             </div>
@@ -110,9 +109,24 @@
                     <button class="du-drawer-tab @(activeTab == DrawerTab.Draw ? "active" : "")" @onclick="() => activeTab = DrawerTab.Draw">
                         🖍️ Draw
                     </button>
+                    <button class="du-drawer-tab @(activeTab == DrawerTab.Scene ? "active" : "")" @onclick="() => activeTab = DrawerTab.Scene">
+                        🌄 Scene
+                    </button>
                 </div>
 
-                @if (activeTab == DrawerTab.Draw)
+                @if (activeTab == DrawerTab.Scene)
+                {
+                    <div class="du-scene-grid">
+                        @foreach (var scene in Scenes)
+                        {
+                            <button class="du-scene-item @(selectedScene.Id == scene.Id ? "active" : "")" @onclick="() => selectedScene = scene">
+                                <img class="du-scene-thumb" src="@scene.ImagePath" alt="" />
+                                <span class="du-scene-label">@scene.Name</span>
+                            </button>
+                        }
+                    </div>
+                }
+                else if (activeTab == DrawerTab.Draw)
                 {
                     <div class="du-draw-tools">
                         <div class="du-tool-row">
@@ -155,9 +169,20 @@
                 }
                 else
                 {
-                    <p class="du-drawer-hint">Drag a sticker onto the character - grab it as many times as you like. Tap a placed sticker to resize or rotate it.</p>
+                    <div class="du-sticker-categories" role="tablist" aria-label="Sticker categories">
+                        @foreach (var category in StickerCategories)
+                        {
+                            <button class="du-sticker-category @(activeStickerCategoryId == category.Id ? "active" : "")"
+                                    role="tab"
+                                    aria-selected="@(activeStickerCategoryId == category.Id)"
+                                    @onclick="() => activeStickerCategoryId = category.Id">
+                                <span class="du-sticker-category-icon">@category.Icon</span>
+                                <span>@category.Label</span>
+                            </button>
+                        }
+                    </div>
                     <div class="du-tray">
-                        @foreach (var sticker in AllStickers)
+                        @foreach (var sticker in ActiveStickers)
                         {
                             <div @key="sticker.Id" class="du-tray-item"
                                  @onpointerdown="e => StartDragFromTray(e, sticker)"
@@ -178,6 +203,7 @@
             </div>
 
             <button class="du-done-btn" @onclick="FinishDressUp">Done! 🎉</button>
+            <button class="du-undo-btn" disabled="@(undoStack.Count == 0)" @onclick="UndoAsync">↩️ Undo</button>
         </div>
 
         @if (celebrate)
@@ -207,6 +233,40 @@
     /// <summary>Fired when the kid taps "Done!" on a dressed-up character.</summary>
     [Parameter] public EventCallback<DressUpResult> OnComplete { get; set; }
 
+    /// <summary>Host-provided slot this game pushes its title-bar controls into, instead of drawing its own second bar.</summary>
+    [Parameter] public GameHudSlot? HudSlot { get; set; }
+
+    // Rendered inside GameHost's tree (via HudSlot), not this component's
+    // own - Blazor's automatic post-event StateHasChanged() only refreshes
+    // whichever tree an element actually lives in, so nothing here updates
+    // on screen unless we explicitly re-push it. PushHud() does that; call
+    // it after anything that changes what this fragment reads.
+    private void PushHud() => HudSlot?.Set(selectedCharacter is null ? null : HudFragment);
+
+    private void ToggleActionMenu()
+    {
+        actionMenuOpen = !actionMenuOpen;
+        PushHud();
+    }
+
+    private RenderFragment HudFragment =>
+        @<div class="du-hud">
+            <span class="du-character-title">@selectedCharacter!.Name</span>
+            <button class="du-menu-btn" @onclick="ToggleActionMenu" aria-expanded="@actionMenuOpen" aria-label="Open dress up menu">
+                ☰ Menu
+            </button>
+
+            @if (actionMenuOpen)
+            {
+                <div class="du-action-menu">
+                    <button class="du-restart-btn" @onclick="ChangeCharacter">← Change Character</button>
+                    <button class="du-restart-btn" @onclick="ToggleFullscreen">@(isFullscreen ? "⛶ Exit Full Screen" : "⛶ Full Screen")</button>
+                    <button class="du-restart-btn" @onclick="ExportOutfitAsync">💾 Save Picture</button>
+                    <button class="du-restart-btn" @onclick="ResetOutfit">Reset Outfit</button>
+                </div>
+            }
+        </div>;
+
     // ---- Character catalog -------------------------------------------------
 
     // DefaultScale is what a sticker is placed at when first dragged from
@@ -215,6 +275,7 @@
     // "worn" rather than a badge the kid has to manually blow up every
     // single time it's placed.
     public record StickerDef(string Id, string Emoji, string Label, string? ImagePath = null, bool BehindCharacter = false, double DefaultScale = 1.0);
+    public record StickerCategoryDef(string Id, string Icon, string Label, Func<StickerDef, bool> Includes);
     public record CharacterOption(string Name, string ImagePath);
 
     private const string StickerArt = "images/dressup/stickers/";
@@ -246,10 +307,10 @@
         new StickerDef("unicorn-sparkle-dress", "👗", "Unicorn Sparkle Dress", StickerArt + "Dress16.png", DefaultScale: 4.5),
         new StickerDef("frost-unicorn-gown", "👗", "Frost Unicorn Gown", StickerArt + "Dress17.png", DefaultScale: 4.5),
         new StickerDef("frost-star-gown", "👗", "Frost Star Gown", StickerArt + "Dress18.png", DefaultScale: 4.5),
-        new StickerDef("royal-tailcoat", "🤵", "Royal Tailcoat", StickerArt + "Outfit1.png", DefaultScale: 4.5),
-        new StickerDef("crimson-pirate-coat", "🏴‍☠️", "Crimson Pirate Coat", StickerArt + "Pirate1.png", DefaultScale: 4.5),
-        new StickerDef("azure-pirate-coat", "🏴‍☠️", "Azure Pirate Coat", StickerArt + "Pirate2.png", DefaultScale: 4.5),
-        new StickerDef("fae-outfit", "🧝", "Forest Fae Outfit", StickerArt + "Fairy1.png", DefaultScale: 4.5),
+        new StickerDef("royal-tailcoat", "🤵", "Royal Tailcoat", StickerArt + "Outfit1.png", DefaultScale: 5.5),
+        new StickerDef("crimson-pirate-coat", "🏴‍☠️", "Crimson Pirate Coat", StickerArt + "Pirate1.png", DefaultScale: 5.5),
+        new StickerDef("azure-pirate-coat", "🏴‍☠️", "Azure Pirate Coat", StickerArt + "Pirate2.png", DefaultScale: 5.5),
+        new StickerDef("fae-outfit", "🧝", "Forest Fae Outfit", StickerArt + "Fairy1.png", DefaultScale: 5.5),
         new StickerDef("necklace", "📿", "Necklace", StickerArt + "Necklace1.png", DefaultScale: 0.9),
         new StickerDef("silver-necklace", "📿", "Silver Necklace", StickerArt + "Necklace2.png", DefaultScale: 0.9),
         new StickerDef("pearl-necklace", "📿", "Pearl & Coral Necklace", StickerArt + "Necklace3.png", DefaultScale: 0.9),
@@ -319,21 +380,77 @@
         new StickerDef("cat", "🐈‍⬛", "Black Cat", StickerArt + "Cat.png"),
         new StickerDef("sparkles", "✨", "Sparkles", StickerArt + "Sparkle.png"),
         new StickerDef("heart", "💖", "Heart", StickerArt + "Heart.png"),
+        new StickerDef("heart-2", "❤️", "Heart 2", StickerArt + "Heart2.png"),
+        new StickerDef("heart-sparkle", "💗", "Sparkle Heart", StickerArt + "HeartSparkle.png"),
         new StickerDef("fire", "🔥", "Fire", StickerArt + "Fire.png"),
         new StickerDef("wings", "🦋", "Wings", StickerArt + "FairyWings2.png", BehindCharacter: true, DefaultScale: 4.0),
         new StickerDef("fairy-wings", "🧚", "Fairy Wings", StickerArt + "FairyWings3.png", BehindCharacter: true, DefaultScale: 4.0),
         new StickerDef("jeweled-wings", "🧚", "Jeweled Wings", StickerArt + "FairyWings1.png", BehindCharacter: true, DefaultScale: 4.0),
     };
 
+    private static readonly List<StickerCategoryDef> StickerCategories = new()
+    {
+        new("outfits", "👗", "Outfits", IsOutfitSticker),
+        new("headwear", "👑", "Headwear", IsHeadwearSticker),
+        new("jewelry", "📿", "Jewelry", IsJewelrySticker),
+        new("bags", "👛", "Bags", IsBagSticker),
+        new("wearables", "👠", "Wearables", IsWearableSticker),
+        new("fantasy", "🧚", "Fantasy", IsFantasySticker),
+        new("decor", "✨", "Decor", IsDecorSticker),
+    };
+
+    private static bool IsOutfitSticker(StickerDef sticker) =>
+        sticker.Id.Contains("dress", StringComparison.Ordinal) ||
+        sticker.Id.Contains("gown", StringComparison.Ordinal) ||
+        sticker.Id.Contains("pinafore", StringComparison.Ordinal) ||
+        sticker.Id.Contains("outfit", StringComparison.Ordinal) ||
+        sticker.Id.Contains("tailcoat", StringComparison.Ordinal) ||
+        sticker.Id.Contains("pirate-coat", StringComparison.Ordinal);
+
+    private static bool IsHeadwearSticker(StickerDef sticker) =>
+        sticker.Id.Contains("crown", StringComparison.Ordinal) ||
+        sticker.Id.Contains("hat", StringComparison.Ordinal) ||
+        sticker.Id.Contains("tiara", StringComparison.Ordinal);
+
+    private static bool IsJewelrySticker(StickerDef sticker) =>
+        sticker.Id.Contains("necklace", StringComparison.Ordinal) ||
+        sticker.Id.Contains("pendant", StringComparison.Ordinal) ||
+        sticker.Id.Contains("bracelet", StringComparison.Ordinal);
+
+    private static bool IsBagSticker(StickerDef sticker) =>
+        sticker.Id.Contains("bag", StringComparison.Ordinal) ||
+        sticker.Id.Contains("purse", StringComparison.Ordinal);
+
+    private static bool IsWearableSticker(StickerDef sticker) =>
+        sticker.Id.Contains("shoes", StringComparison.Ordinal) ||
+        sticker.Id.Contains("boots", StringComparison.Ordinal) ||
+        sticker.Id.Contains("gloves", StringComparison.Ordinal) ||
+        sticker.Id.Contains("belt", StringComparison.Ordinal) ||
+        sticker.Id.Contains("shoulder", StringComparison.Ordinal);
+
+    private static bool IsFantasySticker(StickerDef sticker) =>
+        sticker.Id.Contains("horn", StringComparison.Ordinal) ||
+        sticker.Id.Contains("wings", StringComparison.Ordinal) ||
+        sticker.Id == "fire";
+
+    private static bool IsDecorSticker(StickerDef sticker) =>
+        !StickerCategories
+            .Where(category => category.Id != "decor")
+            .Any(category => category.Includes(sticker));
+
     private static readonly List<CharacterOption> Characters = new()
     {
-        new("Princess", "images/dressup/Princess.png"),
-        new("Prince", "images/dressup/Prince.png"),
+        new("Boy", "images/dressup/Boy.png"),
+        new("Blonde Boy", "images/dressup/BlondeBoy.png"),
+        new("Red Boy", "images/dressup/RedBoy.png"),
+        new("Girl", "images/dressup/Girl.png"),
+        new("Blonde Girl", "images/dressup/BlondeGirl.png"),
+        new("Red Girl", "images/dressup/RedGirl.png"),
         new("Knight", "images/dressup/knight.png"),
-        new("Unicorn", "images/dressup/Unicorn.png"),
-        new("Dragon", "images/dressup/Dragon.png"),
         new("Wizard", "images/dressup/Wizard.png"),
-        new("Sorceress", "images/dressup/Sorc.png"),
+        new("Sorceress", "images/dressup/Sorceress.png"),
+        new("Dragon", "images/dressup/Dragon.png"),
+        new("Unicorn", "images/dressup/Unicorn.png"),
     };
 
     // ---- Placed-sticker model ----------------------------------------------
@@ -363,6 +480,7 @@
     private readonly List<PlacedSticker> placedStickers = new();
     private bool celebrate;
     private bool drawerOpen;
+    private bool actionMenuOpen;
 
     private ElementReference stageRef;
     private ElementReference baseImageRef;
@@ -397,6 +515,7 @@
     {
         isFullscreen = nowFullscreen;
         StateHasChanged();
+        PushHud();
     }
 
     // ---- Undo -----------------------------------------------------------
@@ -450,20 +569,57 @@
     // mode, so there's exactly one obvious thing controlling whether a
     // tap on the character draws or drags a sticker.
 
-    private enum DrawerTab { Stickers, Draw }
+    private enum DrawerTab { Stickers, Draw, Scene }
 
     private DrawerTab activeTab = DrawerTab.Stickers;
 
     private bool DrawMode => activeTab == DrawerTab.Draw;
+
+    private string activeStickerCategoryId = StickerCategories[0].Id;
+
+    // ---- Scenes --------------------------------------------------------------
+
+    // Aligned=true means the art shares the character portraits' own
+    // 896x1200 canvas (see .du-stage's background-size in the CSS) - only
+    // the default Sky scene does; the rest are plain landscape art sized
+    // as background-size:cover instead.
+    public record SceneDef(string Id, string Name, string ImagePath, bool Aligned = false);
+
+    private static readonly List<SceneDef> Scenes = new()
+    {
+        new("sky", "Sky", "images/dressup/Background.png", Aligned: true),
+        new("forest", "Crystal Forest", "images/dressup/Background1.png"),
+        new("cave", "Crystal Cave", "images/dressup/Background2.png"),
+        new("castle", "Cloud Castle", "images/dressup/Background3.png"),
+        new("cosmic", "Cosmic Mountains", "images/dressup/Background4.png"),
+        new("library", "Magic Library", "images/dressup/Background5.png"),
+        new("potion", "Potion Room", "images/dressup/Background6.png"),
+        new("beach", "Seashell Cove", "images/dressup/Background7.png"),
+        new("grove", "Fairy Grove", "images/dressup/Background8.png"),
+    };
+
+    private SceneDef selectedScene = Scenes[0];
+
+    private IEnumerable<StickerDef> ActiveStickers =>
+        (StickerCategories.FirstOrDefault(category => category.Id == activeStickerCategoryId) ?? StickerCategories[0])
+        .Includes is { } includes
+            ? AllStickers.Where(includes)
+            : AllStickers;
 
     // ---- Sticker resize -------------------------------------------------
 
     private PlacedSticker? selectedSticker;
     private PlacedSticker? resizing;
     private double resizeStartClientX, resizeStartClientY, resizeStartScale;
+    private PlacedSticker? pinchingSticker;
+    private double pinchStartDistance, pinchStartScale;
+    private readonly Dictionary<long, StickerPointer> activeStickerPointers = new();
 
     private const double MinScale = 0.5;
     private const double MaxScale = 8.0;
+    private const double MinPinchDistance = 12.0;
+
+    private record StickerPointer(PlacedSticker Sticker, double ClientX, double ClientY);
 
     private async Task StartResize(PointerEventArgs e, PlacedSticker placed)
     {
@@ -475,6 +631,59 @@
         resizeStartClientX = e.ClientX;
         resizeStartClientY = e.ClientY;
         resizeStartScale = placed.Scale;
+    }
+
+    private bool TryBeginStickerPinch(PlacedSticker placed)
+    {
+        var pointers = ActivePinchPointers(placed);
+        if (pointers.Count < 2) return false;
+
+        dragging = null;
+        resizing = null;
+        rotating = null;
+        overTrash = false;
+        selectedSticker = placed;
+        pinchingSticker = placed;
+        pinchStartDistance = Math.Max(MinPinchDistance, Distance(pointers[0], pointers[1]));
+        pinchStartScale = placed.Scale;
+        StateHasChanged();
+        return true;
+    }
+
+    private void UpdateStickerPinch()
+    {
+        if (pinchingSticker is null) return;
+
+        var pointers = ActivePinchPointers(pinchingSticker);
+        if (pointers.Count < 2) return;
+
+        var currentDistance = Math.Max(MinPinchDistance, Distance(pointers[0], pointers[1]));
+        pinchingSticker.Scale = Math.Clamp(pinchStartScale * (currentDistance / pinchStartDistance), MinScale, MaxScale);
+        StateHasChanged();
+    }
+
+    private List<StickerPointer> ActivePinchPointers(PlacedSticker placed) =>
+        activeStickerPointers.Values
+            .Where(pointer => ReferenceEquals(pointer.Sticker, placed))
+            .Take(2)
+            .ToList();
+
+    private static double Distance(StickerPointer first, StickerPointer second)
+    {
+        var dx = first.ClientX - second.ClientX;
+        var dy = first.ClientY - second.ClientY;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    private void ClearStickerGestureState()
+    {
+        activeStickerPointers.Clear();
+        pinchingSticker = null;
+        pinchStartDistance = 0;
+        dragging = null;
+        resizing = null;
+        rotating = null;
+        overTrash = false;
     }
 
     // ---- Sticker rotate ---------------------------------------------------
@@ -501,8 +710,7 @@
 
         rotating = placed;
         selectedSticker = placed;
-        rotateCenterClientX = stageLeft + (placed.X / 100.0) * stageWidth;
-        rotateCenterClientY = stageTop + (placed.Y / 100.0) * stageHeight;
+        (rotateCenterClientX, rotateCenterClientY) = ToClientPoint(placed.X, placed.Y);
         rotateStartAngleDeg = AngleDeg(e.ClientX, e.ClientY);
         rotateStartRotationDeg = placed.RotationDeg;
     }
@@ -515,7 +723,18 @@
         selectedCharacter = character;
         placedStickers.Clear();
         undoStack.Clear();
+        ClearStickerGestureState();
         selectedSticker = null;
+        actionMenuOpen = false;
+        PushHud();
+    }
+
+    private void ChangeCharacter()
+    {
+        ClearStickerGestureState();
+        selectedCharacter = null;
+        actionMenuOpen = false;
+        PushHud();
     }
 
     // A full reset also resets undo history - keeping stale sticker/stroke
@@ -526,7 +745,10 @@
     {
         placedStickers.Clear();
         undoStack.Clear();
+        ClearStickerGestureState();
         selectedSticker = null;
+        actionMenuOpen = false;
+        PushHud();
     }
 
     // ---- Drag and drop (Pointer Events - works for mouse, touch, pen) ------
@@ -548,6 +770,12 @@
     private async Task StartDragPlaced(PointerEventArgs e, PlacedSticker placed)
     {
         if (DrawMode) return;
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync("setPointerCapture", playRef, e.PointerId);
+
+        activeStickerPointers[e.PointerId] = new StickerPointer(placed, e.ClientX, e.ClientY);
+        if (TryBeginStickerPinch(placed)) return;
+
         await BeginDrag(e, placed);
     }
 
@@ -583,6 +811,17 @@
 
     private void OnPointerMove(PointerEventArgs e)
     {
+        if (activeStickerPointers.TryGetValue(e.PointerId, out var pointer))
+        {
+            activeStickerPointers[e.PointerId] = pointer with { ClientX = e.ClientX, ClientY = e.ClientY };
+        }
+
+        if (pinchingSticker is not null)
+        {
+            UpdateStickerPinch();
+            return;
+        }
+
         if (isDrawing)
         {
             // Fire-and-forget: the canvas paints itself in JS, so there's
@@ -619,6 +858,19 @@
 
     private async Task OnPointerUp(PointerEventArgs e)
     {
+        activeStickerPointers.Remove(e.PointerId);
+        if (pinchingSticker is not null)
+        {
+            if (ActivePinchPointers(pinchingSticker).Count < 2)
+            {
+                pinchingSticker = null;
+                pinchStartDistance = 0;
+            }
+
+            StateHasChanged();
+            return;
+        }
+
         if (isDrawing)
         {
             isDrawing = false;
@@ -716,7 +968,10 @@
             // no-op visually) but still burn a slot a kid would expect to
             // undo something real.
             var filled = await _module.InvokeAsync<bool>("floodFill", canvasRef, e.ClientX - stageLeft, e.ClientY - stageTop, drawColor);
-            if (filled) undoStack.Push(new StrokeEntry());
+            if (filled)
+            {
+                undoStack.Push(new StrokeEntry());
+            }
             return;
         }
 
@@ -776,7 +1031,7 @@
             .ToArray();
         var filename = $"dress-up-{selectedCharacter!.Name.ToLowerInvariant()}.png";
 
-        await _module.InvokeVoidAsync("exportOutfit", stageRef, baseImageRef, emojiStickers, canvasRef, filename);
+        await _module.InvokeVoidAsync("exportOutfit", stageRef, baseImageRef, emojiStickers, canvasRef, filename, selectedScene.ImagePath, selectedScene.Aligned);
     }
 
     private static string? ImagePathFor(string stickerId) =>
@@ -800,6 +1055,9 @@
         var y = (clientY - stageTop) / stageHeight * 100;
         return (x, y);
     }
+
+    private (double clientX, double clientY) ToClientPoint(double xPercent, double yPercent) =>
+        (stageLeft + (xPercent / 100.0) * stageWidth, stageTop + (yPercent / 100.0) * stageHeight);
 
     private void SetDragPosition(double clientX, double clientY, bool clamp)
     {
@@ -834,6 +1092,8 @@
 
     public async ValueTask DisposeAsync()
     {
+        HudSlot?.Set(null);
+
         if (_module is not null)
         {
             try
