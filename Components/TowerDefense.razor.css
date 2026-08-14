@@ -162,6 +162,61 @@
     font-weight: 800;
 }
 
+.td-tower-panel {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    width: min(560px, 96vw);
+    margin: 0 auto;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid rgba(78, 205, 196, 0.5);
+    border-radius: var(--radius-md);
+    background: var(--selected-bg);
+}
+
+.td-tower-panel-icon {
+    width: 2.6rem;
+    height: 2.6rem;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.td-tower-panel-info {
+    display: grid;
+    gap: 0.15rem;
+    margin-right: auto;
+}
+
+.td-tower-panel-name {
+    font-weight: 900;
+}
+
+.td-tower-panel-level {
+    color: var(--text-muted);
+    font-weight: 800;
+    font-size: 0.8rem;
+}
+
+.td-tower-panel-stats {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.td-tower-panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.td-panel-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 38px;
+}
+
 .td-board {
     position: relative;
     display: grid;
@@ -194,10 +249,60 @@
     background: #c79a5b;
 }
 
+.td-cell.selected-tower {
+    outline: 3px solid #ffd43b;
+    outline-offset: -3px;
+    z-index: 1;
+}
+
 .td-tower-icon {
     width: 82%;
     height: 82%;
     object-fit: contain;
+}
+
+.td-range-circle {
+    position: absolute;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: rgba(110, 231, 160, 0.14);
+    border: 2px solid rgba(110, 231, 160, 0.55);
+    pointer-events: none;
+}
+
+.td-range-circle.preview {
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px dashed rgba(255, 255, 255, 0.45);
+}
+
+.td-shot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: left 0.09s linear, top 0.09s linear;
+    pointer-events: none;
+    z-index: 2;
+    box-shadow: 0 0 4px 1px currentColor;
+}
+
+.td-shot.gatling {
+    background: #ffe066;
+    color: #ffe066;
+}
+
+.td-shot.cannon {
+    background: #ffa94d;
+    color: #ffa94d;
+}
+
+.td-shot.rocket {
+    width: 10px;
+    height: 10px;
+    background: #ff6b6b;
+    color: #ff6b6b;
 }
 
 .td-enemy {

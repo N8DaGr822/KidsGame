@@ -9,12 +9,20 @@
     Enemies walk a fixed S-shaped path across a 12x8 grid; tap a grass
     cell with a tower selected from the build palette to place it (if you
     can afford it). Towers auto-fire at the enemy furthest along the path
-    that's within range. Clear a wave, spend earned gold on more towers,
-    then start the next wave when ready - waves don't start automatically,
-    so pacing stays in the player's hands. Reach the end of the path and
-    an enemy costs you lives instead of gold; run out of lives and the
-    run ends. Difficulty controls starting gold/lives and enemy HP scaling
-    rather than adding an AI opponent (there isn't one here).
+    that's within range, with a small traveling dot standing in for the
+    shot so hits read clearly. Clear a wave, spend earned gold on more
+    towers, then start the next wave when ready - waves don't start
+    automatically, so pacing stays in the player's hands. Reach the end
+    of the path and an enemy costs you lives instead of gold; run out of
+    lives and the run ends. Difficulty controls starting gold/lives and
+    enemy HP scaling rather than adding an AI opponent (there isn't one
+    here).
+
+    Tap a placed tower to select it - a range circle shows its coverage
+    and a small panel offers Upgrade (stronger/faster, up to
+    MaxTowerLevel) or Sell (60% of everything spent on it back). Tap a
+    build-palette tower and hover a grass cell (mouse only - there's no
+    touch equivalent of hover) to preview its range before committing.
 
     Usage:
         <TowerDefense OnComplete="HandleGameComplete" />
@@ -76,6 +84,29 @@
             }
         </div>
 
+        @if (selectedPlacedTowerPos is { } selPos && towers.TryGetValue(selPos, out var selTower))
+        {
+            <div class="td-tower-panel">
+                <img class="td-tower-panel-icon" src="@selTower.Type.ImagePath" alt="" />
+                <div class="td-tower-panel-info">
+                    <span class="td-tower-panel-name">@selTower.Type.Name <span class="td-tower-panel-level">Lv.@selTower.Level</span></span>
+                    <span class="td-tower-panel-stats">⚔️ @EffectiveDamage(selTower) 🎯 @EffectiveRange(selTower).ToString("0.#") ⏱️ @(EffectiveFireIntervalMs(selTower))ms</span>
+                </div>
+                <div class="td-tower-panel-actions">
+                    @if (selTower.Level < MaxTowerLevel)
+                    {
+                        <button class="td-panel-btn game-primary-action" disabled="@(gold < UpgradeCost(selTower))" @onclick="() => UpgradeTower(selPos)">
+                            Upgrade <img class="td-coin-icon" src="images/tower-defense/coin.png" alt="" />@UpgradeCost(selTower)
+                        </button>
+                    }
+                    <button class="td-panel-btn game-secondary-action" @onclick="() => SellTower(selPos)">
+                        Sell <img class="td-coin-icon" src="images/tower-defense/coin.png" alt="" />@SellValue(selTower)
+                    </button>
+                    <button class="td-panel-btn game-secondary-action" @onclick="() => selectedPlacedTowerPos = null">Close</button>
+                </div>
+            </div>
+        }
+
         <div class="td-board" style="--td-cols:@GridCols; --td-rows:@GridRows;">
             @for (var row = 0; row < GridRows; row++)
             {
@@ -86,9 +117,11 @@
                     var isPath = PathSet.Contains((c, r));
                     towers.TryGetValue((c, r), out var placed);
 
-                    <button class="td-cell @(isPath ? "path" : "grass") @(placed is not null ? "occupied" : "")"
-                            disabled="@(isPath || placed is not null || phase != Phase.Playing)"
-                            @onclick="() => PlaceTower(c, r)">
+                    <button class="td-cell @(isPath ? "path" : "grass") @(placed is not null ? "occupied" : "") @(selectedPlacedTowerPos == (c, r) ? "selected-tower" : "")"
+                            disabled="@(isPath || phase != Phase.Playing)"
+                            @onclick="() => HandleCellClick(c, r)"
+                            @onpointerenter="() => HoverCell(c, r)"
+                            @onpointerleave="() => ClearHover(c, r)">
                         @if (placed is not null)
                         {
                             <img class="td-tower-icon" src="@placed.Type.ImagePath" alt="@placed.Type.Name" />
@@ -97,12 +130,26 @@
                 }
             }
 
+            @if (selectedPlacedTowerPos is { } rangePos && towers.TryGetValue(rangePos, out var rangeTower))
+            {
+                <div class="td-range-circle" style="@RangeCircleStyle(rangePos, EffectiveRange(rangeTower))"></div>
+            }
+            else if (selectedTowerType is { } previewType && hoverPreviewCell is { } hoverPos)
+            {
+                <div class="td-range-circle preview" style="@RangeCircleStyle(hoverPos, previewType.RangeCells)"></div>
+            }
+
             @foreach (var enemy in enemies)
             {
                 <div @key="enemy.Id" class="td-enemy @(enemy.HitFlashMs > 0 ? "hit" : "")" style="@EnemyStyle(enemy)">
                     <img class="td-enemy-icon" src="@enemy.Type.ImagePath" alt="" />
                     <div class="td-enemy-hp"><div class="td-enemy-hp-fill" style="width:@((enemy.Hp / enemy.Type.Hp * 100).ToString("0", System.Globalization.CultureInfo.InvariantCulture))%;"></div></div>
                 </div>
+            }
+
+            @foreach (var shot in shots)
+            {
+                <div @key="shot.Id" class="td-shot @shot.TowerTypeId" style="@ShotStyle(shot)"></div>
             }
         </div>
 
@@ -214,10 +261,14 @@
 
     // ---- Runtime state --------------------------------------------------
 
+    private const int MaxTowerLevel = 3;
+
     private class PlacedTower
     {
         public required TowerType Type;
         public int CooldownMs;
+        public int Level = 1;
+        public int TotalInvested;
     }
 
     private class ActiveEnemy
@@ -229,13 +280,33 @@
         public int HitFlashMs;
     }
 
+    private class ShotVisual
+    {
+        public string Id { get; } = Guid.NewGuid().ToString();
+        public double FromCol;
+        public double FromRow;
+        public double ToCol;
+        public double ToRow;
+        public string TowerTypeId = "";
+        public int Age;
+    }
+
+    private static int UpgradeCost(PlacedTower t) => t.Type.Cost / 2 * t.Level;
+    private static int SellValue(PlacedTower t) => (int)Math.Round(t.TotalInvested * 0.6);
+    private static int EffectiveDamage(PlacedTower t) => (int)Math.Round(t.Type.Damage * (1 + 0.5 * (t.Level - 1)));
+    private static double EffectiveRange(PlacedTower t) => t.Type.RangeCells * (1 + 0.1 * (t.Level - 1));
+    private static int EffectiveFireIntervalMs(PlacedTower t) => Math.Max(150, t.Type.FireIntervalMs - 60 * (t.Level - 1));
+
     private Phase phase = Phase.Setup;
     private Difficulty selectedDifficulty = Difficulty.Easy;
     private DifficultyConfig config = ConfigFor(Difficulty.Easy);
     private readonly Dictionary<(int, int), PlacedTower> towers = new();
     private readonly List<ActiveEnemy> enemies = new();
+    private readonly List<ShotVisual> shots = new();
     private readonly Queue<EnemyType> pendingSpawns = new();
     private TowerType? selectedTowerType;
+    private (int Col, int Row)? selectedPlacedTowerPos;
+    private (int Col, int Row)? hoverPreviewCell;
     private int gold;
     private int lives;
     private int kills;
@@ -258,8 +329,11 @@
         config = ConfigFor(selectedDifficulty);
         towers.Clear();
         enemies.Clear();
+        shots.Clear();
         pendingSpawns.Clear();
         selectedTowerType = null;
+        selectedPlacedTowerPos = null;
+        hoverPreviewCell = null;
         gold = config.StartGold;
         lives = config.StartLives;
         kills = 0;
@@ -298,6 +372,7 @@
 
     private void SelectTowerType(TowerType type)
     {
+        selectedPlacedTowerPos = null;
         selectedTowerType = selectedTowerType?.Id == type.Id ? null : type;
     }
 
@@ -307,28 +382,113 @@
         if (selectedTowerType is not { } type || gold < type.Cost) return;
 
         gold -= type.Cost;
-        towers[(col, row)] = new PlacedTower { Type = type };
+        towers[(col, row)] = new PlacedTower { Type = type, TotalInvested = type.Cost };
         selectedTowerType = null;
     }
 
-    private string EnemyStyle(ActiveEnemy enemy)
+    private void HandleCellClick(int col, int row)
     {
-        var (col, row) = EnemyPosition(enemy);
-        var inv = System.Globalization.CultureInfo.InvariantCulture;
-        var left = ((col + 0.5) / GridCols * 100).ToString("0.##", inv);
-        var top = ((row + 0.5) / GridRows * 100).ToString("0.##", inv);
-        return $"left:{left}%; top:{top}%;";
+        if (towers.ContainsKey((col, row)))
+        {
+            SelectPlacedTower(col, row);
+        }
+        else if (selectedTowerType is not null)
+        {
+            PlaceTower(col, row);
+        }
+        else
+        {
+            selectedPlacedTowerPos = null;
+        }
     }
 
+    private void SelectPlacedTower(int col, int row)
+    {
+        selectedTowerType = null;
+        var pos = (col, row);
+        selectedPlacedTowerPos = selectedPlacedTowerPos == pos ? null : pos;
+    }
+
+    private void HoverCell(int col, int row)
+    {
+        if (selectedTowerType is null || PathSet.Contains((col, row)) || towers.ContainsKey((col, row))) return;
+        hoverPreviewCell = (col, row);
+    }
+
+    private void ClearHover(int col, int row)
+    {
+        if (hoverPreviewCell == (col, row)) hoverPreviewCell = null;
+    }
+
+    private void UpgradeTower((int Col, int Row) pos)
+    {
+        if (!towers.TryGetValue(pos, out var tower) || tower.Level >= MaxTowerLevel) return;
+
+        var cost = UpgradeCost(tower);
+        if (gold < cost) return;
+
+        gold -= cost;
+        tower.TotalInvested += cost;
+        tower.Level++;
+    }
+
+    private void SellTower((int Col, int Row) pos)
+    {
+        if (!towers.TryGetValue(pos, out var tower)) return;
+
+        gold += SellValue(tower);
+        towers.Remove(pos);
+        selectedPlacedTowerPos = null;
+    }
+
+    private static string EnemyStyle(ActiveEnemy enemy) => CellPercentStyle(EnemyPosition(enemy));
+
+    /// <summary>Cell-centered coordinates (a raw path cell of (3,6) sits
+    /// visually at the middle of that cell, i.e. (3.5, 6.5)) - every
+    /// consumer (targeting distance, range circles, shot endpoints, HUD
+    /// rendering) reads this same centered value so they all agree on
+    /// where an enemy actually is.</summary>
     private static (double Col, double Row) EnemyPosition(ActiveEnemy enemy)
     {
         var idx = (int)Math.Floor(enemy.PathProgress);
-        if (idx >= PathCells.Length - 1) return PathCells[^1];
+        (double Col, double Row) cell;
 
-        var frac = enemy.PathProgress - idx;
-        var a = PathCells[idx];
-        var b = PathCells[idx + 1];
-        return (a.Col + (b.Col - a.Col) * frac, a.Row + (b.Row - a.Row) * frac);
+        if (idx >= PathCells.Length - 1)
+        {
+            cell = PathCells[^1];
+        }
+        else
+        {
+            var frac = enemy.PathProgress - idx;
+            var a = PathCells[idx];
+            var b = PathCells[idx + 1];
+            cell = (a.Col + (b.Col - a.Col) * frac, a.Row + (b.Row - a.Row) * frac);
+        }
+
+        return (cell.Col + 0.5, cell.Row + 0.5);
+    }
+
+    private static string CellPercentStyle((double Col, double Row) centered)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var left = (centered.Col / GridCols * 100).ToString("0.##", inv);
+        var top = (centered.Row / GridRows * 100).ToString("0.##", inv);
+        return $"left:{left}%; top:{top}%;";
+    }
+
+    private static string RangeCircleStyle((int Col, int Row) pos, double rangeCells)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var left = ((pos.Col + 0.5) / GridCols * 100).ToString("0.##", inv);
+        var top = ((pos.Row + 0.5) / GridRows * 100).ToString("0.##", inv);
+        var diameterPct = (rangeCells * 2 / GridCols * 100).ToString("0.##", inv);
+        return $"left:{left}%; top:{top}%; width:{diameterPct}%;";
+    }
+
+    private static string ShotStyle(ShotVisual shot)
+    {
+        var centered = shot.Age == 0 ? (shot.FromCol, shot.FromRow) : (shot.ToCol, shot.ToRow);
+        return CellPercentStyle(centered);
     }
 
     private void Tick(object? _) => InvokeAsync(async () =>
@@ -376,6 +536,7 @@
 
             var towerCol = pos.Item1 + 0.5;
             var towerRow = pos.Item2 + 0.5;
+            var range = EffectiveRange(tower);
 
             ActiveEnemy? target = null;
             var bestProgress = -1.0;
@@ -383,7 +544,7 @@
             {
                 var (col, row) = EnemyPosition(enemy);
                 var dist = Math.Sqrt(Math.Pow(col - towerCol, 2) + Math.Pow(row - towerRow, 2));
-                if (dist <= tower.Type.RangeCells && enemy.PathProgress > bestProgress)
+                if (dist <= range && enemy.PathProgress > bestProgress)
                 {
                     bestProgress = enemy.PathProgress;
                     target = enemy;
@@ -392,10 +553,31 @@
 
             if (target is null) continue;
 
-            target.Hp -= tower.Type.Damage;
+            target.Hp -= EffectiveDamage(tower);
             target.HitFlashMs = 150;
-            tower.CooldownMs = tower.Type.FireIntervalMs;
+            tower.CooldownMs = EffectiveFireIntervalMs(tower);
+
+            var (targetCol, targetRow) = EnemyPosition(target);
+            shots.Add(new ShotVisual
+            {
+                FromCol = towerCol,
+                FromRow = towerRow,
+                ToCol = targetCol,
+                ToRow = targetRow,
+                TowerTypeId = tower.Type.Id,
+            });
+
             await PlaySoundAsync("playImpactSound");
+        }
+
+        // Age shots by one render frame each - they render at the tower's
+        // position on the tick they're fired, then the target's position
+        // on the next tick, so the CSS left/top transition animates a
+        // quick travel between the two rather than teleporting.
+        for (var i = shots.Count - 1; i >= 0; i--)
+        {
+            shots[i].Age++;
+            if (shots[i].Age > 1) shots.RemoveAt(i);
         }
 
         // Resolve deaths after firing so a killing blow doesn't briefly render at negative HP.
