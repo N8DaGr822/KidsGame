@@ -146,6 +146,10 @@
             {
                 <ColorMatch PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleColorMatchComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.ShapeSorter)
+            {
+                <ShapeSorter PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleShapeSorterComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -653,6 +657,21 @@
             Theme = result.Difficulty,
             Difficulty = $"Score {result.Score}/{result.TotalRounds}",
             Moves = result.Score,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleShapeSorterComplete(ShapeSorter.ShapeSorterResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Placed {result.Placed}, {result.Mistakes} mistakes",
+            Moves = result.Placed,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

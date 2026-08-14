@@ -1,0 +1,287 @@
+@*
+    ShapeSorter.razor
+    A tray of shapes and a row of empty shape outlines - tap a shape, then
+    tap the outline it belongs in. Uses tap-to-select-then-tap-to-place
+    rather than real pointer drag, since native HTML5 drag-and-drop
+    doesn't fire reliably on touch/tablet browsers (this app's primary
+    device). Wrong placements just bounce back, no fail state. Difficulty
+    controls how many distinct shapes are in play per set. A fixed 4-set
+    session ends with a result overlay.
+
+    Usage:
+        <ShapeSorter OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="ss-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="ss-setup game-setup-panel">
+            <h2>🔷 Shape Sorter</h2>
+            <p>Tap a shape, then tap the outline it fits into!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="ss-diff-name">@DifficultyName(diff)</span>
+                            <span class="ss-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="ss-title">Shape Sorter</span>
+            <span class="game-stat">Set @Math.Min(setNumber, TotalSets)/@TotalSets</span>
+            <span class="game-stat">✅ Placed @placed</span>
+            <span class="game-stat">🔥 Streak @streak</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="ss-slots">
+            @foreach (var slot in slots)
+            {
+                <button class="ss-slot ss-shape-@slot.Id @(slot.Filled ? "filled" : "") @(rejectSlot == slot.Uid ? "reject" : "")" disabled="@slot.Filled" @onclick="() => PlaceInSlot(slot)"></button>
+            }
+        </div>
+
+        <div class="ss-tray">
+            @foreach (var shape in tray)
+            {
+                <button class="ss-piece ss-shape-@shape.Id @(selectedShape?.Uid == shape.Uid ? "selected" : "")" @onclick="() => SelectShape(shape)"></button>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="ss-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🔷 All Done!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great sorting" : PlayerName + ", great sorting")!</p>
+                    <div class="game-result-stats">
+                        <div><span class="game-stat-label">Placed</span><span class="game-stat-value">@placed</span></div>
+                        <div><span class="game-stat-label">Best streak</span><span class="game-stat-value">@bestStreak</span></div>
+                    </div>
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<ShapeSorterResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int TotalSets = 4;
+
+    private record PieceInstance(string Id, int Uid)
+    {
+        public bool Filled { get; set; }
+    }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static readonly string[] EasyShapes = { "circle", "square", "triangle" };
+    private static readonly string[] MediumShapes = { "circle", "square", "triangle", "diamond" };
+    private static readonly string[] HardShapes = { "circle", "square", "triangle", "diamond", "pentagon", "star" };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static string[] ShapesFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => EasyShapes,
+        Difficulty.Medium => MediumShapes,
+        _ => HardShapes,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private readonly List<PieceInstance> tray = new();
+    private readonly List<PieceInstance> slots = new();
+    private PieceInstance? selectedShape;
+    private int? rejectSlot;
+    private int setNumber;
+    private int placed;
+    private int mistakes;
+    private int streak;
+    private int bestStreak;
+    private string roundMessage = "";
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private int nextUid;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        setNumber = 0;
+        placed = 0;
+        mistakes = 0;
+        streak = 0;
+        bestStreak = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        NextSet();
+    }
+
+    private void ExitToSetup()
+    {
+        phase = Phase.Setup;
+    }
+
+    private void NextSet()
+    {
+        setNumber++;
+        roundMessage = "";
+        selectedShape = null;
+        rejectSlot = null;
+
+        var shapeIds = ShapesFor(selectedDifficulty);
+
+        tray.Clear();
+        slots.Clear();
+        foreach (var id in shapeIds.OrderBy(_ => rng.Next()))
+        {
+            tray.Add(new PieceInstance(id, nextUid++));
+        }
+        foreach (var id in shapeIds.OrderBy(_ => rng.Next()))
+        {
+            slots.Add(new PieceInstance(id, nextUid++));
+        }
+    }
+
+    private void SelectShape(PieceInstance shape)
+    {
+        if (phase != Phase.Playing) return;
+        selectedShape = selectedShape?.Uid == shape.Uid ? null : shape;
+    }
+
+    private async Task PlaceInSlot(PieceInstance slot)
+    {
+        if (phase != Phase.Playing || slot.Filled || selectedShape is null) return;
+
+        if (selectedShape.Id == slot.Id)
+        {
+            slot.Filled = true;
+            tray.Remove(selectedShape);
+            selectedShape = null;
+            placed++;
+            streak++;
+            bestStreak = Math.Max(bestStreak, streak);
+            await PlaySoundAsync("playMatchSound");
+
+            if (slots.All(s => s.Filled))
+            {
+                roundMessage = "Set complete!";
+                StateHasChanged();
+                await Task.Delay(900);
+
+                if (setNumber >= TotalSets)
+                {
+                    await FinishGame();
+                }
+                else
+                {
+                    NextSet();
+                }
+            }
+        }
+        else
+        {
+            mistakes++;
+            streak = 0;
+            rejectSlot = slot.Uid;
+            roundMessage = "Not quite - try another shape!";
+            await PlaySoundAsync("playMismatchSound");
+            StateHasChanged();
+            await Task.Delay(500);
+            rejectSlot = null;
+            roundMessage = "";
+        }
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new ShapeSorterResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Placed: placed,
+                Mistakes: mistakes,
+                BestStreak: bestStreak,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3 shapes per set",
+        Difficulty.Medium => "4 shapes per set",
+        _ => "6 shapes per set",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record ShapeSorterResult(string Difficulty, int Placed, int Mistakes, int BestStreak, int ElapsedSeconds);
+}
