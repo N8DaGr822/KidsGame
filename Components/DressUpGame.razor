@@ -746,6 +746,11 @@
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
         await _module.InvokeVoidAsync("setPointerCapture", playRef, e.PointerId);
 
+        // A second finger may have landed while the awaits above were in
+        // flight and turned this gesture into a pinch (see TryBeginAnywherePinch) -
+        // don't let this now-stale continuation stomp on it.
+        if (pinchingSticker is not null) return;
+
         resizing = placed;
         selectedSticker = placed;
         resizeStartClientX = e.ClientX;
@@ -830,6 +835,10 @@
         stageHeight = rect.Height;
 
         await _module.InvokeVoidAsync("setPointerCapture", playRef, e.PointerId);
+
+        // See the matching guard in StartResize - a second finger can turn
+        // this into a pinch while the awaits above are still in flight.
+        if (pinchingSticker is not null) return;
 
         rotating = placed;
         selectedSticker = placed;
@@ -952,6 +961,19 @@
     private async Task StartDragPlaced(PointerEventArgs e, PlacedSticker placed)
     {
         if (DrawMode) return;
+
+        // Selected synchronously, before any await - TryBeginAnywherePinch
+        // requires selectedSticker to already be set, and a real two-finger
+        // pinch on a sticker that wasn't already selected has the second
+        // finger landing only moments (not a whole render/interop round
+        // trip) after the first. Setting this later (e.g. inside BeginDrag,
+        // which only runs after several awaited JS calls) missed that
+        // window often enough that the second finger's pointerdown would
+        // see selectedSticker still null, fail the pinch, and either start
+        // a second drag or - worse - land on the stage's own pointerdown
+        // and deselect what the first finger was about to select.
+        selectedSticker = placed;
+
         if (await TryBeginAnywherePinch(e)) return;
 
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
@@ -983,6 +1005,14 @@
         // our handlers entirely, since those events would otherwise target
         // whatever element the pointer is now over instead.
         await _module.InvokeVoidAsync("setPointerCapture", playRef, e.PointerId);
+
+        // See the matching guard in StartResize - a second finger can turn
+        // this into a pinch while the awaits above (here and in the getBoundingRect
+        // calls just above) are still in flight. Without this, a stale drag
+        // would still land here and set `dragging`, which OnPointerUp's pinch
+        // branch never clears - leaving a phantom drag armed for the next
+        // single-finger touch anywhere on the stage.
+        if (pinchingSticker is not null) return;
 
         dragging = placed;
         selectedSticker = placed;
