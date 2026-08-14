@@ -1,0 +1,380 @@
+@*
+    BubblePop.razor
+    Bubbles rise from the bottom of the screen carrying a color, number,
+    or letter - pop only the ones matching the current target before they
+    float off the top. The target re-rolls every 5 correct pops. Popping
+    the wrong bubble, or letting one escape off the top, resets the
+    streak-based score multiplier (same idea as Whack-a-Mole) but never
+    costs points. Harder difficulties rise faster and spawn more often.
+
+    Usage:
+        <BubblePop OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="bp-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="bp-setup game-setup-panel">
+            <h2>🫧 Bubble Pop</h2>
+            <p>Pop the bubbles that match your target before they float away!</p>
+
+            <h3 class="bp-section-title game-section-title">Choose a mode</h3>
+            <div class="bp-mode-select game-option-grid">
+                @foreach (var mode in Modes)
+                {
+                    <button class="bp-mode-btn game-option-button @(mode.Name == selectedMode.Name ? "selected" : "")" @onclick="() => selectedMode = mode">
+                        <span class="bp-mode-icon">@mode.Icon</span>
+                        <span class="bp-mode-name">@mode.Name</span>
+                    </button>
+                }
+            </div>
+
+            <h3 class="bp-section-title game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="bp-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="bp-difficulty-select game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="bp-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="bp-diff-name">@DifficultyName(diff)</span>
+                            <span class="bp-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="bp-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="bp-hud game-hud">
+            <span class="bp-target">Pop: <span class="bp-target-swatch" style="@TargetSwatchStyle()">@(selectedMode.Name == "Colors" ? "" : target)</span></span>
+            <span class="bp-stat">⭐ @score</span>
+            <span class="bp-stat">🔥 @($"{CurrentMultiplier}x")</span>
+            <span class="bp-stat">⏱️ @FormatTime(remainingMs)</span>
+            <button class="bp-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="bp-field">
+            @foreach (var item in items)
+            {
+                <button @key="item.Id" class="bp-item @(item.Popped ? "popped" : "")"
+                        style="@ItemStyle(item)"
+                        disabled="@(phase != Phase.Playing)"
+                        @onclick="() => PopItem(item)">@(selectedMode.Name == "Colors" ? "" : item.Symbol)</button>
+            }
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="bp-overlay game-result-overlay">
+                <div class="bp-win-panel game-result-panel">
+                    <h2>⏰ Time's Up!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Nice popping" : PlayerName + ", nice popping") - here's how you did!</p>
+                    <div class="bp-win-stats game-result-stats">
+                        <div><span class="game-stat-label">Score</span><span class="game-stat-value">@score</span></div>
+                        <div><span class="game-stat-label">Popped</span><span class="game-stat-value">@popped</span></div>
+                        <div><span class="game-stat-label">Best streak</span><span class="game-stat-value">@bestStreak</span></div>
+                    </div>
+                    <div class="bp-win-actions game-result-actions">
+                        <button class="bp-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="bp-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<BubblePopResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private record ModeDefinition(string Name, string Icon, List<string> Pool, Dictionary<string, string>? ColorHex = null);
+    private record DifficultyConfig(int RoundSeconds, int RiseMs, int MinSpawnMs, int MaxSpawnMs, int MaxActive);
+
+    private static readonly Dictionary<string, string> ColorHexPool = new()
+    {
+        ["Red"] = "#ff5252",
+        ["Orange"] = "#ffa726",
+        ["Yellow"] = "#ffee58",
+        ["Green"] = "#66bb6a",
+        ["Blue"] = "#42a5f5",
+        ["Purple"] = "#ab47bc",
+    };
+
+    private readonly List<ModeDefinition> Modes;
+    private ModeDefinition selectedMode;
+
+    public BubblePop()
+    {
+        Modes = new List<ModeDefinition>
+        {
+            new ModeDefinition("Colors", "🎨", ColorHexPool.Keys.ToList(), ColorHexPool),
+            new ModeDefinition("Numbers", "🔢", Enumerable.Range(1, 9).Select(n => n.ToString()).ToList()),
+            new ModeDefinition("Letters", "🔤", "ABCDEFGHIJ".Select(c => c.ToString()).ToList()),
+        };
+        selectedMode = Modes[0];
+    }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static DifficultyConfig ConfigFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => new DifficultyConfig(30, 3200, 850, 1200, 5),
+        Difficulty.Medium => new DifficultyConfig(40, 2500, 650, 950, 6),
+        _ => new DifficultyConfig(45, 1900, 500, 750, 8),
+    };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private class BubbleItem
+    {
+        public string Id { get; } = Guid.NewGuid().ToString();
+        public string Symbol = "";
+        public bool Popped;
+        public double StartXPct;
+        public double WobblePct;
+        public int DurationMs;
+    }
+
+    private const int TickMs = 100;
+    private const int TargetSwitchEvery = 5;
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private DifficultyConfig config = ConfigFor(Difficulty.Easy);
+    private readonly List<BubbleItem> items = new();
+    private string target = "";
+    private int correctSinceSwitch;
+    private int score;
+    private int popped;
+    private int missed;
+    private int streak;
+    private int bestStreak;
+    private int remainingMs;
+    private int nextSpawnInMs;
+    private readonly Random rng = new();
+    private System.Threading.Timer? timer;
+    private IJSObjectReference? _module;
+
+    private int CurrentMultiplier => 1 + Math.Min(streak / 5, 3);
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        config = ConfigFor(selectedDifficulty);
+        items.Clear();
+        score = 0;
+        popped = 0;
+        missed = 0;
+        streak = 0;
+        bestStreak = 0;
+        correctSinceSwitch = 0;
+        target = selectedMode.Pool[rng.Next(selectedMode.Pool.Count)];
+        remainingMs = config.RoundSeconds * 1000;
+        nextSpawnInMs = rng.Next(config.MinSpawnMs, config.MaxSpawnMs + 1);
+        phase = Phase.Playing;
+        StartTimer();
+    }
+
+    private void ExitToSetup()
+    {
+        StopTimer();
+        phase = Phase.Setup;
+        items.Clear();
+    }
+
+    private void Tick(object? _) => InvokeAsync(async () =>
+    {
+        if (phase != Phase.Playing) return;
+
+        remainingMs -= TickMs;
+        if (remainingMs <= 0)
+        {
+            remainingMs = 0;
+            await FinishGame();
+            return;
+        }
+
+        nextSpawnInMs -= TickMs;
+        if (nextSpawnInMs <= 0 && items.Count(i => !i.Popped) < config.MaxActive)
+        {
+            SpawnItem();
+            nextSpawnInMs = rng.Next(config.MinSpawnMs, config.MaxSpawnMs + 1);
+        }
+
+        StateHasChanged();
+    });
+
+    private void SpawnItem()
+    {
+        var item = new BubbleItem
+        {
+            Symbol = selectedMode.Pool[rng.Next(selectedMode.Pool.Count)],
+            StartXPct = 8 + rng.NextDouble() * 84,
+            WobblePct = (rng.NextDouble() - 0.5) * 16,
+            DurationMs = config.RiseMs + rng.Next(-200, 201),
+        };
+        items.Add(item);
+        _ = ExpireItemAsync(item);
+    }
+
+    private async Task ExpireItemAsync(BubbleItem item)
+    {
+        await Task.Delay(item.DurationMs);
+        if (phase != Phase.Playing || item.Popped || !items.Contains(item)) return;
+
+        items.Remove(item);
+        streak = 0;
+        StateHasChanged();
+    }
+
+    private async Task PopItem(BubbleItem item)
+    {
+        if (phase != Phase.Playing || item.Popped) return;
+
+        item.Popped = true;
+
+        if (item.Symbol == target)
+        {
+            popped++;
+            streak++;
+            bestStreak = Math.Max(bestStreak, streak);
+            score += 10 * CurrentMultiplier;
+            await PlaySoundAsync("playMatchSound");
+
+            correctSinceSwitch++;
+            if (correctSinceSwitch >= TargetSwitchEvery)
+            {
+                correctSinceSwitch = 0;
+                var next = target;
+                while (next == target) next = selectedMode.Pool[rng.Next(selectedMode.Pool.Count)];
+                target = next;
+            }
+        }
+        else
+        {
+            missed++;
+            streak = 0;
+            await PlaySoundAsync("playMismatchSound");
+        }
+
+        StateHasChanged();
+        await Task.Delay(150);
+        items.Remove(item);
+        StateHasChanged();
+    }
+
+    private string ItemStyle(BubbleItem item)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var style = $"left:{item.StartXPct.ToString("0.#", inv)}%; --bp-wobble:{item.WobblePct.ToString("0.#", inv)}%; animation-duration:{item.DurationMs}ms;";
+        if (selectedMode.ColorHex is { } hex && hex.TryGetValue(item.Symbol, out var color))
+        {
+            style += $" background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.55), {color} 60%);";
+        }
+        return style;
+    }
+
+    private string TargetSwatchStyle()
+    {
+        if (selectedMode.ColorHex is { } hex && hex.TryGetValue(target, out var color))
+        {
+            return $"background:{color};";
+        }
+        return "";
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        StopTimer();
+        phase = Phase.Finished;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new BubblePopResult(
+                Mode: selectedMode.Name,
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                Popped: popped,
+                Missed: missed,
+                BestStreak: bestStreak,
+                ElapsedSeconds: config.RoundSeconds));
+        }
+    }
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(Tick, null, TickMs, TickMs);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalMs)
+    {
+        var span = TimeSpan.FromMilliseconds(totalMs);
+        return span.Minutes > 0 ? $"{span.Minutes}:{span.Seconds:00}" : $"0:{span.Seconds:00}";
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Slower rise, fewer bubbles",
+        Difficulty.Medium => "Quicker rise, more bubbles",
+        _ => "Fast rise, lots of bubbles",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        StopTimer();
+
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record BubblePopResult(string Mode, string Difficulty, int Score, int Popped, int Missed, int BestStreak, int ElapsedSeconds);
+}

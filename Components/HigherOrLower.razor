@@ -1,0 +1,269 @@
+@*
+    HigherOrLower.razor
+    A card flips over showing a number - guess whether the next card will
+    be higher or lower. A tie is always a safe guess (never breaks the
+    streak). Guessing wrong ends the run. Difficulty narrows the number
+    range, which makes ties (and close calls) more common. Runs until a
+    wrong guess, so it's pure streak-chasing with no round limit.
+
+    Usage:
+        <HigherOrLower OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="hl-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="hl-setup game-setup-panel">
+            <h2>🎴 Higher or Lower</h2>
+            <p>Guess whether the next card is higher or lower than this one. A tie never breaks your streak!</p>
+
+            <h3 class="hl-section-title game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="hl-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="hl-difficulty-select game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="hl-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="hl-diff-name">@DifficultyName(diff)</span>
+                            <span class="hl-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="hl-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="hl-hud game-hud">
+            <span class="hl-title">Higher or Lower</span>
+            <span class="hl-stat">🔥 Streak @streak</span>
+            <span class="hl-stat">🏆 Best @bestStreak</span>
+            <button class="hl-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="hl-table">
+            <div class="hl-card current">
+                <span class="hl-card-suit">@currentSuit</span>
+                <span class="hl-card-value">@CardLabel(current)</span>
+            </div>
+            <div class="hl-card next @(revealed ? "revealed" : "")">
+                @if (revealed)
+                {
+                    <span class="hl-card-suit">@nextSuit</span>
+                    <span class="hl-card-value">@CardLabel(next)</span>
+                }
+                else
+                {
+                    <span class="hl-card-back">❔</span>
+                }
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="hl-message">@roundMessage</p>
+        }
+
+        <div class="hl-guess-actions">
+            <button class="hl-guess-btn game-primary-action" disabled="@(revealed || phase != Phase.Playing)" @onclick='() => Guess("Higher")'>⬆️ Higher</button>
+            <button class="hl-guess-btn game-secondary-action" disabled="@(revealed || phase != Phase.Playing)" @onclick='() => Guess("Lower")'>⬇️ Lower</button>
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="hl-overlay game-result-overlay">
+                <div class="hl-win-panel game-result-panel">
+                    <h2>🎯 Streak Over!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Nice run" : PlayerName + ", nice run")!</p>
+                    <div class="hl-win-stats game-result-stats">
+                        <div><span class="game-stat-label">Final streak</span><span class="game-stat-value">@streak</span></div>
+                        <div><span class="game-stat-label">Best streak</span><span class="game-stat-value">@bestStreak</span></div>
+                        <div><span class="game-stat-label">Rounds</span><span class="game-stat-value">@rounds</span></div>
+                    </div>
+                    <div class="hl-win-actions game-result-actions">
+                        <button class="hl-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="hl-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<HigherOrLowerResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+    private static readonly string[] Suits = { "♠️", "♥️", "♦️", "♣️" };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int MaxValueFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 20,
+        Difficulty.Medium => 13,
+        _ => 8,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int current;
+    private int next;
+    private string currentSuit = "♠️";
+    private string nextSuit = "♠️";
+    private bool revealed;
+    private string roundMessage = "";
+    private int streak;
+    private int bestStreak;
+    private int rounds;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        streak = 0;
+        bestStreak = 0;
+        rounds = 0;
+        revealed = false;
+        roundMessage = "";
+        current = rng.Next(1, MaxValueFor(selectedDifficulty) + 1);
+        currentSuit = Suits[rng.Next(Suits.Length)];
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private void ExitToSetup()
+    {
+        phase = Phase.Setup;
+    }
+
+    private async Task Guess(string direction)
+    {
+        if (revealed || phase != Phase.Playing) return;
+
+        var max = MaxValueFor(selectedDifficulty);
+        next = rng.Next(1, max + 1);
+        nextSuit = Suits[rng.Next(Suits.Length)];
+        revealed = true;
+        rounds++;
+        StateHasChanged();
+        await Task.Delay(200);
+
+        if (next == current)
+        {
+            roundMessage = "Tie! Streak stays safe.";
+            await PlaySoundAsync("playImpactSound");
+        }
+        else
+        {
+            var actual = next > current ? "Higher" : "Lower";
+            if (actual == direction)
+            {
+                streak++;
+                bestStreak = Math.Max(bestStreak, streak);
+                roundMessage = "Correct!";
+                await PlaySoundAsync("playMatchSound");
+            }
+            else
+            {
+                roundMessage = $"It was {actual.ToLowerInvariant()} - streak broken!";
+                await PlaySoundAsync("playMismatchSound");
+                StateHasChanged();
+                await Task.Delay(1200);
+                await FinishGame();
+                return;
+            }
+        }
+
+        StateHasChanged();
+        await Task.Delay(1100);
+
+        current = next;
+        currentSuit = nextSuit;
+        revealed = false;
+        roundMessage = "";
+        StateHasChanged();
+    }
+
+    private static string CardLabel(int value) => value switch
+    {
+        1 => "A",
+        11 => "J",
+        12 => "Q",
+        13 => "K",
+        _ => value.ToString(),
+    };
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new HigherOrLowerResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                FinalStreak: streak,
+                BestStreak: bestStreak,
+                Rounds: rounds,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "1-20, fewer close calls",
+        Difficulty.Medium => "1-13, like a real deck",
+        _ => "1-8, lots of ties",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record HigherOrLowerResult(string Difficulty, int FinalStreak, int BestStreak, int Rounds, int ElapsedSeconds);
+}

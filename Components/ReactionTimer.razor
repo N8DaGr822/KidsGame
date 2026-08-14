@@ -1,0 +1,277 @@
+@*
+    ReactionTimer.razor
+    A panel waits (red, "get ready") for a random delay, then flips to
+    green ("tap now!") - the time between the flip and the click is that
+    round's reaction time. Clicking too early is a false start: it
+    doesn't count against the player, it just restarts the same round's
+    wait. Runs a fixed number of rounds per difficulty and reports the
+    average and best time at the end.
+
+    Usage:
+        <ReactionTimer OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="rt-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="rt-setup game-setup-panel">
+            <h2>⚡ Reaction Timer</h2>
+            <p>Wait for the panel to turn green, then tap as fast as you can. Tap too soon and you'll have to wait again!</p>
+
+            <h3 class="rt-section-title game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="rt-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="rt-difficulty-select game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="rt-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="rt-diff-name">@DifficultyName(diff)</span>
+                            <span class="rt-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="rt-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="rt-hud game-hud">
+            <span class="rt-title">Reaction Timer</span>
+            <span class="rt-stat">Round @Math.Min(round + 1, config.Rounds)/@config.Rounds</span>
+            @if (results.Count > 0)
+            {
+                <span class="rt-stat">Last @(results[^1])ms</span>
+            }
+            <button class="rt-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <button class="rt-panel @PanelStateClass()" @onclick="HandlePanelClick" disabled="@(phase == Phase.Finished)">
+            @switch (phase)
+            {
+                case Phase.Waiting:
+                    <span class="rt-panel-text">Wait for it…</span>
+                    break;
+                case Phase.TooSoon:
+                    <span class="rt-panel-text">Too soon! Wait for green…</span>
+                    break;
+                case Phase.Go:
+                    <span class="rt-panel-text">TAP NOW!</span>
+                    break;
+            }
+        </button>
+
+        @if (results.Count > 0)
+        {
+            <div class="rt-history">
+                @foreach (var r in results)
+                {
+                    <span class="rt-history-chip">@(r)ms</span>
+                }
+            </div>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="rt-overlay game-result-overlay">
+                <div class="rt-win-panel game-result-panel">
+                    <h2>🏁 All Done!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Nice reflexes" : PlayerName + ", nice reflexes") - here's how you did!</p>
+                    <div class="rt-win-stats game-result-stats">
+                        <div><span class="game-stat-label">Best</span><span class="game-stat-value">@(results.Min())ms</span></div>
+                        <div><span class="game-stat-label">Average</span><span class="game-stat-value">@(Math.Round(results.Average()))ms</span></div>
+                        <div><span class="game-stat-label">Rounds</span><span class="game-stat-value">@config.Rounds</span></div>
+                    </div>
+                    <div class="rt-win-actions game-result-actions">
+                        <button class="rt-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="rt-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<ReactionTimerResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Waiting, Go, TooSoon, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private record DifficultyConfig(int Rounds, int MinDelayMs, int MaxDelayMs);
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static DifficultyConfig ConfigFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => new DifficultyConfig(3, 1500, 3000),
+        Difficulty.Medium => new DifficultyConfig(5, 1000, 3200),
+        _ => new DifficultyConfig(7, 700, 3600),
+    };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private DifficultyConfig config = ConfigFor(Difficulty.Easy);
+    private int round;
+    private readonly List<int> results = new();
+    private DateTime goStartedAtUtc;
+    private DateTime startedAtUtc;
+    private CancellationTokenSource? waitCts;
+    private readonly Random rng = new();
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        config = ConfigFor(selectedDifficulty);
+        round = 0;
+        results.Clear();
+        startedAtUtc = DateTime.UtcNow;
+        BeginWaiting();
+    }
+
+    private void ExitToSetup()
+    {
+        waitCts?.Cancel();
+        phase = Phase.Setup;
+    }
+
+    private void BeginWaiting()
+    {
+        phase = Phase.Waiting;
+        waitCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        waitCts = cts;
+        var delayMs = rng.Next(config.MinDelayMs, config.MaxDelayMs + 1);
+        _ = RunWaitAsync(cts, delayMs);
+    }
+
+    private async Task RunWaitAsync(CancellationTokenSource cts, int delayMs)
+    {
+        try
+        {
+            await Task.Delay(delayMs, cts.Token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (cts.IsCancellationRequested || cts != waitCts) return;
+
+        goStartedAtUtc = DateTime.UtcNow;
+        phase = Phase.Go;
+        StateHasChanged();
+    }
+
+    private async Task HandlePanelClick()
+    {
+        switch (phase)
+        {
+            case Phase.Waiting:
+                waitCts?.Cancel();
+                phase = Phase.TooSoon;
+                StateHasChanged();
+                await PlaySoundAsync("playMismatchSound");
+                await Task.Delay(900);
+                if (phase == Phase.TooSoon) BeginWaiting();
+                break;
+
+            case Phase.Go:
+                var elapsedMs = (int)(DateTime.UtcNow - goStartedAtUtc).TotalMilliseconds;
+                results.Add(elapsedMs);
+                await PlaySoundAsync("playMatchSound");
+                round++;
+
+                if (round >= config.Rounds)
+                {
+                    await FinishGame();
+                }
+                else
+                {
+                    BeginWaiting();
+                }
+                break;
+        }
+    }
+
+    private string PanelStateClass() => phase switch
+    {
+        Phase.Waiting => "waiting",
+        Phase.Go => "go",
+        Phase.TooSoon => "too-soon",
+        _ => "",
+    };
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        waitCts?.Cancel();
+        phase = Phase.Finished;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new ReactionTimerResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Rounds: config.Rounds,
+                BestMs: results.Min(),
+                AverageMs: (int)Math.Round(results.Average()),
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3 rounds, longer waits",
+        Difficulty.Medium => "5 rounds, medium waits",
+        _ => "7 rounds, shorter waits",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        waitCts?.Cancel();
+
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record ReactionTimerResult(string Difficulty, int Rounds, int BestMs, int AverageMs, int ElapsedSeconds);
+}

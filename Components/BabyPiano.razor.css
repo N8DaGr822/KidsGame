@@ -1,0 +1,102 @@
+.bpn-game {
+    width: min(640px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.bpn-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.bpn-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.bpn-setup p {
+    max-width: 30rem;
+    color: var(--text-muted);
+}
+
+.bpn-section-title {
+    margin: 0.4rem 0 0;
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.bpn-theme-select {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 0.7rem;
+}
+
+.bpn-theme-btn {
+    min-height: 86px;
+    padding: 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    gap: 0.25rem;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.bpn-theme-btn:hover {
+    transform: translateY(-2px);
+    background: var(--control-bg-hover);
+}
+
+.bpn-theme-btn.selected {
+    border-color: rgba(78, 205, 196, 0.75);
+    background: var(--selected-bg);
+}
+
+.bpn-theme-icon {
+    font-size: 1.8rem;
+}
+
+.bpn-theme-name {
+    font-weight: 900;
+}
+
+.bpn-title {
+    font-weight: 900;
+}
+
+.bpn-keys {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: clamp(0.5rem, 2.5vw, 0.9rem);
+    width: min(560px, 94vw);
+    margin: 0 auto;
+}
+
+.bpn-key {
+    aspect-ratio: 1 / 1.3;
+    border: none;
+    border-radius: var(--radius-lg);
+    background: var(--bpn-color);
+    box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25), var(--shadow-sm);
+    touch-action: manipulation;
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.bpn-key.active {
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+}

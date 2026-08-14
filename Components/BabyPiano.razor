@@ -1,0 +1,130 @@
+@*
+    BabyPiano.razor
+    A toddler cause-and-effect toy (~1 year old target): 8 giant colorful
+    keys, each playing a note (Piano theme) or a hit (Drums theme) when
+    tapped. No wrong notes, no objectives, no score - controlled noise
+    production, the ancient toddler art form.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how long the
+    child played and how many notes they played, then returns to the
+    theme picker.
+
+    Usage:
+        <BabyPiano OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="bpn-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="bpn-setup game-setup-panel">
+            <h2>🎹 Baby Piano</h2>
+            <p>Tap the keys to make music - there are no wrong notes!</p>
+
+            <h3 class="bpn-section-title game-section-title">Choose an instrument</h3>
+            <div class="bpn-theme-select game-option-grid">
+                @foreach (var t in Themes)
+                {
+                    <button class="bpn-theme-btn game-option-button @(t.Name == selectedTheme.Name ? "selected" : "")" @onclick="() => selectedTheme = t">
+                        <span class="bpn-theme-icon">@t.Icon</span>
+                        <span class="bpn-theme-name">@t.Name</span>
+                    </button>
+                }
+            </div>
+
+            <button class="bpn-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="bpn-hud game-hud">
+            <span class="bpn-title">@selectedTheme.Name</span>
+            <button class="bpn-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="bpn-keys">
+            @for (var i = 0; i < KeyColors.Length; i++)
+            {
+                var idx = i;
+                <button class="bpn-key @(activeIndex == idx ? "active" : "")" style="--bpn-color:@KeyColors[idx];" @onclick="() => Tap(idx)"></button>
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<BabyPianoResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private record ThemeDefinition(string Name, string Icon, string SoundFunction);
+
+    private static readonly ThemeDefinition[] Themes =
+    {
+        new("Piano", "🎹", "playPianoNote"),
+        new("Drums", "🥁", "playDrumHit"),
+    };
+
+    private static readonly string[] KeyColors =
+    {
+        "#ff6b6b", "#ffa94d", "#ffd43b", "#69db7c", "#4ecdc4", "#6ea8fe", "#b197fc", "#f783ac",
+    };
+
+    private Phase phase = Phase.Setup;
+    private ThemeDefinition selectedTheme = Themes[0];
+    private int? activeIndex;
+    private int notesPlayed;
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    private void StartGame()
+    {
+        notesPlayed = 0;
+        activeIndex = null;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task Tap(int index)
+    {
+        activeIndex = index;
+        notesPlayed++;
+        StateHasChanged();
+
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(selectedTheme.SoundFunction, index);
+
+        await Task.Delay(250);
+        if (activeIndex == index) activeIndex = null;
+        StateHasChanged();
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new BabyPianoResult(
+                Theme: selectedTheme.Name,
+                NotesPlayed: notesPlayed,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record BabyPianoResult(string Theme, int NotesPlayed, int ElapsedSeconds);
+}

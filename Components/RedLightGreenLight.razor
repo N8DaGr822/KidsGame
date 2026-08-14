@@ -1,0 +1,275 @@
+@*
+    RedLightGreenLight.razor
+    The light flips between green and red at random intervals. Tap "Move!"
+    while it's green to advance toward the finish line; tap while it's
+    red and you get caught, knocking some progress back. Reach the finish
+    before the round timer runs out to win. Harder difficulties move you
+    less per tap and flip the light faster, so timing matters more.
+
+    Usage:
+        <RedLightGreenLight OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="rg-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="rg-setup game-setup-panel">
+            <h2>🚦 Red Light, Green Light</h2>
+            <p>Tap Move on green to race to the finish line - but freeze on red or you'll get caught!</p>
+
+            <h3 class="rg-section-title game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="rg-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="rg-difficulty-select game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="rg-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="rg-diff-name">@DifficultyName(diff)</span>
+                            <span class="rg-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="rg-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="rg-hud game-hud">
+            <span class="rg-light @(light == Light.Green ? "green" : "red")">@(light == Light.Green ? "🟢 GO" : "🔴 STOP")</span>
+            <span class="rg-stat">🚨 @strikes</span>
+            <span class="rg-stat">⏱️ @FormatTime(remainingMs)</span>
+            <button class="rg-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="rg-track">
+            <div class="rg-track-fill" style="width:@(progressPct.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%;"></div>
+            <span class="rg-runner @(caughtFlash ? "caught" : "")" style="left:@(progressPct.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%;">🏃</span>
+            <span class="rg-finish">🏁</span>
+        </div>
+
+        <button class="rg-move-btn game-primary-action" disabled="@(phase != Phase.Playing)" @onclick="Move">Move!</button>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="rg-overlay game-result-overlay">
+                <div class="rg-win-panel game-result-panel">
+                    @if (won)
+                    {
+                        <h2>🏁 You Made It!</h2>
+                        <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") reaching the finish line!</p>
+                    }
+                    else
+                    {
+                        <h2>⏰ Time's Up!</h2>
+                        <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "So close" : PlayerName + ", so close") - want to try again?</p>
+                    }
+                    <div class="rg-win-stats game-result-stats">
+                        <div><span class="game-stat-label">Progress</span><span class="game-stat-value">@((int)progressPct)%</span></div>
+                        <div><span class="game-stat-label">Caught</span><span class="game-stat-value">@strikes</span></div>
+                    </div>
+                    <div class="rg-win-actions game-result-actions">
+                        <button class="rg-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="rg-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<RedLightGreenLightResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    private enum Light { Green, Red }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private record DifficultyConfig(double IncrementPct, int MinLightMs, int MaxLightMs, int RoundSeconds, double CaughtPenaltyPct);
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static DifficultyConfig ConfigFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => new DifficultyConfig(6, 1200, 2200, 40, 15),
+        Difficulty.Medium => new DifficultyConfig(5, 800, 1600, 35, 20),
+        _ => new DifficultyConfig(4, 500, 1200, 30, 30),
+    };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private const int TickMs = 100;
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private DifficultyConfig config = ConfigFor(Difficulty.Easy);
+    private Light light = Light.Green;
+    private double progressPct;
+    private int strikes;
+    private bool won;
+    private bool caughtFlash;
+    private int remainingMs;
+    private int nextSwitchInMs;
+    private readonly Random rng = new();
+    private System.Threading.Timer? timer;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        config = ConfigFor(selectedDifficulty);
+        light = Light.Green;
+        progressPct = 0;
+        strikes = 0;
+        won = false;
+        caughtFlash = false;
+        remainingMs = config.RoundSeconds * 1000;
+        nextSwitchInMs = rng.Next(config.MinLightMs, config.MaxLightMs + 1);
+        phase = Phase.Playing;
+        StartTimer();
+    }
+
+    private void ExitToSetup()
+    {
+        StopTimer();
+        phase = Phase.Setup;
+    }
+
+    private void Tick(object? _) => InvokeAsync(async () =>
+    {
+        if (phase != Phase.Playing) return;
+
+        remainingMs -= TickMs;
+        if (remainingMs <= 0)
+        {
+            remainingMs = 0;
+            await FinishGame(won: false);
+            return;
+        }
+
+        nextSwitchInMs -= TickMs;
+        if (nextSwitchInMs <= 0)
+        {
+            light = light == Light.Green ? Light.Red : Light.Green;
+            nextSwitchInMs = rng.Next(config.MinLightMs, config.MaxLightMs + 1);
+        }
+
+        StateHasChanged();
+    });
+
+    private async Task Move()
+    {
+        if (phase != Phase.Playing) return;
+
+        if (light == Light.Green)
+        {
+            progressPct = Math.Min(100, progressPct + config.IncrementPct);
+            await PlaySoundAsync("playImpactSound");
+
+            if (progressPct >= 100)
+            {
+                await FinishGame(won: true);
+            }
+        }
+        else
+        {
+            strikes++;
+            progressPct = Math.Max(0, progressPct - config.CaughtPenaltyPct);
+            caughtFlash = true;
+            StateHasChanged();
+            await PlaySoundAsync("playMismatchSound");
+            await Task.Delay(300);
+            caughtFlash = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame(bool won)
+    {
+        StopTimer();
+        phase = Phase.Finished;
+        this.won = won;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new RedLightGreenLightResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: won,
+                ProgressPct: (int)progressPct,
+                Strikes: strikes,
+                ElapsedSeconds: config.RoundSeconds - remainingMs / 1000));
+        }
+    }
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(Tick, null, TickMs, TickMs);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalMs)
+    {
+        var span = TimeSpan.FromMilliseconds(totalMs);
+        return span.Minutes > 0 ? $"{span.Minutes}:{span.Seconds:00}" : $"0:{span.Seconds:00}";
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Bigger steps, slower flips",
+        Difficulty.Medium => "Medium steps, quicker flips",
+        _ => "Small steps, fast flips",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        StopTimer();
+
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record RedLightGreenLightResult(string Difficulty, bool Won, int ProgressPct, int Strikes, int ElapsedSeconds);
+}

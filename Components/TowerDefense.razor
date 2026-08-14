@@ -1,0 +1,490 @@
+@*
+    TowerDefense.razor
+    An older-kid game (see GAMES_ROADMAP.md Section 9) - noticeably bigger
+    than the other built-ins, on par with TankDuel/DressUp rather than the
+    ~300-400 line norm. One fixed level/path (a real multi-level campaign
+    with save state is a later extension, not v1 - see the roadmap's
+    "start with small vertical slices" note).
+
+    Enemies walk a fixed S-shaped path across a 12x8 grid; tap a grass
+    cell with a tower selected from the build palette to place it (if you
+    can afford it). Towers auto-fire at the enemy furthest along the path
+    that's within range. Clear a wave, spend earned gold on more towers,
+    then start the next wave when ready - waves don't start automatically,
+    so pacing stays in the player's hands. Reach the end of the path and
+    an enemy costs you lives instead of gold; run out of lives and the
+    run ends. Difficulty controls starting gold/lives and enemy HP scaling
+    rather than adding an AI opponent (there isn't one here).
+
+    Usage:
+        <TowerDefense OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="td-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="td-setup game-setup-panel">
+            <h2>🏯 Tower Defense</h2>
+            <p>Place towers along the path to stop the enemies before they reach the end. Earn gold for every enemy you defeat!</p>
+
+            <h3 class="td-section-title game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="td-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="td-difficulty-select game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="td-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="td-diff-name">@DifficultyName(diff)</span>
+                            <span class="td-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="td-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="td-hud game-hud">
+            <span class="td-stat"><img class="td-coin-icon" src="images/tower-defense/coin.png" alt="" />@gold</span>
+            <span class="td-stat">❤️ @lives</span>
+            <span class="td-stat">Wave @Math.Min(waveIndex + 1, TotalWaves)/@TotalWaves</span>
+            <button class="td-wave-btn game-primary-action" disabled="@(!CanStartWave())" @onclick="StartWave">
+                @(waveInProgress ? "Wave in progress…" : "Start Wave")
+            </button>
+            <button class="td-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="td-palette">
+            @foreach (var t in TowerTypes)
+            {
+                <button class="td-palette-btn @(selectedTowerType?.Id == t.Id ? "selected" : "") @(gold < t.Cost ? "unaffordable" : "")"
+                        disabled="@(phase != Phase.Playing)"
+                        @onclick="() => SelectTowerType(t)">
+                    <img class="td-palette-icon" src="@t.ImagePath" alt="" />
+                    <span class="td-palette-name">@t.Name</span>
+                    <span class="td-palette-cost"><img class="td-coin-icon" src="images/tower-defense/coin.png" alt="" />@t.Cost</span>
+                </button>
+            }
+        </div>
+
+        <div class="td-board" style="--td-cols:@GridCols; --td-rows:@GridRows;">
+            @for (var row = 0; row < GridRows; row++)
+            {
+                for (var col = 0; col < GridCols; col++)
+                {
+                    var c = col;
+                    var r = row;
+                    var isPath = PathSet.Contains((c, r));
+                    towers.TryGetValue((c, r), out var placed);
+
+                    <button class="td-cell @(isPath ? "path" : "grass") @(placed is not null ? "occupied" : "")"
+                            disabled="@(isPath || placed is not null || phase != Phase.Playing)"
+                            @onclick="() => PlaceTower(c, r)">
+                        @if (placed is not null)
+                        {
+                            <img class="td-tower-icon" src="@placed.Type.ImagePath" alt="@placed.Type.Name" />
+                        }
+                    </button>
+                }
+            }
+
+            @foreach (var enemy in enemies)
+            {
+                <div @key="enemy.Id" class="td-enemy @(enemy.HitFlashMs > 0 ? "hit" : "")" style="@EnemyStyle(enemy)">
+                    <img class="td-enemy-icon" src="@enemy.Type.ImagePath" alt="" />
+                    <div class="td-enemy-hp"><div class="td-enemy-hp-fill" style="width:@((enemy.Hp / enemy.Type.Hp * 100).ToString("0", System.Globalization.CultureInfo.InvariantCulture))%;"></div></div>
+                </div>
+            }
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="td-overlay game-result-overlay">
+                <div class="td-win-panel game-result-panel">
+                    @if (won)
+                    {
+                        <h2>🎉 Base Defended!</h2>
+                        <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") - every wave is cleared!</p>
+                    }
+                    else
+                    {
+                        <h2>💥 Base Overrun</h2>
+                        <p>The enemies got through - want to try again?</p>
+                    }
+                    <div class="td-win-stats game-result-stats">
+                        <div><span class="game-stat-label">Waves cleared</span><span class="game-stat-value">@waveIndex/@TotalWaves</span></div>
+                        <div><span class="game-stat-label">Defeated</span><span class="game-stat-value">@kills</span></div>
+                        <div><span class="game-stat-label">Lives left</span><span class="game-stat-value">@lives</span></div>
+                    </div>
+                    <div class="td-win-actions game-result-actions">
+                        <button class="td-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="td-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<TowerDefenseResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private record DifficultyConfig(int StartGold, int StartLives, double EnemyHpMult);
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static DifficultyConfig ConfigFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => new DifficultyConfig(160, 25, 0.85),
+        Difficulty.Medium => new DifficultyConfig(120, 20, 1.0),
+        _ => new DifficultyConfig(90, 15, 1.25),
+    };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    // ---- Tower / enemy definitions -----------------------------------
+
+    private record TowerType(string Id, string Name, string ImagePath, int Cost, double RangeCells, int Damage, int FireIntervalMs);
+
+    private static readonly TowerType[] TowerTypes =
+    {
+        new("gatling", "Gatling", "images/tower-defense/tower-gatling.png", 40, 2.2, 6, 350),
+        new("cannon", "Cannon", "images/tower-defense/tower-cannon.png", 80, 2.8, 18, 700),
+        new("rocket", "Rocket", "images/tower-defense/tower-rocket.png", 150, 3.4, 42, 1300),
+    };
+
+    private record EnemyType(string Id, string ImagePath, int Hp, double SpeedCellsPerSec, int Reward, int LifeCost);
+
+    private static readonly EnemyType BasicEnemy = new("tank", "images/tower-defense/enemy-tank.png", 40, 1.1, 5, 1);
+    private static readonly EnemyType ToughEnemy = new("tank-tough", "images/tower-defense/enemy-tank-tough.png", 95, 0.75, 9, 2);
+
+    // ---- Grid / path ---------------------------------------------------
+
+    private const int GridCols = 12;
+    private const int GridRows = 8;
+    private const int TotalWaves = 8;
+    private const int TickMs = 100;
+    private const int SpawnIntervalMs = 550;
+
+    private static readonly (int Col, int Row)[] PathCells = BuildPath();
+    private static readonly HashSet<(int Col, int Row)> PathSet = new(PathCells);
+
+    private static (int Col, int Row)[] BuildPath()
+    {
+        var waypoints = new (int Col, int Row)[] { (0, 3), (3, 3), (3, 6), (8, 6), (8, 1), (11, 1) };
+        var cells = new List<(int, int)> { waypoints[0] };
+
+        for (var i = 0; i < waypoints.Length - 1; i++)
+        {
+            var (c, r) = waypoints[i];
+            var (c1, r1) = waypoints[i + 1];
+            var dc = Math.Sign(c1 - c);
+            var dr = Math.Sign(r1 - r);
+
+            while (c != c1 || r != r1)
+            {
+                c += dc;
+                r += dr;
+                cells.Add((c, r));
+            }
+        }
+
+        return cells.ToArray();
+    }
+
+    // ---- Runtime state --------------------------------------------------
+
+    private class PlacedTower
+    {
+        public required TowerType Type;
+        public int CooldownMs;
+    }
+
+    private class ActiveEnemy
+    {
+        public string Id { get; } = Guid.NewGuid().ToString();
+        public required EnemyType Type;
+        public double Hp;
+        public double PathProgress;
+        public int HitFlashMs;
+    }
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private DifficultyConfig config = ConfigFor(Difficulty.Easy);
+    private readonly Dictionary<(int, int), PlacedTower> towers = new();
+    private readonly List<ActiveEnemy> enemies = new();
+    private readonly Queue<EnemyType> pendingSpawns = new();
+    private TowerType? selectedTowerType;
+    private int gold;
+    private int lives;
+    private int kills;
+    private int waveIndex;
+    private bool waveInProgress;
+    private int spawnCooldownMs;
+    private bool won;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private System.Threading.Timer? timer;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        config = ConfigFor(selectedDifficulty);
+        towers.Clear();
+        enemies.Clear();
+        pendingSpawns.Clear();
+        selectedTowerType = null;
+        gold = config.StartGold;
+        lives = config.StartLives;
+        kills = 0;
+        waveIndex = 0;
+        waveInProgress = false;
+        spawnCooldownMs = 0;
+        won = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        StartTimer();
+    }
+
+    private void ExitToSetup()
+    {
+        StopTimer();
+        phase = Phase.Setup;
+    }
+
+    private bool CanStartWave() => phase == Phase.Playing && !waveInProgress && waveIndex < TotalWaves;
+
+    private void StartWave()
+    {
+        if (!CanStartWave()) return;
+
+        var count = 5 + waveIndex * 2;
+        var toughRatio = Math.Min(0.6, waveIndex * 0.08);
+
+        for (var i = 0; i < count; i++)
+        {
+            pendingSpawns.Enqueue(rng.NextDouble() < toughRatio ? ToughEnemy : BasicEnemy);
+        }
+
+        waveInProgress = true;
+        spawnCooldownMs = 0;
+    }
+
+    private void SelectTowerType(TowerType type)
+    {
+        selectedTowerType = selectedTowerType?.Id == type.Id ? null : type;
+    }
+
+    private void PlaceTower(int col, int row)
+    {
+        if (phase != Phase.Playing || PathSet.Contains((col, row)) || towers.ContainsKey((col, row))) return;
+        if (selectedTowerType is not { } type || gold < type.Cost) return;
+
+        gold -= type.Cost;
+        towers[(col, row)] = new PlacedTower { Type = type };
+        selectedTowerType = null;
+    }
+
+    private string EnemyStyle(ActiveEnemy enemy)
+    {
+        var (col, row) = EnemyPosition(enemy);
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        var left = ((col + 0.5) / GridCols * 100).ToString("0.##", inv);
+        var top = ((row + 0.5) / GridRows * 100).ToString("0.##", inv);
+        return $"left:{left}%; top:{top}%;";
+    }
+
+    private static (double Col, double Row) EnemyPosition(ActiveEnemy enemy)
+    {
+        var idx = (int)Math.Floor(enemy.PathProgress);
+        if (idx >= PathCells.Length - 1) return PathCells[^1];
+
+        var frac = enemy.PathProgress - idx;
+        var a = PathCells[idx];
+        var b = PathCells[idx + 1];
+        return (a.Col + (b.Col - a.Col) * frac, a.Row + (b.Row - a.Row) * frac);
+    }
+
+    private void Tick(object? _) => InvokeAsync(async () =>
+    {
+        if (phase != Phase.Playing) return;
+
+        // Spawn scheduling for the current wave.
+        if (pendingSpawns.Count > 0)
+        {
+            spawnCooldownMs -= TickMs;
+            if (spawnCooldownMs <= 0)
+            {
+                var type = pendingSpawns.Dequeue();
+                enemies.Add(new ActiveEnemy { Type = type, Hp = type.Hp * config.EnemyHpMult });
+                spawnCooldownMs = SpawnIntervalMs;
+            }
+        }
+
+        // Enemy movement - reaching the end costs lives instead of gold.
+        for (var i = enemies.Count - 1; i >= 0; i--)
+        {
+            var enemy = enemies[i];
+            if (enemy.HitFlashMs > 0) enemy.HitFlashMs -= TickMs;
+
+            enemy.PathProgress += enemy.Type.SpeedCellsPerSec * (TickMs / 1000.0);
+            if (enemy.PathProgress >= PathCells.Length - 1)
+            {
+                lives -= enemy.Type.LifeCost;
+                enemies.RemoveAt(i);
+            }
+        }
+
+        if (lives <= 0)
+        {
+            await FinishGame(won: false);
+            return;
+        }
+
+        // Tower firing - each ready tower shoots the enemy furthest along
+        // the path (closest to breaking through) that's within range.
+        foreach (var (pos, tower) in towers)
+        {
+            tower.CooldownMs -= TickMs;
+            if (tower.CooldownMs > 0) continue;
+
+            var towerCol = pos.Item1 + 0.5;
+            var towerRow = pos.Item2 + 0.5;
+
+            ActiveEnemy? target = null;
+            var bestProgress = -1.0;
+            foreach (var enemy in enemies)
+            {
+                var (col, row) = EnemyPosition(enemy);
+                var dist = Math.Sqrt(Math.Pow(col - towerCol, 2) + Math.Pow(row - towerRow, 2));
+                if (dist <= tower.Type.RangeCells && enemy.PathProgress > bestProgress)
+                {
+                    bestProgress = enemy.PathProgress;
+                    target = enemy;
+                }
+            }
+
+            if (target is null) continue;
+
+            target.Hp -= tower.Type.Damage;
+            target.HitFlashMs = 150;
+            tower.CooldownMs = tower.Type.FireIntervalMs;
+            await PlaySoundAsync("playImpactSound");
+        }
+
+        // Resolve deaths after firing so a killing blow doesn't briefly render at negative HP.
+        for (var i = enemies.Count - 1; i >= 0; i--)
+        {
+            if (enemies[i].Hp <= 0)
+            {
+                gold += enemies[i].Type.Reward;
+                kills++;
+                enemies.RemoveAt(i);
+            }
+        }
+
+        if (waveInProgress && pendingSpawns.Count == 0 && enemies.Count == 0)
+        {
+            waveInProgress = false;
+            waveIndex++;
+
+            if (waveIndex >= TotalWaves)
+            {
+                await FinishGame(won: true);
+                return;
+            }
+        }
+
+        StateHasChanged();
+    });
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame(bool won)
+    {
+        StopTimer();
+        phase = Phase.Finished;
+        this.won = won;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new TowerDefenseResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: won,
+                WavesCleared: waveIndex,
+                Kills: kills,
+                Lives: Math.Max(0, lives),
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(Tick, null, TickMs, TickMs);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "More gold, more lives",
+        Difficulty.Medium => "Balanced",
+        _ => "Less gold, tougher enemies",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        StopTimer();
+
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record TowerDefenseResult(string Difficulty, bool Won, int WavesCleared, int Kills, int Lives, int ElapsedSeconds);
+}

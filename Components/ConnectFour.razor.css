@@ -1,0 +1,143 @@
+.c4-game {
+    width: min(640px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.c4-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.c4-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.c4-setup p {
+    max-width: 30rem;
+    color: var(--text-muted);
+}
+
+.c4-section-title {
+    margin: 0.4rem 0 0;
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.c4-difficulty-locked {
+    margin: 0;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--line);
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.c4-difficulty-select {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 0.7rem;
+}
+
+.c4-diff-btn {
+    min-height: 86px;
+    padding: 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    gap: 0.25rem;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.c4-diff-btn:hover {
+    transform: translateY(-2px);
+    background: var(--control-bg-hover);
+}
+
+.c4-diff-btn.selected {
+    border-color: rgba(78, 205, 196, 0.75);
+    background: var(--selected-bg);
+}
+
+.c4-diff-name {
+    font-weight: 900;
+}
+
+.c4-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.c4-title {
+    font-weight: 900;
+}
+
+.c4-stat {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-muted);
+}
+
+.c4-board {
+    display: grid;
+    grid-template-columns: repeat(var(--c4-cols), 1fr);
+    gap: clamp(3px, 1vw, 6px);
+    width: min(480px, 94vw);
+    aspect-ratio: 7 / 6;
+    margin: 0 auto;
+    padding: clamp(4px, 1.5vw, 10px);
+    border-radius: var(--radius-md);
+    background: linear-gradient(180deg, #2f6fd6, #1e4fa8);
+    box-shadow: var(--shadow-sm);
+}
+
+.c4-column {
+    display: grid;
+    grid-template-rows: repeat(6, 1fr);
+    gap: clamp(3px, 1vw, 6px);
+    border: none;
+    background: transparent;
+    padding: 0;
+    touch-action: manipulation;
+}
+
+.c4-column:not(:disabled):hover .c4-slot:empty {
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.c4-slot {
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
+    transition: background 0.1s ease, transform 0.15s ease;
+}
+
+.c4-slot.red {
+    background: radial-gradient(circle at 35% 30%, #ff8a80, #d32f2f 70%);
+}
+
+.c4-slot.yellow {
+    background: radial-gradient(circle at 35% 30%, #fff59d, #f9a825 70%);
+}
+
+.c4-win-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+}

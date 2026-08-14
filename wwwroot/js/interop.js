@@ -577,3 +577,23 @@ export function playSimonErrorSound() {
     if (!ctx) return;
     slide(ctx, 200, 80, ctx.currentTime, 0.4, 'sawtooth', 0.2);
 }
+
+// C4 through C5 - one octave, white keys only, for Baby Piano.
+const PIANO_NOTE_FREQS = [261.63, 293.66, 329.63, 349.23, 392.0, 440.0, 493.88, 523.25];
+
+export function playPianoNote(index) {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const freq = PIANO_NOTE_FREQS[index % PIANO_NOTE_FREQS.length];
+    tone(ctx, freq, ctx.currentTime, 0.5, 'sine', 0.22);
+}
+
+const DRUM_PAD_FREQS = [90, 120, 150, 180, 210, 240, 270, 300];
+
+export function playDrumHit(index) {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const freq = DRUM_PAD_FREQS[index % DRUM_PAD_FREQS.length];
+    noiseBurst(ctx, ctx.currentTime, 0.16, 0.22, freq + 400);
+    tone(ctx, freq, ctx.currentTime, 0.15, 'sine', 0.22);
+}

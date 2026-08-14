@@ -1,0 +1,257 @@
+@*
+    ConnectFour.razor
+    Classic 7x6 drop game - the player is always red and goes first,
+    the computer plays yellow. Click a column to drop a disc into its
+    lowest empty slot; get four in a row (any direction) to win.
+    Difficulty controls the AI's search depth via GameAi.ConnectFourMove
+    (Easy is random, Medium/Hard use depth-limited minimax). Match tally
+    persists across "Play Again" for the rest of the session.
+
+    Usage:
+        <ConnectFour OnComplete="HandleGameComplete" />
+*@
+@using KidsGameLauncher.Services
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="c4-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="c4-setup game-setup-panel">
+            <h2>🔴 Connect Four</h2>
+            <p>You're red and go first - drop discs to get four in a row before the computer does!</p>
+
+            <h3 class="c4-section-title game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="c4-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="c4-difficulty-select game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="c4-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="c4-diff-name">@DifficultyName(diff)</span>
+                            <span class="c4-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="c4-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="c4-hud game-hud">
+            <span class="c4-title">Connect Four</span>
+            <span class="c4-stat">You @wins - @losses Computer</span>
+            <span class="c4-stat">Draws @draws</span>
+            <button class="c4-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="c4-board" style="--c4-cols:@GameAi.ConnectFourCols;">
+            @for (var c = 0; c < GameAi.ConnectFourCols; c++)
+            {
+                var col = c;
+                <button class="c4-column" disabled="@(phase != Phase.Playing || aiThinking)" @onclick="() => PlayerMove(col)" aria-label="Drop in column @(col + 1)">
+                    @for (var r = GameAi.ConnectFourRows - 1; r >= 0; r--)
+                    {
+                        var cell = board[col, r];
+                        <span class="c4-slot @(cell == 1 ? "red" : "") @(cell == 2 ? "yellow" : "")"></span>
+                    }
+                </button>
+            }
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="c4-overlay game-result-overlay">
+                <div class="c4-win-panel game-result-panel">
+                    @if (outcome == "Win")
+                    {
+                        <h2>🎉 You Win!</h2>
+                        <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") - four in a row!</p>
+                    }
+                    else if (outcome == "Loss")
+                    {
+                        <h2>🤖 Computer Wins</h2>
+                        <p>So close - want a rematch?</p>
+                    }
+                    else
+                    {
+                        <h2>🤝 It's a Draw!</h2>
+                        <p>The board filled up with nobody getting four in a row.</p>
+                    }
+                    <div class="c4-win-stats game-result-stats">
+                        <div><span class="game-stat-label">Wins</span><span class="game-stat-value">@wins</span></div>
+                        <div><span class="game-stat-label">Losses</span><span class="game-stat-value">@losses</span></div>
+                        <div><span class="game-stat-label">Draws</span><span class="game-stat-value">@draws</span></div>
+                    </div>
+                    <div class="c4-win-actions game-result-actions">
+                        <button class="c4-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="c4-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<ConnectFourResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+
+    private static readonly GameAi.Difficulty[] Difficulties =
+        { GameAi.Difficulty.Easy, GameAi.Difficulty.Medium, GameAi.Difficulty.Hard };
+
+    private GameAi.Difficulty? LockedDifficulty =>
+        Enum.TryParse<GameAi.Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private const int PlayerId = 1;
+    private const int AiId = 2;
+
+    private Phase phase = Phase.Setup;
+    private GameAi.Difficulty selectedDifficulty = GameAi.Difficulty.Easy;
+    private int[,] board = new int[GameAi.ConnectFourCols, GameAi.ConnectFourRows];
+    private bool aiThinking;
+    private string outcome = "";
+    private int wins;
+    private int losses;
+    private int draws;
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        board = new int[GameAi.ConnectFourCols, GameAi.ConnectFourRows];
+        phase = Phase.Playing;
+        aiThinking = false;
+        startedAtUtc = DateTime.UtcNow;
+    }
+
+    private void ExitToSetup()
+    {
+        phase = Phase.Setup;
+    }
+
+    private async Task PlayerMove(int col)
+    {
+        if (phase != Phase.Playing || aiThinking) return;
+
+        var row = GameAi.DropRow(board, col);
+        if (row is null) return;
+
+        board[col, row.Value] = PlayerId;
+        await PlaySoundAsync("playImpactSound");
+
+        if (await CheckRoundOverAsync(col, row.Value, PlayerId, "Win")) return;
+
+        aiThinking = true;
+        StateHasChanged();
+        await Task.Delay(500);
+
+        var aiCol = GameAi.ConnectFourMove(board, AiId, PlayerId, selectedDifficulty);
+        aiThinking = false;
+
+        if (aiCol >= 0)
+        {
+            var aiRow = GameAi.DropRow(board, aiCol)!.Value;
+            board[aiCol, aiRow] = AiId;
+            await PlaySoundAsync("playImpactSound");
+            await CheckRoundOverAsync(aiCol, aiRow, AiId, "Loss");
+        }
+        else
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task<bool> CheckRoundOverAsync(int col, int row, int player, string outcomeIfPlayerWon)
+    {
+        if (GameAi.ConnectFourCheckWin(board, col, row, player))
+        {
+            if (player == PlayerId) wins++; else losses++;
+            await FinishGame(outcomeIfPlayerWon);
+            return true;
+        }
+
+        var boardFull = true;
+        for (var c = 0; c < GameAi.ConnectFourCols; c++)
+        {
+            if (GameAi.DropRow(board, c) is not null) { boardFull = false; break; }
+        }
+
+        if (boardFull)
+        {
+            draws++;
+            await FinishGame("Draw");
+            return true;
+        }
+
+        StateHasChanged();
+        return false;
+    }
+
+    private async Task FinishGame(string result)
+    {
+        outcome = result;
+        phase = Phase.Finished;
+        StateHasChanged();
+        await PlaySoundAsync(result == "Win" ? "playMatchSound" : result == "Loss" ? "playMismatchSound" : "playImpactSound");
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new ConnectFourResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Outcome: outcome,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private static string DifficultyName(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "Easy",
+        GameAi.Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "Computer plays randomly",
+        GameAi.Difficulty.Medium => "Computer plans a few moves ahead",
+        _ => "Computer plans deep and blocks well",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record ConnectFourResult(string Difficulty, string Outcome, int ElapsedSeconds);
+}

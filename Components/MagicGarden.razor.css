@@ -1,0 +1,85 @@
+.mgd-game {
+    width: min(640px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.mgd-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.mgd-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.mgd-setup p {
+    max-width: 30rem;
+    color: var(--text-muted);
+}
+
+.mgd-title {
+    font-weight: 900;
+}
+
+.mgd-plots {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: clamp(0.6rem, 3vw, 1rem);
+    width: min(560px, 94vw);
+    margin: 0 auto;
+}
+
+.mgd-plot {
+    position: relative;
+    aspect-ratio: 1;
+    border: none;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, rgba(120, 200, 130, 0.16), rgba(90, 140, 90, 0.1));
+    box-shadow: var(--shadow-sm);
+    display: grid;
+    place-items: center;
+    touch-action: manipulation;
+}
+
+.mgd-ground {
+    font-size: clamp(1.6rem, 7vw, 2.2rem);
+    opacity: 0.6;
+}
+
+.mgd-flower {
+    font-size: clamp(2.4rem, 11vw, 3.4rem);
+    line-height: 1;
+    animation: mgd-grow 0.4s ease-out;
+}
+
+.mgd-butterfly {
+    position: absolute;
+    top: -0.6rem;
+    font-size: clamp(1.6rem, 7vw, 2.1rem);
+    animation: mgd-flutter 1.5s ease-in-out;
+}
+
+@keyframes mgd-grow {
+    0% { transform: scale(0); opacity: 0; }
+    70% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); }
+}
+
+@keyframes mgd-flutter {
+    0% { transform: translate(0, 10px); opacity: 0; }
+    15% { opacity: 1; }
+    50% { transform: translate(10px, -14px); }
+    85% { opacity: 1; }
+    100% { transform: translate(-6px, -22px); opacity: 0; }
+}

@@ -66,6 +66,70 @@
             {
                 <Sudoku PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSudokuComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.WhackAMole)
+            {
+                <WhackAMole PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWhackAMoleComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.CatchGame)
+            {
+                <CatchGame PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCatchGameComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.FruitSlice)
+            {
+                <FruitSlice PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleFruitSliceComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.BubblePop)
+            {
+                <BubblePop PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleBubblePopComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.ReactionTimer)
+            {
+                <ReactionTimer PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleReactionTimerComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.RedLightGreenLight)
+            {
+                <RedLightGreenLight PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRedLightGreenLightComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.TicTacToe)
+            {
+                <TicTacToe PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTicTacToeComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.ConnectFour)
+            {
+                <ConnectFour PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleConnectFourComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.RockPaperScissors)
+            {
+                <RockPaperScissors PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRockPaperScissorsComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.HigherOrLower)
+            {
+                <HigherOrLower PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleHigherOrLowerComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.PeekReveal)
+            {
+                <PeekReveal PlayerName="@State.CurrentProfile?.Name" OnComplete="HandlePeekRevealComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.SoundButtons)
+            {
+                <SoundButtons PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleSoundButtonsComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.PopAndSparkle)
+            {
+                <PopAndSparkle PlayerName="@State.CurrentProfile?.Name" OnComplete="HandlePopAndSparkleComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.BabyPiano)
+            {
+                <BabyPiano PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBabyPianoComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.MagicGarden)
+            {
+                <MagicGarden PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleMagicGardenComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.TowerDefense)
+            {
+                <TowerDefense PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTowerDefenseComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -273,6 +337,246 @@
             Theme = $"{result.GridSize}x{result.GridSize}",
             Difficulty = $"{result.GridSize}x{result.GridSize}",
             Moves = 1,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleWhackAMoleComplete(WhackAMole.WhackAMoleResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"{result.Score} pts",
+            Moves = result.Hits,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleCatchGameComplete(CatchGame.CatchResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Theme,
+            Difficulty = $"{result.Score} pts",
+            Moves = result.GoodCaught,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleFruitSliceComplete(FruitSlice.FruitSliceResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"{result.Score} pts",
+            Moves = result.Sliced,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleBubblePopComplete(BubblePop.BubblePopResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Mode,
+            Difficulty = $"{result.Score} pts",
+            Moves = result.Popped,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleReactionTimerComplete(ReactionTimer.ReactionTimerResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Best {result.BestMs}ms",
+            Moves = result.Rounds,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleRedLightGreenLightComplete(RedLightGreenLight.RedLightGreenLightResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Won ? "Finished" : "Time's up",
+            Difficulty = $"{result.ProgressPct}%",
+            Moves = result.Strikes,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleTicTacToeComplete(TicTacToe.TicTacToeResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Outcome,
+            Moves = 1,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleConnectFourComplete(ConnectFour.ConnectFourResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Outcome,
+            Moves = 1,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleRockPaperScissorsComplete(RockPaperScissors.RockPaperScissorsResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Won ? "Won match" : "Lost match",
+            Moves = result.PlayerScore,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleHigherOrLowerComplete(HigherOrLower.HigherOrLowerResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Streak {result.BestStreak}",
+            Moves = result.Rounds,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandlePeekRevealComplete(PeekReveal.PeekRevealResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Theme,
+            Difficulty = $"{result.Reveals} reveals",
+            Moves = result.Reveals,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleSoundButtonsComplete(SoundButtons.SoundButtonsResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Theme,
+            Difficulty = $"{result.Taps} taps",
+            Moves = result.Taps,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandlePopAndSparkleComplete(PopAndSparkle.PopAndSparkleResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Theme,
+            Difficulty = $"{result.Pops} pops",
+            Moves = result.Pops,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleBabyPianoComplete(BabyPiano.BabyPianoResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Theme,
+            Difficulty = $"{result.NotesPlayed} notes",
+            Moves = result.NotesPlayed,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleMagicGardenComplete(MagicGarden.MagicGardenResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = "Magic Garden",
+            Difficulty = $"{result.Taps} taps",
+            Moves = result.Taps,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleTowerDefenseComplete(TowerDefense.TowerDefenseResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Wave {result.WavesCleared}/8" + (result.Won ? " - cleared" : ""),
+            Moves = result.Kills,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

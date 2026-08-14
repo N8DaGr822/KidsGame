@@ -1,0 +1,141 @@
+.tt-game {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.tt-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.tt-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.tt-setup p {
+    max-width: 30rem;
+    color: var(--text-muted);
+}
+
+.tt-section-title {
+    margin: 0.4rem 0 0;
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.tt-difficulty-locked {
+    margin: 0;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--line);
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.tt-difficulty-select {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 0.7rem;
+}
+
+.tt-diff-btn {
+    min-height: 86px;
+    padding: 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    gap: 0.25rem;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.tt-diff-btn:hover {
+    transform: translateY(-2px);
+    background: var(--control-bg-hover);
+}
+
+.tt-diff-btn.selected {
+    border-color: rgba(78, 205, 196, 0.75);
+    background: var(--selected-bg);
+}
+
+.tt-diff-name {
+    font-weight: 900;
+}
+
+.tt-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.tt-title {
+    font-weight: 900;
+}
+
+.tt-stat {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-muted);
+}
+
+.tt-board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+    width: min(360px, 88vw);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    padding: 0.6rem;
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.tt-cell {
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--control-bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(2rem, 10cqw, 3rem);
+    line-height: 1;
+    display: grid;
+    place-items: center;
+    touch-action: manipulation;
+    transition: background 0.1s ease;
+}
+
+.tt-cell:not(:disabled):hover {
+    background: var(--control-bg-hover);
+}
+
+.tt-cell.x {
+    color: #6ea8fe;
+}
+
+.tt-cell.o {
+    color: #ff6b6b;
+}
+
+.tt-win-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+}

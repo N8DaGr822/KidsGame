@@ -1,0 +1,147 @@
+@*
+    MagicGarden.razor
+    A toddler cause-and-effect toy (~1 year old target): tap an empty
+    garden spot and a flower grows there; tap a grown flower and a
+    butterfly flutters up. Every tap does something nice - flowers never
+    wilt, butterflies can be summoned again and again. No score, no
+    timer, no fail state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how long the
+    child played and how many taps they made, then returns to the setup
+    screen.
+
+    Usage:
+        <MagicGarden OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="mgd-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="mgd-setup game-setup-panel">
+            <h2>🌷 Magic Garden</h2>
+            <p>Tap the ground to grow a flower - then tap the flower to call a butterfly!</p>
+            <button class="mgd-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="mgd-hud game-hud">
+            <span class="mgd-title">Magic Garden</span>
+            <button class="mgd-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="mgd-plots">
+            @for (var i = 0; i < plots.Length; i++)
+            {
+                var idx = i;
+                var plot = plots[idx];
+                <button class="mgd-plot" @onclick="() => TapPlot(idx)">
+                    @if (plot.ButterflyVisible)
+                    {
+                        <span class="mgd-butterfly">🦋</span>
+                    }
+                    @if (plot.HasFlower)
+                    {
+                        <span class="mgd-flower">@plot.FlowerIcon</span>
+                    }
+                    else
+                    {
+                        <span class="mgd-ground">🌱</span>
+                    }
+                </button>
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<MagicGardenResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private class Plot
+    {
+        public bool HasFlower;
+        public string FlowerIcon = "🌸";
+        public bool ButterflyVisible;
+    }
+
+    private static readonly string[] FlowerPool = { "🌸", "🌼", "🌻", "🌺", "🌷", "🪻" };
+
+    private const int PlotCount = 6;
+
+    private Phase phase = Phase.Setup;
+    private Plot[] plots = Array.Empty<Plot>();
+    private readonly Random rng = new();
+    private int taps;
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    private void StartGame()
+    {
+        plots = Enumerable.Range(0, PlotCount).Select(_ => new Plot()).ToArray();
+        taps = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task TapPlot(int index)
+    {
+        var plot = plots[index];
+        taps++;
+
+        if (!plot.HasFlower)
+        {
+            plot.HasFlower = true;
+            plot.FlowerIcon = FlowerPool[rng.Next(FlowerPool.Length)];
+            StateHasChanged();
+            await PlaySoundAsync("playMatchSound");
+            return;
+        }
+
+        if (plot.ButterflyVisible) return;
+
+        plot.ButterflyVisible = true;
+        StateHasChanged();
+        await PlaySoundAsync("playCatchSound");
+
+        await Task.Delay(1500);
+        plot.ButterflyVisible = false;
+        StateHasChanged();
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MagicGardenResult(
+                Taps: taps,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record MagicGardenResult(int Taps, int ElapsedSeconds);
+}
