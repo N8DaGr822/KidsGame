@@ -38,6 +38,7 @@ public static class BuiltInGames
     public const string BabyPiano = "baby-piano";
     public const string MagicGarden = "magic-garden";
     public const string TowerDefense = "tower-defense";
+    public const string OddOneOut = "odd-one-out";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -68,5 +69,6 @@ public static class BuiltInGames
         new BuiltInGame("Baby Piano", "🎹", BabyPiano),
         new BuiltInGame("Magic Garden", "🦋", MagicGarden),
         new BuiltInGame("Tower Defense", "🏯", TowerDefense, "images/tower-defense/tower-cannon.png"),
+        new BuiltInGame("Odd One Out", "🔎", OddOneOut),
     };
 }

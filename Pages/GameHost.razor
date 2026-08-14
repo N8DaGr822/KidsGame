@@ -130,6 +130,10 @@
             {
                 <TowerDefense PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTowerDefenseComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.OddOneOut)
+            {
+                <OddOneOut PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleOddOneOutComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -577,6 +581,21 @@
             Theme = result.Difficulty,
             Difficulty = $"Level {result.LevelsReached}, {result.TotalWavesCleared} waves" + (result.Won ? " - campaign complete" : ""),
             Moves = result.Kills,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleOddOneOutComplete(OddOneOut.OddOneOutResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Score {result.Score}/{result.TotalRounds}",
+            Moves = result.Score,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }
