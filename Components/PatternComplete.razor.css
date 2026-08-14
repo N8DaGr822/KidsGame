@@ -1,0 +1,66 @@
+.pc-game {
+    width: min(620px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.pc-diff-name {
+    font-weight: 900;
+}
+
+.pc-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.pc-title {
+    font-weight: 900;
+}
+
+.pc-sequence {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.pc-seq-tile {
+    width: clamp(2.6rem, 9vw, 3.4rem);
+    aspect-ratio: 1;
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    border: 1px solid var(--line);
+    font-size: clamp(1.4rem, 6vw, 2rem);
+    display: grid;
+    place-items: center;
+}
+
+.pc-seq-blank {
+    border-color: rgba(78, 205, 196, 0.75);
+    border-style: dashed;
+}
+
+.pc-choices {
+    grid-template-columns: repeat(4, 1fr) !important;
+    width: min(420px, 100%);
+    margin: 0 auto;
+}
+
+.pc-choice-btn {
+    min-height: 72px !important;
+}
+
+.pc-choice-emoji {
+    font-size: clamp(1.6rem, 7vw, 2.2rem);
+}
+
+.pc-message {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+}
