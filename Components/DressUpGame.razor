@@ -188,12 +188,14 @@
                             </button>
                         }
                     </div>
-                    <div class="du-tray">
+                    <div class="du-tray"
+                         @onpointermove="OnTrayPointerMove"
+                         @onpointerup="OnTrayPointerUp"
+                         @onpointercancel="OnTrayPointerCancel">
                         @foreach (var sticker in ActiveStickers)
                         {
                             <div @key="sticker.Id" class="du-tray-item"
-                                 @onpointerdown="e => StartDragFromTray(e, sticker)"
-                                 @onpointerdown:preventDefault>
+                                 @onpointerdown="e => StartPendingTrayDrag(e, sticker)">
                                 @if (sticker.ImagePath is not null)
                                 {
                                     <img class="du-tray-img" src="@sticker.ImagePath" alt="" draggable="false" />
@@ -324,57 +326,57 @@
         new StickerDef("necklace", "📿", "Necklace", StickerArt + "Necklace1.png", DefaultScale: 0.9),
         new StickerDef("silver-necklace", "📿", "Silver Necklace", StickerArt + "Necklace2.png", DefaultScale: 0.9),
         new StickerDef("pearl-necklace", "📿", "Pearl & Coral Necklace", StickerArt + "Necklace3.png", DefaultScale: 0.9),
-        new StickerDef("necklace-4", "📿", "Necklace 4", StickerArt + "Necklace4.png", DefaultScale: 0.9),
-        new StickerDef("necklace-5", "📿", "Necklace 5", StickerArt + "Necklace5.png", DefaultScale: 0.9),
-        new StickerDef("necklace-6", "📿", "Necklace 6", StickerArt + "Necklace6.png", DefaultScale: 0.9),
-        new StickerDef("necklace-7", "📿", "Necklace 7", StickerArt + "Necklace7.png", DefaultScale: 0.9),
-        new StickerDef("necklace-8", "📿", "Necklace 8", StickerArt + "Necklace8.png", DefaultScale: 0.9),
-        new StickerDef("necklace-9", "📿", "Necklace 9", StickerArt + "Necklace9.png", DefaultScale: 0.9),
-        new StickerDef("necklace-10", "📿", "Necklace 10", StickerArt + "Necklace10.png", DefaultScale: 0.9),
-        new StickerDef("necklace-11", "📿", "Necklace 11", StickerArt + "Necklace11.png", DefaultScale: 0.9),
-        new StickerDef("necklace-12", "📿", "Necklace 12", StickerArt + "Necklace12.png", DefaultScale: 0.9),
-        new StickerDef("necklace-13", "📿", "Necklace 13", StickerArt + "Necklace13.png", DefaultScale: 0.9),
-        new StickerDef("necklace-14", "📿", "Necklace 14", StickerArt + "Necklace14.png", DefaultScale: 0.9),
-        new StickerDef("necklace-15", "📿", "Necklace 15", StickerArt + "Necklace15.png", DefaultScale: 0.9),
-        new StickerDef("necklace-16", "📿", "Necklace 16", StickerArt + "Necklace16.png", DefaultScale: 0.9),
-        new StickerDef("pendant-1", "📿", "Pendant 1", StickerArt + "Pendent1.png", DefaultScale: 0.65),
-        new StickerDef("pendant-2", "📿", "Pendant 2", StickerArt + "Pendent2.png", DefaultScale: 0.65),
+        new StickerDef("necklace-4", "📿", "Pearl Diamond Choker", StickerArt + "Necklace4.png", DefaultScale: 0.9),
+        new StickerDef("amethyst-tiara", "👑", "Amethyst Tiara", StickerArt + "Necklace5.png", DefaultScale: 0.9),
+        new StickerDef("butterfly-hair-clip", "🦋", "Butterfly Hair Clip", StickerArt + "Necklace6.png", DefaultScale: 0.9),
+        new StickerDef("necklace-7", "📿", "Ruby Choker", StickerArt + "Necklace7.png", DefaultScale: 0.9),
+        new StickerDef("necklace-8", "📿", "Sapphire Collar", StickerArt + "Necklace8.png", DefaultScale: 0.9),
+        new StickerDef("necklace-9", "📿", "Moon & Star Necklace", StickerArt + "Necklace9.png", DefaultScale: 0.9),
+        new StickerDef("necklace-10", "📿", "Butterfly Chain Necklace", StickerArt + "Necklace10.png", DefaultScale: 0.9),
+        new StickerDef("necklace-11", "📿", "Floral Locket Necklace", StickerArt + "Necklace11.png", DefaultScale: 0.9),
+        new StickerDef("necklace-12", "📿", "Pirate Ship Cameo Necklace", StickerArt + "Necklace12.png", DefaultScale: 0.9),
+        new StickerDef("necklace-13", "📿", "Snowflake Pearl Necklace", StickerArt + "Necklace13.png", DefaultScale: 0.9),
+        new StickerDef("necklace-14", "📿", "Star & Moon Charm Necklace", StickerArt + "Necklace14.png", DefaultScale: 0.9),
+        new StickerDef("necklace-15", "📿", "Bolo Star Necklace", StickerArt + "Necklace15.png", DefaultScale: 0.9),
+        new StickerDef("necklace-16", "📿", "Steampunk Rose Necklace", StickerArt + "Necklace16.png", DefaultScale: 0.9),
+        new StickerDef("pendant-1", "📿", "Crystal Shard Pendant", StickerArt + "Pendent1.png", DefaultScale: 0.65),
+        new StickerDef("pendant-2", "📿", "Ruby Bib Necklace", StickerArt + "Pendent2.png", DefaultScale: 0.65),
         new StickerDef("rose", "🌹", "Rose", StickerArt + "Rose.png"),
         new StickerDef("purse", "👛", "Purse", StickerArt + "Bag.png"),
-        new StickerDef("bag-1", "👜", "Bag 1", StickerArt + "Bag1.png", DefaultScale: 1.2),
-        new StickerDef("bag-2", "👜", "Bag 2", StickerArt + "Bag2.png", DefaultScale: 1.2),
-        new StickerDef("bag-3", "👜", "Bag 3", StickerArt + "Bag3.png", DefaultScale: 1.2),
+        new StickerDef("bag-1", "👜", "Dragon Ember Bag", StickerArt + "Bag1.png", DefaultScale: 1.2),
+        new StickerDef("bag-2", "👜", "Rose Bloom Satchel", StickerArt + "Bag2.png", DefaultScale: 1.2),
+        new StickerDef("bag-3", "👜", "Ember Gear Satchel", StickerArt + "Bag3.png", DefaultScale: 1.2),
         new StickerDef("heart-purse", "👛", "Heart Clasp Purse", StickerArt + "Purse1.png", DefaultScale: 1.2),
-        new StickerDef("purse-2", "👛", "Purse 2", StickerArt + "Purse2.png", DefaultScale: 1.2),
-        new StickerDef("purse-3", "👛", "Purse 3", StickerArt + "Purse3.png", DefaultScale: 1.2),
+        new StickerDef("purse-2", "👛", "Butterfly Pearl Clutch", StickerArt + "Purse2.png", DefaultScale: 1.2),
+        new StickerDef("purse-3", "👛", "Rainbow Butterfly Bag", StickerArt + "Purse3.png", DefaultScale: 1.2),
         new StickerDef("shoes", "👠", "Shoes", StickerArt + "Shoes1.png", DefaultScale: 1.4),
         new StickerDef("frost-boots", "👢", "Frost Boots", StickerArt + "Boots1.png", DefaultScale: 1.4),
         new StickerDef("gloves", "🧤", "Starlit Gloves", StickerArt + "Gloves1.png", DefaultScale: 2.15),
         new StickerDef("belt", "🪢", "Magic Belt", StickerArt + "Belt1.png", DefaultScale: 1.4),
-        new StickerDef("belt-2", "🪢", "Belt 2", StickerArt + "Belt2.png", DefaultScale: 1.4),
-        new StickerDef("belt-3", "🪢", "Belt 3", StickerArt + "Belt3.png", DefaultScale: 1.4),
-        new StickerDef("bracelet-1", "💍", "Bracelet 1", StickerArt + "Braclet1.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-2", "💍", "Bracelet 2", StickerArt + "Braclet2.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-3", "💍", "Bracelet 3", StickerArt + "Braclet3.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-4", "💍", "Bracelet 4", StickerArt + "Braclet4.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-5", "💍", "Bracelet 5", StickerArt + "Braclet5.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-6", "💍", "Bracelet 6", StickerArt + "Braclet6.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-7", "💍", "Bracelet 7", StickerArt + "Braclet7.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-8", "💍", "Bracelet 8", StickerArt + "Braclet8.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-9", "💍", "Bracelet 9", StickerArt + "Braclet9.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-10", "💍", "Bracelet 10", StickerArt + "Braclet10.png", DefaultScale: 0.45),
+        new StickerDef("belt-2", "🪢", "Moon & Star Buckle Belt", StickerArt + "Belt2.png", DefaultScale: 1.4),
+        new StickerDef("belt-3", "🪢", "Galaxy Star Sash", StickerArt + "Belt3.png", DefaultScale: 1.4),
+        new StickerDef("bracelet-1", "💍", "Spiked Collar", StickerArt + "Braclet1.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-2", "💍", "Ruby Diamond Choker", StickerArt + "Braclet2.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-3", "💍", "Frost Wing Cuff", StickerArt + "Braclet3.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-4", "💍", "Moon Cuff Bracelet", StickerArt + "Braclet4.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-5", "💍", "Icy Bow Collar", StickerArt + "Braclet5.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-6", "💍", "Dragon Eye Collar", StickerArt + "Braclet6.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-7", "💍", "Celestial Crystal Cuff", StickerArt + "Braclet7.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-8", "💍", "Spiked Dragon Eye Collar", StickerArt + "Braclet8.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-9", "💍", "Ruby Signet Ring", StickerArt + "Braclet9.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-10", "💍", "Sapphire Gold Choker", StickerArt + "Braclet10.png", DefaultScale: 0.45),
         new StickerDef("shoulder-armor", "🐉", "Dragon Shoulder Armor", StickerArt + "Shoulders1.png", DefaultScale: 2.8),
-        new StickerDef("horn-1", "🦄", "Horn 1", StickerArt + "Horn1.png", DefaultScale: 0.6),
-        new StickerDef("horn-2", "🦄", "Horn 2", StickerArt + "Horn2.png", DefaultScale: 0.6),
-        new StickerDef("accessory-1", "💎", "Accessory 1", StickerArt + "Accessory1.png", DefaultScale: 0.65),
-        new StickerDef("accessory-2", "💎", "Accessory 2", StickerArt + "Accessory2.png", DefaultScale: 0.65),
-        new StickerDef("accessory-3", "💎", "Accessory 3", StickerArt + "Accessory3.png", DefaultScale: 0.65),
-        new StickerDef("accessory-4", "💎", "Accessory 4", StickerArt + "Accessory4.png", DefaultScale: 0.65),
-        new StickerDef("accessory-5", "💎", "Accessory 5", StickerArt + "Accessory5.png", DefaultScale: 0.65),
+        new StickerDef("horn-1", "🦄", "Jeweled Unicorn Horn", StickerArt + "Horn1.png", DefaultScale: 0.6),
+        new StickerDef("horn-2", "🦄", "Charm Unicorn Horn", StickerArt + "Horn2.png", DefaultScale: 0.6),
+        new StickerDef("accessory-1", "💎", "Rune Gauntlet Cuff", StickerArt + "Accessory1.png", DefaultScale: 0.65),
+        new StickerDef("accessory-2", "💎", "Rune Talon Cuff", StickerArt + "Accessory2.png", DefaultScale: 0.65),
+        new StickerDef("accessory-3", "💎", "Frost Snowflake Crystal", StickerArt + "Accessory3.png", DefaultScale: 0.65),
+        new StickerDef("accessory-4", "💎", "Jeweled Talon Cuff", StickerArt + "Accessory4.png", DefaultScale: 0.65),
+        new StickerDef("accessory-5", "💎", "Feather Wing Brooch", StickerArt + "Accessory5.png", DefaultScale: 0.65),
         new StickerDef("tiara", "👑", "Tiara", StickerArt + "Tiara.png", DefaultScale: 0.75),
         new StickerDef("frost-crown", "👑", "Frost Crown", StickerArt + "Crown1.png", DefaultScale: 0.9),
         new StickerDef("flower-crown", "🌸", "Flower Crown", StickerArt + "Decor1.png", DefaultScale: 0.9),
-        new StickerDef("crown-3", "👑", "Crown 3", StickerArt + "Crown3.png", DefaultScale: 0.9),
+        new StickerDef("crown-3", "👑", "Garden Halo Crown", StickerArt + "Crown3.png", DefaultScale: 0.9),
         new StickerDef("sun-hat", "👒", "Sun Hat", StickerArt + "Hat1.png", DefaultScale: 0.8),
         new StickerDef("starry-bandana", "👒", "Starry Bandana", StickerArt + "Hat2.png", DefaultScale: 1.6),
         new StickerDef("feather-fascinator", "👒", "Feather Fascinator", StickerArt + "Hat3.png", DefaultScale: 1.4),
@@ -390,7 +392,7 @@
         new StickerDef("cat", "🐈‍⬛", "Black Cat", StickerArt + "Cat.png"),
         new StickerDef("sparkles", "✨", "Sparkles", StickerArt + "Sparkle.png"),
         new StickerDef("heart", "💖", "Heart", StickerArt + "Heart.png"),
-        new StickerDef("heart-2", "❤️", "Heart 2", StickerArt + "Heart2.png"),
+        new StickerDef("heart-2", "❤️", "Classic Heart", StickerArt + "Heart2.png"),
         new StickerDef("heart-sparkle", "💗", "Sparkle Heart", StickerArt + "HeartSparkle.png"),
         new StickerDef("fire", "🔥", "Fire", StickerArt + "Fire.png"),
         new StickerDef("wings", "🦋", "Wings", StickerArt + "FairyWings2.png", BehindCharacter: true, DefaultScale: 4.0),
@@ -441,36 +443,36 @@
         new StickerDef("space-6", "🌌", "Space Sticker 6", StickerArt + "Space6.png", DefaultScale: 1.6),
         new StickerDef("space-7", "🌌", "Space Sticker 7", StickerArt + "Space7.png", DefaultScale: 1.6),
         new StickerDef("space-8", "🌌", "Space Sticker 8", StickerArt + "Space8.png", DefaultScale: 1.6),
-        new StickerDef("extra-sticker-01", "✨", "Sticker 1", StickerArt + "0dacb7f5-55d7-4cae-9c10-cc1f5526b1c0.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-02", "✨", "Sticker 2", StickerArt + "22608aed-6f84-4a6c-924b-b2298a59df6d.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-03", "✨", "Sticker 3", StickerArt + "29438f2d-79b8-4be5-88d4-9e989cd68203.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-04", "✨", "Sticker 4", StickerArt + "2d337018-36a6-40d6-b38b-2bc165b196ed.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-05", "✨", "Sticker 5", StickerArt + "3545f534-ce72-4de6-821e-eadd6e626a3c.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-06", "✨", "Sticker 6", StickerArt + "378f8127-c6fd-4a71-9c7b-ab01cf70802b.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-07", "✨", "Sticker 7", StickerArt + "397a4b5a-9ffd-42b2-928d-5280174359e2.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-08", "✨", "Sticker 8", StickerArt + "3c25ef13-6948-4a68-83f2-8175da4b7d15.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-09", "✨", "Sticker 9", StickerArt + "46796d28-8ab5-434c-af7e-cf4c5bf17e55.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-10", "✨", "Sticker 10", StickerArt + "46c6ab46-e86d-4969-aa66-a2a5e067d831.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-11", "✨", "Sticker 11", StickerArt + "5221a000-9e26-4c16-a88f-85d870195d52.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-12", "✨", "Sticker 12", StickerArt + "5babcc1b-a9f2-4988-afcd-3cf9e81aabe6.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-13", "✨", "Sticker 13", StickerArt + "5f54ed5e-e06d-47dd-ae0e-e384e31a754a.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-14", "✨", "Sticker 14", StickerArt + "69b9cd6b-7d03-429f-a997-a1126ee81017.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-15", "✨", "Sticker 15", StickerArt + "8d30fef5-3566-4a2d-87c8-f86af212b171.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-16", "✨", "Sticker 16", StickerArt + "9442ae7b-fd05-4eba-b220-16a1acd4f7e1.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-17", "✨", "Sticker 17", StickerArt + "a2c99da9-6922-40de-ae64-d423eb6b1458.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-18", "✨", "Sticker 18", StickerArt + "a3cc879e-1028-4980-8448-878f1ffbda49.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-19", "✨", "Sticker 19", StickerArt + "a76b6956-de2b-469c-b754-a89a97020e22.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-20", "✨", "Sticker 20", StickerArt + "b9390023-b529-4b92-bc77-b92be2a35345.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-21", "✨", "Sticker 21", StickerArt + "c0ce210b-ff49-4bde-825d-017b1eb1790b.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-22", "✨", "Sticker 22", StickerArt + "c45d4c01-e131-4265-8c21-9f864583ea5c.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-23", "✨", "Sticker 23", StickerArt + "c5ae3745-ec12-4c3f-9ff0-046a77e80cd0.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-24", "✨", "Sticker 24", StickerArt + "c81d8380-cdeb-46f8-8b18-ae8208396470.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-25", "✨", "Sticker 25", StickerArt + "cb7fbfac-6273-4d33-b862-3555079c44cf.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-26", "✨", "Sticker 26", StickerArt + "f2852fd5-26db-40e7-8357-377b74ace0f4.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-27", "✨", "Sticker 27", StickerArt + "f9d0c1ff-0eb8-49fd-bdde-67722ddf423a.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-28", "✨", "Sticker 28", StickerArt + "ff35b30b-f864-4f70-acd7-e3fffcb66d80.png", DefaultScale: 1.4),
-        new StickerDef("generated-sticker-1", "✨", "Generated Sticker 1", StickerArt + "Gemini_Generated_Image_mrwrobmrwrobmrwr.jpg", DefaultScale: 1.4),
-        new StickerDef("generated-sticker-2", "✨", "Generated Sticker 2", StickerArt + "Gemini_Generated_Image_mveoudmveoudmveo.jpg", DefaultScale: 1.4),
+        new StickerDef("space-9", "🪐", "Ocean Planet", StickerArt + "22608aed-6f84-4a6c-924b-b2298a59df6d.png", DefaultScale: 1.4),
+        new StickerDef("space-10", "🪐", "Desert Planet", StickerArt + "3c25ef13-6948-4a68-83f2-8175da4b7d15.png", DefaultScale: 1.4),
+        new StickerDef("space-11", "🪐", "Mushroom Planet", StickerArt + "5221a000-9e26-4c16-a88f-85d870195d52.png", DefaultScale: 1.4),
+        new StickerDef("space-12", "🪐", "Crystal Ringed Planet", StickerArt + "5babcc1b-a9f2-4988-afcd-3cf9e81aabe6.png", DefaultScale: 1.4),
+        new StickerDef("space-13", "🪐", "Amethyst Ringed Planet", StickerArt + "9442ae7b-fd05-4eba-b220-16a1acd4f7e1.png", DefaultScale: 1.4),
+        new StickerDef("space-14", "🪐", "Ice Planet", StickerArt + "a2c99da9-6922-40de-ae64-d423eb6b1458.png", DefaultScale: 1.4),
+        new StickerDef("space-15", "🪐", "Candy Planet", StickerArt + "a3cc879e-1028-4980-8448-878f1ffbda49.png", DefaultScale: 1.4),
+        new StickerDef("space-16", "🪐", "Jungle Planet", StickerArt + "f2852fd5-26db-40e7-8357-377b74ace0f4.png", DefaultScale: 1.4),
+        new StickerDef("space-17", "🪐", "Lava Planet", StickerArt + "378f8127-c6fd-4a71-9c7b-ab01cf70802b.png", DefaultScale: 1.4),
+        new StickerDef("space-18", "🪐", "Crystal Asteroid", StickerArt + "a76b6956-de2b-469c-b754-a89a97020e22.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-01", "✨", "Candy Cane", StickerArt + "0dacb7f5-55d7-4cae-9c10-cc1f5526b1c0.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-03", "✨", "Flower Wreath", StickerArt + "29438f2d-79b8-4be5-88d4-9e989cd68203.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-04", "✨", "Flower Key", StickerArt + "2d337018-36a6-40d6-b38b-2bc165b196ed.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-05", "✨", "Glowing Acorn Pendant", StickerArt + "3545f534-ce72-4de6-821e-eadd6e626a3c.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-07", "✨", "Mushroom Cottage", StickerArt + "397a4b5a-9ffd-42b2-928d-5280174359e2.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-09", "✨", "Dino Tooth Bracelet", StickerArt + "46796d28-8ab5-434c-af7e-cf4c5bf17e55.png", DefaultScale: 1.4),
+        new StickerDef("pearl-tiara", "👑", "Pearl Tiara", StickerArt + "46c6ab46-e86d-4969-aa66-a2a5e067d831.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-13", "✨", "Dino Tracker Watch", StickerArt + "5f54ed5e-e06d-47dd-ae0e-e384e31a754a.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-14", "✨", "Dino Paw Belt Buckle", StickerArt + "69b9cd6b-7d03-429f-a997-a1126ee81017.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-15", "✨", "Amethyst Crystal", StickerArt + "8d30fef5-3566-4a2d-87c8-f86af212b171.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-20", "✨", "Gift Stack", StickerArt + "b9390023-b529-4b92-bc77-b92be2a35345.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-21", "✨", "Dino Tooth Necklace", StickerArt + "c0ce210b-ff49-4bde-825d-017b1eb1790b.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-22", "✨", "Frost Butterfly Wings", StickerArt + "c45d4c01-e131-4265-8c21-9f864583ea5c.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-23", "✨", "Explorer's Compass", StickerArt + "c5ae3745-ec12-4c3f-9ff0-046a77e80cd0.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-24", "✨", "Sparkle Potion Bottle", StickerArt + "c81d8380-cdeb-46f8-8b18-ae8208396470.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-25", "✨", "Christmas Stocking", StickerArt + "cb7fbfac-6273-4d33-b862-3555079c44cf.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-27", "✨", "Butterfly Crystal Wand", StickerArt + "f9d0c1ff-0eb8-49fd-bdde-67722ddf423a.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-28", "✨", "Dino Mask", StickerArt + "ff35b30b-f864-4f70-acd7-e3fffcb66d80.png", DefaultScale: 1.4),
+        new StickerDef("generated-sticker-1", "✨", "Dino Paw Belt Buckle", StickerArt + "Gemini_Generated_Image_mrwrobmrwrobmrwr.jpg", DefaultScale: 1.4),
+        new StickerDef("generated-sticker-2", "✨", "Pearl Teardrop Gem", StickerArt + "Gemini_Generated_Image_mveoudmveoudmveo.jpg", DefaultScale: 1.4),
     };
 
     private static readonly List<StickerCategoryDef> StickerCategories = new()
@@ -736,16 +738,22 @@
     private double resizeStartClientX, resizeStartClientY, resizeStartScale;
     private PlacedSticker? pinchingSticker;
     private double pinchStartDistance, pinchStartScale;
-    private readonly Dictionary<long, StickerPointer> activeStickerPointers = new();
+
+    // Every pointer currently down anywhere on the play surface (stage,
+    // tray, handles) - not just ones that started on the selected sticker.
+    // A pinch can begin from any two of these as long as a sticker is
+    // selected, so a small sticker doesn't require both fingers to land
+    // on its own (now-small, see .du-placed-sticker-hitbox) hitbox.
+    private readonly Dictionary<long, (double X, double Y)> activePointers = new();
 
     private const double MinScale = 0.5;
     private const double MaxScale = 8.0;
     private const double MinPinchDistance = 12.0;
 
-    private record StickerPointer(PlacedSticker Sticker, double ClientX, double ClientY);
-
     private async Task StartResize(PointerEventArgs e, PlacedSticker placed)
     {
+        if (await TryBeginAnywherePinch(e)) return;
+
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
         await _module.InvokeVoidAsync("setPointerCapture", playRef, e.PointerId);
 
@@ -756,51 +764,52 @@
         resizeStartScale = placed.Scale;
     }
 
-    private bool TryBeginStickerPinch(PlacedSticker placed)
+    // Pinch always targets whichever sticker is already selected, and can
+    // start from any two pointers down anywhere on the play surface - not
+    // just two fingers both landing on that sticker's own hitbox, which is
+    // now too small (by design, see .du-placed-sticker-hitbox) to reliably
+    // catch a second finger on a small sticker.
+    private async Task<bool> TryBeginAnywherePinch(PointerEventArgs e)
     {
-        var pointers = ActivePinchPointers(placed);
-        if (pointers.Count < 2) return false;
+        activePointers[e.PointerId] = (e.ClientX, e.ClientY);
+        if (DrawMode || selectedSticker is null || activePointers.Count < 2) return false;
+
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync("setPointerCapture", playRef, e.PointerId);
 
         dragging = null;
         resizing = null;
         rotating = null;
         overTrash = false;
-        selectedSticker = placed;
-        pinchingSticker = placed;
-        pinchStartDistance = Math.Max(MinPinchDistance, Distance(pointers[0], pointers[1]));
-        pinchStartScale = placed.Scale;
+
+        var points = activePointers.Values.Take(2).ToList();
+        pinchingSticker = selectedSticker;
+        pinchStartDistance = Math.Max(MinPinchDistance, Distance(points[0], points[1]));
+        pinchStartScale = selectedSticker.Scale;
         StateHasChanged();
         return true;
     }
 
     private void UpdateStickerPinch()
     {
-        if (pinchingSticker is null) return;
+        if (pinchingSticker is null || activePointers.Count < 2) return;
 
-        var pointers = ActivePinchPointers(pinchingSticker);
-        if (pointers.Count < 2) return;
-
-        var currentDistance = Math.Max(MinPinchDistance, Distance(pointers[0], pointers[1]));
+        var points = activePointers.Values.Take(2).ToList();
+        var currentDistance = Math.Max(MinPinchDistance, Distance(points[0], points[1]));
         pinchingSticker.Scale = Math.Clamp(pinchStartScale * (currentDistance / pinchStartDistance), MinScale, MaxScale);
         StateHasChanged();
     }
 
-    private List<StickerPointer> ActivePinchPointers(PlacedSticker placed) =>
-        activeStickerPointers.Values
-            .Where(pointer => ReferenceEquals(pointer.Sticker, placed))
-            .Take(2)
-            .ToList();
-
-    private static double Distance(StickerPointer first, StickerPointer second)
+    private static double Distance((double X, double Y) first, (double X, double Y) second)
     {
-        var dx = first.ClientX - second.ClientX;
-        var dy = first.ClientY - second.ClientY;
+        var dx = first.X - second.X;
+        var dy = first.Y - second.Y;
         return Math.Sqrt(dx * dx + dy * dy);
     }
 
     private void ClearStickerGestureState()
     {
-        activeStickerPointers.Clear();
+        activePointers.Clear();
         pinchingSticker = null;
         pinchStartDistance = 0;
         dragging = null;
@@ -822,6 +831,8 @@
 
     private async Task StartRotate(PointerEventArgs e, PlacedSticker placed)
     {
+        if (await TryBeginAnywherePinch(e)) return;
+
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
         var rect = await _module.InvokeAsync<StageRect>("getBoundingRect", stageRef);
         stageLeft = rect.Left;
@@ -876,9 +887,70 @@
 
     // ---- Drag and drop (Pointer Events - works for mouse, touch, pen) ------
 
+    // A tray pointerdown doesn't commit to adding+dragging a sticker right
+    // away - .du-tray-item's touch-action:pan-y already lets a mostly-
+    // vertical touch gesture scroll the tray natively (the browser fires
+    // pointercancel on us once it claims that gesture), but a *mouse* drag
+    // or a deliberately sideways touch drag never gets claimed that way, so
+    // without this threshold every attempt to scroll the tray by pressing
+    // on a tile would instead instantly place that sticker on the stage.
+    // Committing only once movement clears TrayDragThreshold - or on a
+    // plain tap/click with no movement at all - keeps "drag it out" and
+    // "flick to scroll" from fighting over the same pointerdown.
+    private StickerDef? pendingTraySticker;
+    private long? pendingTrayPointerId;
+    private double pendingTrayStartClientX, pendingTrayStartClientY;
+    private const double TrayDragThreshold = 10.0;
+
+    private void StartPendingTrayDrag(PointerEventArgs e, StickerDef sticker)
+    {
+        if (DrawMode) return;
+
+        pendingTraySticker = sticker;
+        pendingTrayPointerId = e.PointerId;
+        pendingTrayStartClientX = e.ClientX;
+        pendingTrayStartClientY = e.ClientY;
+    }
+
+    private async Task OnTrayPointerMove(PointerEventArgs e)
+    {
+        if (pendingTraySticker is null || pendingTrayPointerId != e.PointerId) return;
+
+        var dx = e.ClientX - pendingTrayStartClientX;
+        var dy = e.ClientY - pendingTrayStartClientY;
+        if (Math.Sqrt(dx * dx + dy * dy) < TrayDragThreshold) return;
+
+        var sticker = pendingTraySticker;
+        pendingTraySticker = null;
+        pendingTrayPointerId = null;
+        await StartDragFromTray(e, sticker!);
+    }
+
+    private async Task OnTrayPointerUp(PointerEventArgs e)
+    {
+        if (pendingTraySticker is null || pendingTrayPointerId != e.PointerId) return;
+
+        // Released before clearing the threshold - a tap, not a drag.
+        // Still adds the sticker (tap-to-add), just with no drag to finish.
+        var sticker = pendingTraySticker;
+        pendingTraySticker = null;
+        pendingTrayPointerId = null;
+        await StartDragFromTray(e, sticker!);
+    }
+
+    private void OnTrayPointerCancel(PointerEventArgs e)
+    {
+        // The browser claimed this gesture (pan-y scroll, or another
+        // pointer taking over) - back off and add nothing.
+        if (pendingTrayPointerId != e.PointerId) return;
+        pendingTraySticker = null;
+        pendingTrayPointerId = null;
+    }
+
     private async Task StartDragFromTray(PointerEventArgs e, StickerDef sticker)
     {
         if (DrawMode) return;
+        if (await TryBeginAnywherePinch(e)) return;
 
         // Always a new instance (rather than reusing one already on the
         // stage) so the same sticker can be stacked as many times as a kid
@@ -893,11 +965,10 @@
     private async Task StartDragPlaced(PointerEventArgs e, PlacedSticker placed)
     {
         if (DrawMode) return;
+        if (await TryBeginAnywherePinch(e)) return;
+
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
         await _module.InvokeVoidAsync("setPointerCapture", playRef, e.PointerId);
-
-        activeStickerPointers[e.PointerId] = new StickerPointer(placed, e.ClientX, e.ClientY);
-        if (TryBeginStickerPinch(placed)) return;
 
         await BeginDrag(e, placed);
     }
@@ -934,9 +1005,9 @@
 
     private void OnPointerMove(PointerEventArgs e)
     {
-        if (activeStickerPointers.TryGetValue(e.PointerId, out var pointer))
+        if (activePointers.ContainsKey(e.PointerId))
         {
-            activeStickerPointers[e.PointerId] = pointer with { ClientX = e.ClientX, ClientY = e.ClientY };
+            activePointers[e.PointerId] = (e.ClientX, e.ClientY);
         }
 
         if (pinchingSticker is not null)
@@ -981,10 +1052,10 @@
 
     private async Task OnPointerUp(PointerEventArgs e)
     {
-        activeStickerPointers.Remove(e.PointerId);
+        activePointers.Remove(e.PointerId);
         if (pinchingSticker is not null)
         {
-            if (ActivePinchPointers(pinchingSticker).Count < 2)
+            if (activePointers.Count < 2)
             {
                 pinchingSticker = null;
                 pinchStartDistance = 0;
@@ -1037,6 +1108,8 @@
 
     private async Task OnStagePointerDown(PointerEventArgs e)
     {
+        if (await TryBeginAnywherePinch(e)) return;
+
         if (!DrawMode)
         {
             // Tapping empty stage space (this fires after any child sticker's

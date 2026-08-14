@@ -30,23 +30,42 @@
         }
         else
         {
-            <Carousel>
-                @foreach (var game in _games.Take(8))
-                {
-                    <GameCard Game="game" OnSelect="PlayAsync" />
-                }
-            </Carousel>
-
-            @if (_games.Count > 8)
+            @if (_recentGames.Count > 0)
             {
-                <a class="link-see-all" href="games/all">See all @_games.Count games →</a>
+                <section class="game-picker-section" aria-labelledby="recent-games-title">
+                    <div class="section-heading-row">
+                        <h2 id="recent-games-title">Recently played</h2>
+                    </div>
+
+                    <Carousel>
+                        @foreach (var game in _recentGames)
+                        {
+                            <GameCard Game="game" OnSelect="PlayAsync" />
+                        }
+                    </Carousel>
+                </section>
             }
+
+            <section class="game-picker-section" aria-labelledby="all-games-title">
+                <div class="section-heading-row">
+                    <h2 id="all-games-title">All games</h2>
+                    <span class="section-count">@_games.Count games</span>
+                </div>
+
+                <div class="game-grid">
+                    @foreach (var game in _games)
+                    {
+                        <GameCard Game="game" OnSelect="PlayAsync" />
+                    }
+                </div>
+            </section>
         }
     }
 </div>
 
 @code {
     private List<Game>? _games;
+    private List<Game> _recentGames = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -57,6 +76,17 @@
         }
 
         _games = await Data.GetGamesForProfileAsync(State.CurrentProfile.Id);
+        var gameById = _games.ToDictionary(game => game.Id);
+        var recentGameIds = (await Data.GetPlayHistoryAsync(State.CurrentProfile.Id))
+            .OrderByDescending(history => history.PlayedAtUtc)
+            .Select(history => history.GameId)
+            .Distinct()
+            .Take(4);
+
+        _recentGames = recentGameIds
+            .Where(gameById.ContainsKey)
+            .Select(gameId => gameById[gameId])
+            .ToList();
     }
 
     private void PlayAsync(Game game) => Nav.NavigateTo($"play/{game.Id}");

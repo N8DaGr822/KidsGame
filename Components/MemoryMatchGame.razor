@@ -70,7 +70,16 @@
                         @onclick="() => FlipCard(cardRef)">
                     <div class="mg-card-inner">
                         <div class="mg-card-back">?</div>
-                        <div class="mg-card-front"><span class="mg-card-glyph">@cardRef.Display</span></div>
+                        <div class="mg-card-front">
+                            @if (cardRef.ImagePath is not null)
+                            {
+                                <img class="mg-card-image" src="@cardRef.ImagePath" alt="@cardRef.Display" draggable="false" />
+                            }
+                            else
+                            {
+                                <span class="mg-card-glyph">@cardRef.Display</span>
+                            }
+                        </div>
                     </div>
                 </button>
             }
@@ -146,14 +155,28 @@
     // Display="5", both sharing MatchKey="5". Everything else (flip/match/win
     // logic, HUD, timer) needs no changes.
 
-    public record CardSeed(string Display, string MatchKey);
+    public record CardSeed(string Display, string MatchKey, string? ImagePath = null);
 
     public record ThemeDefinition(string Name, string Icon, string BoardClass, Func<int, List<CardSeed>> GeneratePairs);
 
-    private static readonly string[] AnimalPool = new[]
+    private record AnimalCard(string Name, string ImagePath);
+
+    private const string AnimalCardArt = "images/memory/animals/";
+
+    private static readonly AnimalCard[] AnimalPool = new[]
     {
-        "🐶", "🐱", "🐸", "🦊", "🐵", "🐼",
-        "🦁", "🐷", "🐨", "🐰", "🐯", "🐮"
+        new AnimalCard("Dog", AnimalCardArt + "dog.png"),
+        new AnimalCard("Bear", AnimalCardArt + "bear.png"),
+        new AnimalCard("Frog", AnimalCardArt + "frog.png"),
+        new AnimalCard("Monkey", AnimalCardArt + "monkey.png"),
+        new AnimalCard("Panda", AnimalCardArt + "panda.png"),
+        new AnimalCard("Rabbit", AnimalCardArt + "rabbit.png"),
+        new AnimalCard("Cow", AnimalCardArt + "cow.png"),
+        new AnimalCard("Duck", AnimalCardArt + "duck.png"),
+        new AnimalCard("Elephant", AnimalCardArt + "elephant.png"),
+        new AnimalCard("Giraffe", AnimalCardArt + "giraffe.png"),
+        new AnimalCard("Owl", AnimalCardArt + "owl.png"),
+        new AnimalCard("Chick", AnimalCardArt + "chick.png")
     };
 
     private static readonly char[] LetterPool =
@@ -176,10 +199,10 @@
                 {
                     var chosen = AnimalPool.OrderBy(_ => Guid.NewGuid()).Take(pairCount);
                     return chosen
-                        .SelectMany(symbol => new[]
+                        .SelectMany(animal => new[]
                         {
-                            new CardSeed(symbol, symbol),
-                            new CardSeed(symbol, symbol),
+                            new CardSeed(animal.Name, animal.Name, animal.ImagePath),
+                            new CardSeed(animal.Name, animal.Name, animal.ImagePath),
                         })
                         .ToList();
                 }),
@@ -276,6 +299,7 @@
     {
         public string Display { get; set; } = "";
         public string MatchKey { get; set; } = "";
+        public string? ImagePath { get; set; }
         public bool IsFaceUp { get; set; }
         public bool IsMatched { get; set; }
     }
@@ -324,7 +348,7 @@
         var seeds = selectedTheme.GeneratePairs(selectedDifficulty.PairCount);
         cards = seeds
             .OrderBy(_ => Guid.NewGuid())
-            .Select(s => new CardState { Display = s.Display, MatchKey = s.MatchKey })
+            .Select(s => new CardState { Display = s.Display, MatchKey = s.MatchKey, ImagePath = s.ImagePath })
             .ToList();
     }
 

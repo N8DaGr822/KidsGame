@@ -333,7 +333,18 @@
 
 .du-placed-sticker-hitbox {
     position: absolute;
-    inset: 14%;
+    top: 50%;
+    left: 50%;
+    /* Sized tight to the sticker's own art (not the old inset:14%, which
+       left a huge margin - fine for a small sticker, but for something
+       like a dress at a large scale it ballooned into neighboring
+       stickers' space and stole clicks meant for a necklace or ring sitting
+       on top of it). The 36px floor keeps the smallest stickers (rings,
+       pendants) tappable once 38% of their own size would otherwise shrink
+       below a usable touch target. */
+    width: max(36px, 38%);
+    height: max(36px, 38%);
+    transform: translate(-50%, -50%);
     z-index: 2;
     border-radius: 999px;
     cursor: grab;
@@ -697,7 +708,12 @@
     place-items: center;
     gap: 0.15rem;
     cursor: grab;
-    touch-action: none;
+    /* pan-y (not none) leaves vertical touch scrolling through the tray to
+       the browser - a finger pressing down on a tile to scroll the grid
+       gets a native scroll instead of our drag-out logic stealing that
+       gesture. Sideways/diagonal drags (pulling a sticker out toward the
+       stage) are still ours; see StartPendingTrayDrag's threshold. */
+    touch-action: pan-y;
     user-select: none;
     -webkit-touch-callout: none;
 }

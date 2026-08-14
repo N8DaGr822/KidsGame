@@ -68,20 +68,23 @@ Current state is uneven:
 | Tank Duel | image-based |
 | Dress Up | partially image-based (ongoing - see asset cleanup sessions) |
 | Manners Garden | mixed image/emoji |
-| Memory Match | mostly CSS/emoji/text |
+| Memory Match | animal cards image-based; ABC/Numbers/Math intentionally text |
 | UNO | mostly CSS/emoji/text |
 | Simon Says | mostly CSS/emoji/text |
 
 Fastest visual wins, in order:
 
 - [ ] Real game thumbnails for every entry in `Services/BuiltInGames.cs`
-      **[art needed]**
+      **[partially done]** - Memory Match, Fishing Catch, Dress Up, Manners
+      Garden, Tank Duel, and Whack-a-Mole now have image-backed defaults;
+      UNO, Simon Says, Sliding Puzzle, Word Scramble, Minesweeper, and Sudoku
+      still need purpose-built thumbnails rather than unrelated filler art.
 - [ ] Finish Lulu Lamb and Tilly Turtle art in `MannersGarden` - noted
       already in `wwwroot/images/README.md` (no sheep/lamb or turtle in the
       Kenney animal pack this project otherwise draws from) **[art needed]**
 - [ ] Replace Manners Garden props/rewards with images (currently emoji)
       **[art needed]**
-- [ ] Replace Memory Match animal emoji with image cards **[art needed]**
+- [x] Replace Memory Match animal emoji with image cards
 - [ ] Simon Says stays CSS (no art migration planned) - but push on making
       the CSS itself feel like a polished toy (pad materials/shadows/press
       feedback), not a placeholder

@@ -75,9 +75,8 @@ browser, so there's no separate "enable sound" step.
 - **Profile picker** (`/`) — carousel of profile cards. Kid profiles go
   straight to their game screen; the Admin profile is PIN-gated (set a
   PIN from the admin panel — it's open by default until you set one).
-- **Game select** (`/games`) — carousel of the active kid's allowed
-  games, with a "See all" link once there are more than fit nicely.
-- **Full game list** (`/games/all`) — grid of all of that kid's games.
+- **Game select** (`/games`) — a "Recently played" carousel of the
+  active kid's last few games, plus an "All games" grid below it.
 - **Game host** (`/play/{id}`) — launches a game, either as a built-in
   component or via iframe for externally-hosted games.
 - **Admin panel** (`/admin`) — add/edit/remove kid profiles, add games

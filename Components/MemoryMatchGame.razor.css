@@ -220,9 +220,25 @@
     font-size: clamp(1.6rem, 5vw, 2.4rem);
 }
 
+.mg-card-image {
+    display: block;
+    width: 5.8rem;
+    height: 5.8rem;
+    max-width: 68%;
+    max-height: 68%;
+    object-fit: contain;
+    filter: drop-shadow(0 5px 8px rgba(20, 28, 42, 0.18));
+    pointer-events: none;
+    user-select: none;
+}
+
+.mg-theme-animals .mg-card-front {
+    background: #f7fbff;
+}
+
+.mg-theme-animals .mg-card-image,
 .mg-theme-animals .mg-card-glyph {
-    width: 2.45em;
-    height: 2.45em;
+    padding: 0.28rem;
     border-radius: 50%;
     background: #eef7ff;
     box-shadow: inset 0 2px 5px rgba(20, 28, 42, 0.12);

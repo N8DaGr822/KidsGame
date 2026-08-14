@@ -266,8 +266,7 @@ h1[tabindex="-1"]:focus {
 }
 
 .link-switch-profile,
-.link-back,
-.link-see-all {
+.link-back {
   display: inline-flex;
   align-items: center;
   min-height: 40px;
@@ -279,15 +278,35 @@ h1[tabindex="-1"]:focus {
 }
 
 .link-switch-profile:hover,
-.link-back:hover,
-.link-see-all:hover {
+.link-back:hover {
   background: rgba(255, 255, 255, 0.08);
   color: var(--text);
   text-decoration: none;
 }
 
-.link-see-all {
-  margin-top: 1rem;
+.game-picker-section {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: clamp(1.25rem, 3vw, 2rem);
+}
+
+.section-heading-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.section-heading-row h2 {
+  margin: 0;
+  font-size: clamp(1.25rem, 3vw, 1.8rem);
+}
+
+.section-count {
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 800;
 }
 
 .btn-primary,
@@ -822,6 +841,16 @@ h1[tabindex="-1"]:focus {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   background: #fff;
+}
+
+.game-host-surface:has(iframe[src*="crown-and-banner"]) {
+  padding: 0;
+}
+
+.game-host-surface iframe[src*="crown-and-banner"] {
+  border: 0;
+  border-radius: 0;
+  background: #080a0d;
 }
 
 .game-placeholder {

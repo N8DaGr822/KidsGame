@@ -39,6 +39,11 @@ public class AppDataService
         }
 
         _cache = JsonSerializer.Deserialize<AppData>(json) ?? SeedDefaultData();
+        if (ApplyBuiltInCatalogArt(_cache))
+        {
+            await SaveAsync();
+        }
+
         return _cache;
     }
 
@@ -239,6 +244,24 @@ public class AppDataService
     }
 
     private static string TodayKey() => DateTime.Now.ToString("yyyy-MM-dd");
+
+    private static bool ApplyBuiltInCatalogArt(AppData data)
+    {
+        var changed = false;
+        var builtInsByTarget = BuiltInGames.All.ToDictionary(g => g.LaunchTarget);
+
+        foreach (var game in data.Games)
+        {
+            if (!builtInsByTarget.TryGetValue(game.LaunchTarget, out var builtIn)) continue;
+            if (string.IsNullOrWhiteSpace(builtIn.ThumbnailImagePath)) continue;
+            if (!string.IsNullOrWhiteSpace(game.ThumbnailImagePath)) continue;
+
+            game.ThumbnailImagePath = builtIn.ThumbnailImagePath;
+            changed = true;
+        }
+
+        return changed;
+    }
 
     // ---- Manners Garden (persists across sessions - it's meant to keep
     // growing, not reset every time the game is played) --------------------
@@ -451,6 +474,16 @@ public class AppDataService
             LaunchMode = GameLaunchMode.InternalRoute
         };
 
+        var whackAMoleDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.WhackAMole);
+        var whackAMole = new Game
+        {
+            Title = whackAMoleDef.Title,
+            ThumbnailImagePath = whackAMoleDef.ThumbnailImagePath,
+            ThumbnailEmoji = whackAMoleDef.ThumbnailEmoji,
+            LaunchTarget = whackAMoleDef.LaunchTarget,
+            LaunchMode = GameLaunchMode.InternalRoute
+        };
+
         var data = new AppData();
         data.Profiles.Add(admin);
         data.Profiles.Add(kid);
@@ -466,6 +499,7 @@ public class AppDataService
         data.Games.Add(wordScramble);
         data.Games.Add(minesweeper);
         data.Games.Add(sudoku);
+        data.Games.Add(whackAMole);
         data.ProfileGameAccess[admin.Id] = new List<string>();
         data.ProfileGameAccess[kid.Id] = new List<string> { memoryMatch.Id, fishing.Id, dressUp.Id, mannersGarden.Id };
 
