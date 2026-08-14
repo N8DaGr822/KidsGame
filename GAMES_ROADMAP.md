@@ -347,14 +347,18 @@ Implementation notes:
 - [x] Tower Defense — place different towers along a path to stop waves of
       enemies; good for upgrades, strategy, balancing, and progression.
       Landed as one vertical slice (`Components/TowerDefense.razor`) and
-      since expanded: 4 selectable levels (same 12x8 board, different
-      paths), 3 towers with a working Upgrade/Sell economy plus range
-      previews and visible shots, 6 animal enemy types (reusing Memory
-      Match's art) with weighted wave composition, 8 waves that
-      auto-advance a few seconds after each clears (with a manual
-      "Start Now" skip). Difficulty controls gold/lives/enemy HP. Still no
-      persistent campaign/save state (unlocks, best-run records) - see the
-      implementation notes above for why that's intentional for now.
+      since expanded: levels are procedurally generated (unlimited
+      distinct paths, no fixed set to pick from) and auto-cycle - clear a
+      level's 8 waves and the next one generates automatically, towers
+      refunded so the player can rebuild for the new layout. Waves
+      auto-advance a few seconds after each clears (manual "Start Now"
+      skip available). 3 towers with a working Upgrade/Sell economy plus
+      range previews and visible shots. 6 animal enemy types (reusing
+      Memory Match's art) with weighted, ever-escalating wave composition.
+      Easy/Medium/Hard are a completable 3-level campaign; Endless (same
+      starting bar as Hard) removes that cap entirely. Still no persistent
+      save state (best-run records, unlocks) - see the implementation
+      notes above for why that's intentional for now.
 - [ ] Dungeon Crawler — small randomly generated rooms with enemies, treasure,
       keys, traps, and upgrades.
 - [ ] Roguelike Arena — survive increasingly difficult waves, choose upgrades

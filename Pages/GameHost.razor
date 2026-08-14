@@ -575,7 +575,7 @@
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
             Theme = result.Difficulty,
-            Difficulty = $"Wave {result.WavesCleared}/8" + (result.Won ? " - cleared" : ""),
+            Difficulty = $"Level {result.LevelsReached}, {result.TotalWavesCleared} waves" + (result.Won ? " - campaign complete" : ""),
             Moves = result.Kills,
             ElapsedSeconds = result.ElapsedSeconds,
         });

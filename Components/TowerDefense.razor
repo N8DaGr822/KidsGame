@@ -2,24 +2,29 @@
     TowerDefense.razor
     An older-kid game (see GAMES_ROADMAP.md Section 9) - noticeably bigger
     than the other built-ins, on par with TankDuel/DressUp rather than the
-    ~300-400 line norm. Four selectable levels (same 12x8 board, different
-    paths); a real campaign with unlocks/save state is still a later
-    extension, not v1 - see the roadmap's "start with small vertical
-    slices" note.
+    ~300-400 line norm. Real persistent campaign progress/unlocks across
+    sessions is still a later extension, not v1 - see the roadmap's
+    "start with small vertical slices" note.
 
-    Enemies (six animal types - see "Reuses Memory Match's animal art"
-    below) walk the chosen level's fixed path; tap a grass cell with a
-    tower selected from the build palette to place it (if you can afford
-    it). Towers auto-fire at the enemy furthest along the path that's
-    within range, with a small traveling dot standing in for the shot so
-    hits read clearly. The first wave needs a manual "Start Wave" tap to
-    give the player time to set up, but every wave after that auto-starts
-    a few seconds after the previous one clears - "Start Now" on the wave
-    button skips the wait for anyone who doesn't want to. Reach the end
-    of the path and an enemy costs you lives instead of gold; run out of
-    lives and the run ends. Difficulty controls starting gold/lives and
-    enemy HP scaling rather than adding an AI opponent (there isn't one
-    here).
+    Levels are procedurally generated (GenerateLevel) rather than picked
+    from a fixed set - an unlimited, always-different supply of routes
+    across the same 12x8 board. Clearing a level's 8 waves refunds every
+    placed tower (a fresh path needs a fresh layout) and auto-generates
+    the next one; Easy/Medium/Hard end the run in victory after
+    LevelsToWinCampaign levels, while Endless removes that cap entirely
+    and just keeps going - same starting bar as Hard, no finish line, see
+    how far you get.
+
+    Enemies (six animal types, reusing Memory Match's art) walk the
+    current level's path; tap a grass cell with a tower selected from the
+    build palette to place it (if you can afford it). Towers auto-fire at
+    the enemy furthest along the path that's within range, with a small
+    traveling dot standing in for the shot so hits read clearly. The
+    first wave needs a manual "Start Wave" tap to give the player time to
+    set up, but every wave after that auto-starts a few seconds after the
+    previous one clears - "Start Now" on the wave button skips the wait.
+    Reach the end of the path and an enemy costs you lives instead of
+    gold; run out of lives and the run ends.
 
     Tap a placed tower to select it - a range circle shows its coverage
     and a small panel offers Upgrade (stronger/faster, up to
@@ -39,18 +44,7 @@
     {
         <div class="td-setup game-setup-panel">
             <h2>🏯 Tower Defense</h2>
-            <p>Place towers along the path to stop the enemies before they reach the end. Earn gold for every enemy you defeat!</p>
-
-            <h3 class="td-section-title game-section-title">Choose a level</h3>
-            <div class="td-level-select game-option-grid">
-                @foreach (var level in Levels)
-                {
-                    <button class="td-level-btn game-option-button @(level.Id == selectedLevel.Id ? "selected" : "")" @onclick="() => selectedLevel = level">
-                        <span class="td-level-icon">@level.Icon</span>
-                        <span class="td-level-name">@level.Name</span>
-                    </button>
-                }
-            </div>
+            <p>Place towers along the path to stop the enemies before they reach the end. Clear a level and a brand new path takes its place - keep going as long as you can!</p>
 
             <h3 class="td-section-title game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
@@ -78,7 +72,8 @@
         <div class="td-hud game-hud">
             <span class="td-stat"><img class="td-coin-icon" src="images/tower-defense/coin.png" alt="" />@gold</span>
             <span class="td-stat">❤️ @lives</span>
-            <span class="td-stat">Wave @Math.Min(waveIndex + 1, TotalWaves)/@TotalWaves</span>
+            <span class="td-stat">🗺️ Level @levelNumber</span>
+            <span class="td-stat">Wave @(waveInLevel + 1)/@WavesPerLevel</span>
             <button class="td-wave-btn game-primary-action" disabled="@(!CanStartWave())" @onclick="StartWave">
                 @(waveInProgress ? "Wave in progress…" : nextWaveCountdownMs > 0 ? $"Start Now ({Math.Ceiling(nextWaveCountdownMs / 1000.0)}s)" : "Start Wave")
             </button>
@@ -173,18 +168,18 @@
                 <div class="td-win-panel game-result-panel">
                     @if (won)
                     {
-                        <h2>🎉 Base Defended!</h2>
-                        <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") - every wave is cleared!</p>
+                        <h2>🎉 Campaign Complete!</h2>
+                        <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") - you defended all @levelNumber levels!</p>
                     }
                     else
                     {
                         <h2>💥 Base Overrun</h2>
-                        <p>The enemies got through - want to try again?</p>
+                        <p>You made it to level @levelNumber - want to try again?</p>
                     }
                     <div class="td-win-stats game-result-stats">
-                        <div><span class="game-stat-label">Waves cleared</span><span class="game-stat-value">@waveIndex/@TotalWaves</span></div>
+                        <div><span class="game-stat-label">Level</span><span class="game-stat-value">@levelNumber</span></div>
+                        <div><span class="game-stat-label">Waves cleared</span><span class="game-stat-value">@totalWavesCleared</span></div>
                         <div><span class="game-stat-label">Defeated</span><span class="game-stat-value">@kills</span></div>
-                        <div><span class="game-stat-label">Lives left</span><span class="game-stat-value">@lives</span></div>
                     </div>
                     <div class="td-win-actions game-result-actions">
                         <button class="td-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
@@ -207,17 +202,22 @@
     [Parameter] public string? ForcedDifficulty { get; set; }
 
     private enum Phase { Setup, Playing, Finished }
-    public enum Difficulty { Easy, Medium, Hard }
+    public enum Difficulty { Easy, Medium, Hard, Endless }
 
-    private record DifficultyConfig(int StartGold, int StartLives, double EnemyHpMult);
+    /// <summary>LevelsToWin null means no cap - only Endless plays that way;
+    /// Easy/Medium/Hard are a completable campaign.</summary>
+    private record DifficultyConfig(int StartGold, int StartLives, double EnemyHpMult, int? LevelsToWin);
 
-    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard, Difficulty.Endless };
+
+    private const int LevelsToWinCampaign = 3;
 
     private static DifficultyConfig ConfigFor(Difficulty d) => d switch
     {
-        Difficulty.Easy => new DifficultyConfig(160, 25, 0.85),
-        Difficulty.Medium => new DifficultyConfig(120, 20, 1.0),
-        _ => new DifficultyConfig(90, 15, 1.25),
+        Difficulty.Easy => new DifficultyConfig(160, 25, 0.85, LevelsToWinCampaign),
+        Difficulty.Medium => new DifficultyConfig(120, 20, 1.0, LevelsToWinCampaign),
+        Difficulty.Hard => new DifficultyConfig(90, 15, 1.25, LevelsToWinCampaign),
+        _ => new DifficultyConfig(90, 15, 1.25, null), // Endless - same bar as Hard, but never stops
     };
 
     private Difficulty? LockedDifficulty =>
@@ -250,24 +250,43 @@
 
     private const int GridCols = 12;
     private const int GridRows = 8;
-    private const int TotalWaves = 8;
+    private const int WavesPerLevel = 8;
     private const int TickMs = 100;
     private const int SpawnIntervalMs = 550;
     private const int AutoWaveDelayMs = 8000;
 
-    private record LevelDefinition(string Id, string Name, string Icon, (int Col, int Row)[] Waypoints);
-
-    // Same GridCols x GridRows board, four different routes through it -
-    // a real multi-level campaign with unlocks/save state is still a
-    // later extension (see the file-header note), this just gives the
-    // one level real variety to replay.
-    private static readonly LevelDefinition[] Levels =
+    /// <summary>Random left-to-right route with 3-5 turns: enters at a
+    /// random row on the left edge, zig-zags through strictly increasing
+    /// columns (so it can never cross or retrace itself), exits at a
+    /// random row on the right edge. Called once per level - an unlimited
+    /// supply of distinct layouts instead of picking from a fixed set.</summary>
+    private ((int Col, int Row)[] Cells, HashSet<(int Col, int Row)> Set) GenerateLevel()
     {
-        new("switchback", "Switchback", "↩️", new (int Col, int Row)[] { (0, 3), (3, 3), (3, 6), (8, 6), (8, 1), (11, 1) }),
-        new("straight-run", "Straight Run", "➡️", new (int Col, int Row)[] { (0, 1), (10, 1), (10, 6), (11, 6) }),
-        new("the-loop", "The Loop", "🔄", new (int Col, int Row)[] { (0, 6), (2, 6), (2, 1), (5, 1), (5, 6), (8, 6), (8, 1), (11, 1) }),
-        new("crossroads", "Crossroads", "✖️", new (int Col, int Row)[] { (0, 0), (3, 0), (3, 7), (6, 7), (6, 0), (9, 0), (9, 7), (11, 7) }),
-    };
+        var currentRow = rng.Next(0, GridRows);
+        var waypoints = new List<(int Col, int Row)> { (0, currentRow) };
+
+        var col = 0;
+        var segments = rng.Next(3, 6);
+
+        for (var i = 0; i < segments; i++)
+        {
+            var remainingCols = GridCols - 1 - col;
+            var remainingSegments = segments - i;
+            if (remainingCols < remainingSegments) break;
+
+            var step = Math.Max(1, remainingCols / (remainingSegments + 1)) + rng.Next(0, 2);
+            col = Math.Min(GridCols - 2, col + step);
+            waypoints.Add((col, currentRow));
+
+            var newRow = rng.Next(0, GridRows);
+            while (newRow == currentRow) newRow = rng.Next(0, GridRows);
+            currentRow = newRow;
+            waypoints.Add((col, currentRow));
+        }
+
+        waypoints.Add((GridCols - 1, currentRow));
+        return BuildPath(waypoints.ToArray());
+    }
 
     private static ((int Col, int Row)[] Cells, HashSet<(int Col, int Row)> Set) BuildPath((int Col, int Row)[] waypoints)
     {
@@ -333,7 +352,6 @@
     private Phase phase = Phase.Setup;
     private Difficulty selectedDifficulty = Difficulty.Easy;
     private DifficultyConfig config = ConfigFor(Difficulty.Easy);
-    private LevelDefinition selectedLevel = Levels[0];
     private (int Col, int Row)[] pathCells = Array.Empty<(int, int)>();
     private HashSet<(int Col, int Row)> pathSet = new();
     private readonly Dictionary<(int, int), PlacedTower> towers = new();
@@ -346,7 +364,9 @@
     private int gold;
     private int lives;
     private int kills;
-    private int waveIndex;
+    private int levelNumber;
+    private int waveInLevel;
+    private int totalWavesCleared;
     private bool waveInProgress;
     private int spawnCooldownMs;
     private int nextWaveCountdownMs;
@@ -364,7 +384,7 @@
     private void StartGame()
     {
         config = ConfigFor(selectedDifficulty);
-        (pathCells, pathSet) = BuildPath(selectedLevel.Waypoints);
+        (pathCells, pathSet) = GenerateLevel();
         towers.Clear();
         enemies.Clear();
         shots.Clear();
@@ -375,7 +395,9 @@
         gold = config.StartGold;
         lives = config.StartLives;
         kills = 0;
-        waveIndex = 0;
+        levelNumber = 1;
+        waveInLevel = 0;
+        totalWavesCleared = 0;
         waveInProgress = false;
         spawnCooldownMs = 0;
         nextWaveCountdownMs = 0;
@@ -391,16 +413,16 @@
         phase = Phase.Setup;
     }
 
-    private bool CanStartWave() => phase == Phase.Playing && !waveInProgress && waveIndex < TotalWaves;
+    private bool CanStartWave() => phase == Phase.Playing && !waveInProgress;
 
     private void StartWave()
     {
         if (!CanStartWave()) return;
 
-        var count = 5 + waveIndex * 2;
+        var count = 5 + totalWavesCleared * 2;
         for (var i = 0; i < count; i++)
         {
-            pendingSpawns.Enqueue(PickEnemyType(waveIndex));
+            pendingSpawns.Enqueue(PickEnemyType(totalWavesCleared));
         }
 
         waveInProgress = true;
@@ -410,7 +432,10 @@
 
     /// <summary>Weighted pick across the six animal enemy types - Rabbit/Duck
     /// dominate early waves, Pig/Dog ramp in from wave 2, Bear from wave 3,
-    /// and Elephant (a rare mini-boss) only starts appearing from wave 5.</summary>
+    /// and Elephant (a rare mini-boss) only starts appearing from wave 5.
+    /// Uses the run's total cleared-wave count (not the current level's),
+    /// so difficulty keeps climbing across level transitions instead of
+    /// resetting each time a new level starts.</summary>
     private EnemyType PickEnemyType(int wave)
     {
         var options = new (EnemyType Type, double Weight)[]
@@ -565,7 +590,7 @@
         // first wave never auto-starts - StartGame leaves this at 0 - so
         // there's always time to place opening towers before anything
         // spawns.
-        if (!waveInProgress && nextWaveCountdownMs > 0 && waveIndex < TotalWaves)
+        if (!waveInProgress && nextWaveCountdownMs > 0)
         {
             nextWaveCountdownMs -= TickMs;
             if (nextWaveCountdownMs <= 0)
@@ -582,7 +607,8 @@
             if (spawnCooldownMs <= 0)
             {
                 var type = pendingSpawns.Dequeue();
-                enemies.Add(new ActiveEnemy { Type = type, Hp = type.Hp * config.EnemyHpMult });
+                var hpScale = config.EnemyHpMult * (1 + totalWavesCleared * 0.04);
+                enemies.Add(new ActiveEnemy { Type = type, Hp = type.Hp * hpScale });
                 spawnCooldownMs = SpawnIntervalMs;
             }
         }
@@ -674,12 +700,27 @@
         if (waveInProgress && pendingSpawns.Count == 0 && enemies.Count == 0)
         {
             waveInProgress = false;
-            waveIndex++;
+            waveInLevel++;
+            totalWavesCleared++;
 
-            if (waveIndex >= TotalWaves)
+            if (waveInLevel >= WavesPerLevel)
             {
-                await FinishGame(won: true);
-                return;
+                if (config.LevelsToWin is { } cap && levelNumber >= cap)
+                {
+                    await FinishGame(won: true);
+                    return;
+                }
+
+                // New level, new path - refund every placed tower in full
+                // (this isn't a choice the player made, so it shouldn't
+                // cost them) and let them rebuild for the new layout.
+                levelNumber++;
+                waveInLevel = 0;
+                gold += towers.Values.Sum(t => t.TotalInvested);
+                towers.Clear();
+                selectedPlacedTowerPos = null;
+                selectedTowerType = null;
+                (pathCells, pathSet) = GenerateLevel();
             }
 
             nextWaveCountdownMs = AutoWaveDelayMs;
@@ -706,7 +747,8 @@
             await OnComplete.InvokeAsync(new TowerDefenseResult(
                 Difficulty: DifficultyName(selectedDifficulty),
                 Won: won,
-                WavesCleared: waveIndex,
+                LevelsReached: levelNumber,
+                TotalWavesCleared: totalWavesCleared,
                 Kills: kills,
                 Lives: Math.Max(0, lives),
                 ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
@@ -729,14 +771,16 @@
     {
         Difficulty.Easy => "Easy",
         Difficulty.Medium => "Medium",
-        _ => "Hard",
+        Difficulty.Hard => "Hard",
+        _ => "Endless",
     };
 
     private static string DifficultyDetail(Difficulty d) => d switch
     {
         Difficulty.Easy => "More gold, more lives",
         Difficulty.Medium => "Balanced",
-        _ => "Less gold, tougher enemies",
+        Difficulty.Hard => "Less gold, tougher enemies",
+        _ => "Hard's rules - no end, see how far you get",
     };
 
     public async ValueTask DisposeAsync()
@@ -750,5 +794,5 @@
         }
     }
 
-    public record TowerDefenseResult(string Difficulty, bool Won, int WavesCleared, int Kills, int Lives, int ElapsedSeconds);
+    public record TowerDefenseResult(string Difficulty, bool Won, int LevelsReached, int TotalWavesCleared, int Kills, int Lives, int ElapsedSeconds);
 }
