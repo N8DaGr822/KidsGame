@@ -106,7 +106,11 @@ Normalize to lowercase-kebab, e.g.:
 Needs a coordinated pass: rename on disk + update every `StickerArt + "..."`
 reference in `DressUpGame.razor` in the same change, so nothing 404s
 mid-migration. Going forward, new art dropped into that folder should already
-follow the convention rather than needing another cleanup pass later.
+follow the convention rather than needing another cleanup pass later - done
+this way for the 22 gowns added 2026-08-14 (were UUID-named, e.g.
+`009c08a4-b018-4a11-87b9-d39af385a3f3.png`, renamed to
+`periwinkle-vine-gown.png` etc. while wiring them in). The pre-existing
+`Dress1.png`/`Crown.jpg`/mixed-casing files above are still unmigrated.
 
 ## 5. Immersive game screens
 
