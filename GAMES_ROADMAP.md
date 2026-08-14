@@ -353,12 +353,18 @@ Implementation notes:
       refunded so the player can rebuild for the new layout. Waves
       auto-advance a few seconds after each clears (manual "Start Now"
       skip available). 3 towers with a working Upgrade/Sell economy plus
-      range previews and visible shots. 6 animal enemy types (reusing
-      Memory Match's art) with weighted, ever-escalating wave composition.
-      Easy/Medium/Hard are a completable 3-level campaign; Endless (same
-      starting bar as Hard) removes that cap entirely. Still no persistent
-      save state (best-run records, unlocks) - see the implementation
-      notes above for why that's intentional for now.
+      range previews and visible shots; towers now rotate to face their
+      current (or last) target instead of standing static. 6 animal enemy
+      types (reusing Memory Match's art) with weighted, ever-escalating
+      wave composition. Easy/Medium/Hard are a completable 3-level
+      campaign; Endless (same starting bar as Hard) removes that cap
+      entirely. Two max-level towers of the same kind can Merge into a
+      Mega tower (splash damage, a real "boom" moment with explosion
+      sound/visual at fusion) instead of just upgrading further - an
+      in-game legend (❓ button, setup screen and HUD) explains all three
+      combinations. Still no persistent save state (best-run records,
+      unlocks) - see the implementation notes above for why that's
+      intentional for now.
 - [ ] Dungeon Crawler — small randomly generated rooms with enemies, treasure,
       keys, traps, and upgrades.
 - [ ] Roguelike Arena — survive increasingly difficult waves, choose upgrades

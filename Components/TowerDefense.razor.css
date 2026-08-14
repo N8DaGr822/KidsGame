@@ -217,6 +217,23 @@
     min-height: 38px;
 }
 
+.td-merge-btn {
+    background: linear-gradient(135deg, #ffd43b, #ff9f1c) !important;
+    color: #3a2600 !important;
+}
+
+.td-merge-hint {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.td-info-btn {
+    min-width: 42px;
+    padding: 0 0.6rem;
+}
+
 .td-board {
     position: relative;
     display: grid;
@@ -231,6 +248,7 @@
 }
 
 .td-cell {
+    position: relative;
     border: 1px solid rgba(255, 255, 255, 0.04);
     touch-action: manipulation;
     display: grid;
@@ -259,6 +277,20 @@
     width: 82%;
     height: 82%;
     object-fit: contain;
+    transition: transform 0.15s ease;
+}
+
+.td-tower-icon.mega {
+    filter: drop-shadow(0 0 5px #ffd43b) drop-shadow(0 0 2px #ff9f1c);
+}
+
+.td-mega-badge {
+    position: absolute;
+    top: 1px;
+    right: 3px;
+    font-size: 0.7rem;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7));
+    pointer-events: none;
 }
 
 .td-range-circle {
@@ -305,6 +337,47 @@
     color: #ff6b6b;
 }
 
+.td-shot.mega-gatling,
+.td-shot.mega-cannon,
+.td-shot.mega-rocket {
+    width: 12px;
+    height: 12px;
+    background: #ffd43b;
+    color: #ffd43b;
+    box-shadow: 0 0 7px 2px currentColor;
+}
+
+.td-boom {
+    position: absolute;
+    width: 12%;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 220, 130, 0.95), rgba(255, 120, 40, 0.55) 60%, transparent 80%);
+    pointer-events: none;
+    z-index: 3;
+    animation: td-boom-pop 0.45s ease-out forwards;
+}
+
+.td-boom.big {
+    width: 26%;
+    animation-duration: 0.7s;
+}
+
+@keyframes td-boom-pop {
+    0% {
+        transform: translate(-50%, -50%) scale(0.3);
+        opacity: 1;
+    }
+    60% {
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1.7);
+        opacity: 0;
+    }
+}
+
 .td-enemy {
     position: absolute;
     width: clamp(22px, 4.5%, 40px);
@@ -342,4 +415,61 @@
 .td-win-stats {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
+}
+
+.td-legend-toggle {
+    justify-self: center !important;
+}
+
+.td-legend-panel {
+    width: min(420px, 100%);
+    text-align: center;
+}
+
+.td-legend-panel h2 {
+    margin-bottom: 0.3rem;
+}
+
+.td-legend-intro {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 0 0 0.4rem;
+}
+
+.td-legend-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.6rem 0;
+    border-top: 1px solid var(--line);
+}
+
+.td-legend-row:first-of-type {
+    border-top: none;
+}
+
+.td-legend-icon {
+    width: 2.2rem;
+    height: 2.2rem;
+    object-fit: contain;
+}
+
+.td-legend-icon.mega {
+    filter: drop-shadow(0 0 5px #ffd43b) drop-shadow(0 0 2px #ff9f1c);
+}
+
+.td-legend-plus,
+.td-legend-arrow {
+    font-weight: 900;
+    color: var(--text-muted);
+}
+
+.td-legend-name {
+    font-weight: 900;
+    margin-left: 0.3rem;
+}
+
+.td-legend-panel .td-panel-btn {
+    margin: 0.8rem auto 0;
 }

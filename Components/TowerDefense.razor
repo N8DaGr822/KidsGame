@@ -17,20 +17,29 @@
 
     Enemies (six animal types, reusing Memory Match's art) walk the
     current level's path; tap a grass cell with a tower selected from the
-    build palette to place it (if you can afford it). Towers auto-fire at
-    the enemy furthest along the path that's within range, with a small
-    traveling dot standing in for the shot so hits read clearly. The
-    first wave needs a manual "Start Wave" tap to give the player time to
-    set up, but every wave after that auto-starts a few seconds after the
-    previous one clears - "Start Now" on the wave button skips the wait.
-    Reach the end of the path and an enemy costs you lives instead of
-    gold; run out of lives and the run ends.
+    build palette to place it (if you can afford it). Towers rotate to
+    face whatever they're aiming at (or their last target, if nothing's
+    in range right now) and auto-fire at the enemy furthest along the
+    path that's within range, with a small traveling dot standing in for
+    the shot so hits read clearly. The first wave needs a manual "Start
+    Wave" tap to give the player time to set up, but every wave after
+    that auto-starts a few seconds after the previous one clears -
+    "Start Now" on the wave button skips the wait. Reach the end of the
+    path and an enemy costs you lives instead of gold; run out of lives
+    and the run ends.
 
     Tap a placed tower to select it - a range circle shows its coverage
     and a small panel offers Upgrade (stronger/faster, up to
-    MaxTowerLevel) or Sell (60% of everything spent on it back). Tap a
-    build-palette tower and hover a grass cell (mouse only - there's no
-    touch equivalent of hover) to preview its range before committing.
+    MaxTowerLevel) or Sell (60% of everything spent on it back). Once
+    two towers of the same kind both hit MaxTowerLevel, the panel offers
+    Merge instead of Upgrade: fuses them (nearest same-type maxed tower
+    is the partner, auto-picked) into a Mega tower with splash damage -
+    a proper "boom" moment (explosion sound + a visual burst at both
+    tiles) rather than just bigger numbers. The in-game "❓" button (also
+    on the setup screen) opens a legend showing all three merge
+    combinations. Tap a build-palette tower and hover a grass cell
+    (mouse only - there's no touch equivalent of hover) to preview its
+    range before committing.
 
     Usage:
         <TowerDefense OnComplete="HandleGameComplete" />
@@ -65,6 +74,7 @@
             }
 
             <button class="td-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
+            <button class="td-legend-toggle game-secondary-action" @onclick="() => showLegend = true">❓ How tower merges work</button>
         </div>
     }
     else
@@ -77,6 +87,7 @@
             <button class="td-wave-btn game-primary-action" disabled="@(!CanStartWave())" @onclick="StartWave">
                 @(waveInProgress ? "Wave in progress…" : nextWaveCountdownMs > 0 ? $"Start Now ({Math.Ceiling(nextWaveCountdownMs / 1000.0)}s)" : "Start Wave")
             </button>
+            <button class="td-info-btn game-secondary-action" @onclick="() => showLegend = true" aria-label="How tower merges work">❓</button>
             <button class="td-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
@@ -108,6 +119,19 @@
                             Upgrade <img class="td-coin-icon" src="images/tower-defense/coin.png" alt="" />@UpgradeCost(selTower)
                         </button>
                     }
+                    else if (CanMerge(selTower))
+                    {
+                        @if (FindMergePartner(selPos, selTower) is not null)
+                        {
+                            <button class="td-panel-btn game-primary-action td-merge-btn" @onclick="() => MergeTower(selPos)">
+                                💥 Merge into @MegaByBaseId[selTower.Type.Id].Name
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="td-merge-hint">Max another @selTower.Type.Name to merge!</span>
+                        }
+                    }
                     <button class="td-panel-btn game-secondary-action" @onclick="() => SellTower(selPos)">
                         Sell <img class="td-coin-icon" src="images/tower-defense/coin.png" alt="" />@SellValue(selTower)
                     </button>
@@ -133,7 +157,11 @@
                             @onpointerleave="() => ClearHover(c, r)">
                         @if (placed is not null)
                         {
-                            <img class="td-tower-icon" src="@placed.Type.ImagePath" alt="@placed.Type.Name" />
+                            <img class="td-tower-icon @(placed.Type.IsMega ? "mega" : "")" src="@placed.Type.ImagePath" alt="@placed.Type.Name" style="@TowerIconStyle(placed)" />
+                            @if (placed.Type.IsMega)
+                            {
+                                <span class="td-mega-badge">⭐</span>
+                            }
                         }
                     </button>
                 }
@@ -159,6 +187,11 @@
             @foreach (var shot in shots)
             {
                 <div @key="shot.Id" class="td-shot @shot.TowerTypeId" style="@ShotStyle(shot)"></div>
+            }
+
+            @foreach (var fx in boomEffects)
+            {
+                <div @key="fx.Id" class="td-boom @(fx.Big ? "big" : "")" style="@CellPercentStyle((fx.Col, fx.Row))"></div>
             }
         </div>
 
@@ -188,6 +221,29 @@
                 </div>
             </div>
         }
+    }
+
+    @if (showLegend)
+    {
+        <div class="td-legend-overlay game-result-overlay" @onclick="() => showLegend = false">
+            <div class="td-legend-panel game-result-panel" @onclick:stopPropagation="true">
+                <h2>💥 Tower Merges</h2>
+                <p class="td-legend-intro">Get a tower to level @MaxTowerLevel, then merge it with another maxed tower of the same kind - the fused Mega tower hits everything near its target, not just one enemy.</p>
+                @foreach (var t in TowerTypes)
+                {
+                    var mega = MegaByBaseId[t.Id];
+                    <div class="td-legend-row">
+                        <img class="td-legend-icon" src="@t.ImagePath" alt="" />
+                        <span class="td-legend-plus">+</span>
+                        <img class="td-legend-icon" src="@t.ImagePath" alt="" />
+                        <span class="td-legend-arrow">➜</span>
+                        <img class="td-legend-icon mega" src="@mega.ImagePath" alt="" />
+                        <span class="td-legend-name">@mega.Name</span>
+                    </div>
+                }
+                <button class="td-panel-btn game-primary-action" @onclick="() => showLegend = false">Got it</button>
+            </div>
+        </div>
     }
 
 </div>
@@ -225,13 +281,30 @@
 
     // ---- Tower / enemy definitions -----------------------------------
 
-    private record TowerType(string Id, string Name, string ImagePath, int Cost, double RangeCells, int Damage, int FireIntervalMs);
+    private record TowerType(string Id, string Name, string ImagePath, int Cost, double RangeCells, int Damage, int FireIntervalMs, bool IsMega = false, double SplashRadiusCells = 0);
 
     private static readonly TowerType[] TowerTypes =
     {
         new("gatling", "Gatling", "images/tower-defense/tower-gatling.png", 40, 2.2, 6, 350),
         new("cannon", "Cannon", "images/tower-defense/tower-cannon.png", 80, 2.8, 18, 700),
         new("rocket", "Rocket", "images/tower-defense/tower-rocket.png", 150, 3.4, 42, 1300),
+    };
+
+    // Only reachable by merging two max-level towers of the same base type
+    // (see MergeTower) - never appears in the buyable palette, but Cost is
+    // still set to a real value here because UpgradeCost() reads Type.Cost
+    // for its scaling, and a Mega tower can still be leveled up further.
+    // Splash damage (SplashRadiusCells) is the Mega tier's real upgrade,
+    // not just bigger numbers: their hits now damage everything nearby too.
+    private static readonly TowerType MegaGatling = new("mega-gatling", "Mega Gatling", "images/tower-defense/tower-gatling.png", 100, 3.0, 16, 220, IsMega: true, SplashRadiusCells: 0.9);
+    private static readonly TowerType MegaCannon = new("mega-cannon", "Mega Cannon", "images/tower-defense/tower-cannon.png", 200, 3.6, 46, 550, IsMega: true, SplashRadiusCells: 1.1);
+    private static readonly TowerType MegaRocket = new("mega-rocket", "Mega Rocket", "images/tower-defense/tower-rocket.png", 350, 4.2, 100, 1050, IsMega: true, SplashRadiusCells: 1.4);
+
+    private static readonly Dictionary<string, TowerType> MegaByBaseId = new()
+    {
+        ["gatling"] = MegaGatling,
+        ["cannon"] = MegaCannon,
+        ["rocket"] = MegaRocket,
     };
 
     private record EnemyType(string Id, string ImagePath, int Hp, double SpeedCellsPerSec, int Reward, int LifeCost);
@@ -321,6 +394,7 @@
         public int CooldownMs;
         public int Level = 1;
         public int TotalInvested;
+        public double FacingDeg;
     }
 
     private class ActiveEnemy
@@ -343,6 +417,20 @@
         public int Age;
     }
 
+    /// <summary>A one-shot "boom" ring - Big for a tower fusion, small for
+    /// a Mega tower's splash hit.</summary>
+    private class BoomEffect
+    {
+        public string Id { get; } = Guid.NewGuid().ToString();
+        public double Col;
+        public double Row;
+        public int RemainingMs;
+        public bool Big;
+    }
+
+    private const int BoomEffectMs = 450;
+    private const int MergeBoomMs = 700;
+
     private static int UpgradeCost(PlacedTower t) => t.Type.Cost / 2 * t.Level;
     private static int SellValue(PlacedTower t) => (int)Math.Round(t.TotalInvested * 0.6);
     private static int EffectiveDamage(PlacedTower t) => (int)Math.Round(t.Type.Damage * (1 + 0.5 * (t.Level - 1)));
@@ -357,10 +445,12 @@
     private readonly Dictionary<(int, int), PlacedTower> towers = new();
     private readonly List<ActiveEnemy> enemies = new();
     private readonly List<ShotVisual> shots = new();
+    private readonly List<BoomEffect> boomEffects = new();
     private readonly Queue<EnemyType> pendingSpawns = new();
     private TowerType? selectedTowerType;
     private (int Col, int Row)? selectedPlacedTowerPos;
     private (int Col, int Row)? hoverPreviewCell;
+    private bool showLegend;
     private int gold;
     private int lives;
     private int kills;
@@ -388,6 +478,7 @@
         towers.Clear();
         enemies.Clear();
         shots.Clear();
+        boomEffects.Clear();
         pendingSpawns.Clear();
         selectedTowerType = null;
         selectedPlacedTowerPos = null;
@@ -531,6 +622,54 @@
         selectedPlacedTowerPos = null;
     }
 
+    private static bool CanMerge(PlacedTower tower) =>
+        !tower.Type.IsMega && tower.Level >= MaxTowerLevel && MegaByBaseId.ContainsKey(tower.Type.Id);
+
+    /// <summary>Nearest other max-level tower of the same base type - the
+    /// one that Merge will consume. Returns null if there isn't one yet.</summary>
+    private (int Col, int Row)? FindMergePartner((int Col, int Row) pos, PlacedTower tower)
+    {
+        (int Col, int Row)? best = null;
+        var bestDist = double.MaxValue;
+
+        foreach (var (otherPos, otherTower) in towers)
+        {
+            if (otherPos == pos || otherTower.Type.Id != tower.Type.Id || otherTower.Level < MaxTowerLevel) continue;
+
+            var dist = Math.Pow(otherPos.Item1 - pos.Col, 2) + Math.Pow(otherPos.Item2 - pos.Row, 2);
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                best = (otherPos.Item1, otherPos.Item2);
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>Fuses the tower at pos with its nearest same-type maxed
+    /// partner into a Mega tower at pos - the partner's tile goes empty.
+    /// Both towers' total investment carries over (nothing is lost), and
+    /// an "Epic Boom Boom" plays at both tiles to sell the fusion.</summary>
+    private async Task MergeTower((int Col, int Row) pos)
+    {
+        if (!towers.TryGetValue(pos, out var tower) || !CanMerge(tower)) return;
+        if (FindMergePartner(pos, tower) is not { } partner || !towers.TryGetValue(partner, out var partnerTower)) return;
+
+        var mega = MegaByBaseId[tower.Type.Id];
+        var combinedInvested = tower.TotalInvested + partnerTower.TotalInvested;
+
+        towers.Remove(partner);
+        towers[pos] = new PlacedTower { Type = mega, TotalInvested = combinedInvested, FacingDeg = tower.FacingDeg };
+        selectedPlacedTowerPos = pos;
+
+        boomEffects.Add(new BoomEffect { Col = pos.Col + 0.5, Row = pos.Row + 0.5, RemainingMs = MergeBoomMs, Big = true });
+        boomEffects.Add(new BoomEffect { Col = partner.Col + 0.5, Row = partner.Row + 0.5, RemainingMs = MergeBoomMs, Big = true });
+        StateHasChanged();
+
+        await PlaySoundAsync("playExplosionSound");
+    }
+
     private string EnemyStyle(ActiveEnemy enemy) => CellPercentStyle(EnemyPosition(enemy));
 
     /// <summary>Cell-centered coordinates (a raw path cell of (3,6) sits
@@ -579,6 +718,12 @@
     {
         var centered = shot.Age == 0 ? (shot.FromCol, shot.FromRow) : (shot.ToCol, shot.ToRow);
         return CellPercentStyle(centered);
+    }
+
+    private static string TowerIconStyle(PlacedTower t)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        return $"transform:rotate({t.FacingDeg.ToString("0.#", inv)}deg);";
     }
 
     private void Tick(object? _) => InvokeAsync(async () =>
@@ -635,11 +780,11 @@
 
         // Tower firing - each ready tower shoots the enemy furthest along
         // the path (closest to breaking through) that's within range.
+        // Facing is updated every tick regardless of cooldown, so a tower
+        // visibly tracks a target the instant one comes into range rather
+        // than only snapping to face it at the moment it fires.
         foreach (var (pos, tower) in towers)
         {
-            tower.CooldownMs -= TickMs;
-            if (tower.CooldownMs > 0) continue;
-
             var towerCol = pos.Item1 + 0.5;
             var towerRow = pos.Item2 + 0.5;
             var range = EffectiveRange(tower);
@@ -657,7 +802,15 @@
                 }
             }
 
-            if (target is null) continue;
+            if (target is not null)
+            {
+                var (aimCol, aimRow) = EnemyPosition(target);
+                // 0deg = sprite's neutral "facing up" art; positive = clockwise.
+                tower.FacingDeg = Math.Atan2(aimCol - towerCol, towerRow - aimRow) * 180.0 / Math.PI;
+            }
+
+            tower.CooldownMs -= TickMs;
+            if (tower.CooldownMs > 0 || target is null) continue;
 
             target.Hp -= EffectiveDamage(tower);
             target.HitFlashMs = 150;
@@ -673,17 +826,43 @@
                 TowerTypeId = tower.Type.Id,
             });
 
+            // Mega towers' signature "boom" - splash damage to everything
+            // near the primary target, at half the primary hit's damage.
+            if (tower.Type.SplashRadiusCells > 0)
+            {
+                foreach (var other in enemies)
+                {
+                    if (other == target) continue;
+
+                    var (oCol, oRow) = EnemyPosition(other);
+                    var splashDist = Math.Sqrt(Math.Pow(oCol - targetCol, 2) + Math.Pow(oRow - targetRow, 2));
+                    if (splashDist <= tower.Type.SplashRadiusCells)
+                    {
+                        other.Hp -= EffectiveDamage(tower) / 2;
+                        other.HitFlashMs = 150;
+                    }
+                }
+
+                boomEffects.Add(new BoomEffect { Col = targetCol, Row = targetRow, RemainingMs = BoomEffectMs, Big = false });
+            }
+
             await PlaySoundAsync("playImpactSound");
         }
 
-        // Age shots by one render frame each - they render at the tower's
-        // position on the tick they're fired, then the target's position
-        // on the next tick, so the CSS left/top transition animates a
-        // quick travel between the two rather than teleporting.
+        // Age shots and boom effects by one render frame each - shots
+        // render at the tower's position on the tick they're fired, then
+        // the target's position on the next tick, so the CSS left/top
+        // transition animates a quick travel rather than teleporting.
         for (var i = shots.Count - 1; i >= 0; i--)
         {
             shots[i].Age++;
             if (shots[i].Age > 1) shots.RemoveAt(i);
+        }
+
+        for (var i = boomEffects.Count - 1; i >= 0; i--)
+        {
+            boomEffects[i].RemainingMs -= TickMs;
+            if (boomEffects[i].RemainingMs <= 0) boomEffects.RemoveAt(i);
         }
 
         // Resolve deaths after firing so a killing blow doesn't briefly render at negative HP.
