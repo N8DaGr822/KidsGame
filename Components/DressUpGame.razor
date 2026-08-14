@@ -62,7 +62,7 @@
 
                     @foreach (var placed in placedStickers)
                     {
-                        <span @key="placed.Id" class="du-placed-sticker @(IsBehindCharacter(placed.StickerId) ? "behind" : "") @(dragging == placed ? "dragging" : "") @(dragging == placed && overTrash ? "over-trash" : "") @(selectedSticker == placed ? "selected" : "")"
+                        <span @key="placed.Id" class="du-placed-sticker @(IsBehindCharacter(placed.StickerId) ? "behind" : "") @(IsUnderOutfit(placed.StickerId) ? "under-outfit" : "") @(dragging == placed ? "dragging" : "") @(dragging == placed && overTrash ? "over-trash" : "") @(selectedSticker == placed ? "selected" : "")"
                               style="left:@(placed.X.ToString(Inv))%; top:@(placed.Y.ToString(Inv))%; --du-scale:@(placed.Scale.ToString(Inv)); --du-rotate:@(placed.RotationDeg.ToString(Inv))deg;">
                             <span class="du-placed-sticker-hitbox"
                                   @onpointerdown="e => StartDragPlaced(e, placed)"
@@ -283,7 +283,7 @@
     // but full-body wear needs to start much bigger to already read as
     // "worn" rather than a badge the kid has to manually blow up every
     // single time it's placed.
-    public record StickerDef(string Id, string Emoji, string Label, string? ImagePath = null, bool BehindCharacter = false, double DefaultScale = 1.0);
+    public record StickerDef(string Id, string Emoji, string Label, string? ImagePath = null, bool BehindCharacter = false, bool UnderOutfit = false, double DefaultScale = 1.0);
     public record StickerCategoryDef(string Id, string Icon, string Label, Func<StickerDef, bool> Includes);
     public record CharacterOption(string Name, string ImagePath, bool IsEmpty = false);
 
@@ -370,7 +370,7 @@
         new StickerDef("purse-2", "👛", "Butterfly Pearl Clutch", StickerArt + "Purse2.png", DefaultScale: 1.2),
         new StickerDef("purse-3", "👛", "Rainbow Butterfly Bag", StickerArt + "Purse3.png", DefaultScale: 1.2),
         new StickerDef("shoes", "👠", "Shoes", StickerArt + "Shoes1.png", DefaultScale: 1.4),
-        new StickerDef("frost-boots", "👢", "Frost Boots", StickerArt + "Boots1.png", DefaultScale: 1.4),
+        new StickerDef("frost-boots", "👢", "Frost Boots", StickerArt + "Boots1.png", UnderOutfit: true, DefaultScale: 1.4),
         new StickerDef("gloves", "🧤", "Starlit Gloves", StickerArt + "Gloves1.png", DefaultScale: 2.15),
         new StickerDef("belt", "🪢", "Magic Belt", StickerArt + "Belt1.png", DefaultScale: 1.4),
         new StickerDef("belt-2", "🪢", "Moon & Star Buckle Belt", StickerArt + "Belt2.png", DefaultScale: 1.4),
@@ -1225,6 +1225,12 @@
     // top like a badge - everything else stays in front as normal.
     private static bool IsBehindCharacter(string stickerId) =>
         AllStickers.FirstOrDefault(s => s.Id == stickerId)?.BehindCharacter ?? false;
+
+    // Boots render below outfit stickers (see .du-placed-sticker.under-outfit)
+    // so a gown/dress placed afterward still covers them at the hem, instead
+    // of the boots always winning just because they were placed later.
+    private static bool IsUnderOutfit(string stickerId) =>
+        AllStickers.FirstOrDefault(s => s.Id == stickerId)?.UnderOutfit ?? false;
 
     private bool IsOverTrash(double clientX, double clientY) =>
         trashWidth > 0 && trashHeight > 0 &&

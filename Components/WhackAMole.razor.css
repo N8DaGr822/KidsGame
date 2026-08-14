@@ -117,6 +117,15 @@
     touch-action: manipulation;
 }
 
+/* Let the hop animation clear the hole's own bounds instead of getting
+   clipped by the overflow:hidden above (which exists to hide the idle
+   mole peeking out below the mound) - only needed while bonked, and
+   briefly, so it doesn't disturb neighboring holes otherwise. */
+.wa-hole.bonked {
+    overflow: visible;
+    z-index: 1;
+}
+
 .wa-mound {
     position: absolute;
     inset: 0;
@@ -144,8 +153,26 @@
 }
 
 .wa-hole.bonked .wa-mole {
-    transform: translate(-50%, 20%) scale(0.8) rotate(-12deg);
-    transition: transform 0.1s ease-in;
+    animation: wa-mole-hop 0.32s ease-out forwards;
+}
+
+/* A hit needs to read as clearly different from the mole just standing
+   up - it launches up and out of the hole (rather than sinking back
+   down the way an un-whacked mole retreats) so a kid can tell at a
+   glance that the click landed. */
+@keyframes wa-mole-hop {
+    0% {
+        transform: translate(-50%, 8%) scale(1) rotate(0deg);
+        opacity: 1;
+    }
+    45% {
+        transform: translate(-50%, -70%) scale(1.15) rotate(-16deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -110%) scale(0.7) rotate(-30deg);
+        opacity: 0;
+    }
 }
 
 .wa-hole:not(:disabled):hover .wa-mound {

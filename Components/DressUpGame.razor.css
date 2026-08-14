@@ -388,6 +388,15 @@
     z-index: 0;
 }
 
+/* Boots sit below outfit stickers (a lower z-index than the default 3,
+   but still above .du-base) so a gown/dress covers them at the hem
+   regardless of which was placed first. Same cascade-ordering reasoning
+   as .behind above - this has to come before .dragging/.selected so
+   those still win while a boot sticker is actively being manipulated. */
+.du-placed-sticker.under-outfit {
+    z-index: 2;
+}
+
 .du-placed-sticker.dragging {
     z-index: 5;
     cursor: grabbing;
