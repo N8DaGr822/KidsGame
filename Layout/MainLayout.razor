@@ -1,11 +1,16 @@
 @inherits LayoutComponentBase
 @inject Services.PlayTimeTracker Tracker
 @inject NavigationManager Nav
-@implements IDisposable
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <div class="app-shell">
     @Body
 </div>
+
+<button class="fullscreen-toggle @(isFullscreen ? "active" : "")" @onclick="ToggleFullscreen" aria-label="@(isFullscreen ? "Exit full screen" : "Enter full screen")" title="@(isFullscreen ? "Exit full screen" : "Full screen")">
+    ⛶
+</button>
 
 @if (Tracker.LimitReached)
 {
@@ -20,6 +25,21 @@
 }
 
 @code {
+    // ---- Fullscreen ---------------------------------------------------------
+    //
+    // Lives here (not per-game) because requestFullscreen/exitFullscreen
+    // target document.documentElement - a single toggle covering the whole
+    // page - and MainLayout stays mounted across every client-side route
+    // change, so one button here works from the profile picker through
+    // game select and into any game, without each game needing its own.
+    // (Dress Up used to have its own copy of this; removed in favor of this
+    // one so there's only ever one JS watchFullscreen listener registered.)
+
+    private bool isFullscreen;
+    private bool fullscreenWatching;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<MainLayout>? _dotNetRef;
+
     protected override void OnInitialized()
     {
         Tracker.OnChange += HandleTrackerChanged;
@@ -29,8 +49,44 @@
 
     private void BackToProfiles() => Nav.NavigateTo("");
 
-    public void Dispose()
+    private async Task ToggleFullscreen()
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+
+        if (!fullscreenWatching)
+        {
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            await _module.InvokeVoidAsync("watchFullscreen", _dotNetRef);
+            fullscreenWatching = true;
+        }
+
+        await _module.InvokeVoidAsync(isFullscreen ? "exitFullscreen" : "requestFullscreen");
+    }
+
+    // Fires on ANY fullscreen change, not just ones triggered by our own
+    // button - e.g. a kid hitting Esc or swiping to exit at the OS level -
+    // so the button always reflects what's actually on screen.
+    [JSInvokable]
+    public void OnFullscreenChanged(bool nowFullscreen)
+    {
+        isFullscreen = nowFullscreen;
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
     {
         Tracker.OnChange -= HandleTrackerChanged;
+
+        if (_module is not null)
+        {
+            try
+            {
+                if (fullscreenWatching) await _module.InvokeVoidAsync("unwatchFullscreen");
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+
+        _dotNetRef?.Dispose();
     }
 }

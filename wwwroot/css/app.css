@@ -61,6 +61,39 @@ body {
   min-height: 100vh;
 }
 
+.fullscreen-toggle {
+  position: fixed;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 30;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(20, 22, 30, 0.55);
+  color: var(--text);
+  font-size: 1.3rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  backdrop-filter: blur(4px);
+  box-shadow: var(--shadow-sm);
+  opacity: 0.6;
+  transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+
+.fullscreen-toggle:hover,
+.fullscreen-toggle:focus-visible {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.fullscreen-toggle.active {
+  opacity: 0.85;
+  border-color: rgba(78, 205, 196, 0.75);
+  background: var(--selected-bg);
+}
+
 h1,
 h2,
 h3,

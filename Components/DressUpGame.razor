@@ -28,7 +28,6 @@
         <div class="du-setup game-setup-panel">
             <div class="du-setup-header">
                 <h2>Dress Up</h2>
-                <button class="du-fullscreen-btn" @onclick="ToggleFullscreen">@(isFullscreen ? "⛶ Exit Full Screen" : "⛶ Full Screen")</button>
             </div>
             <p>Pick a character, then drag stickers onto them to build an outfit!</p>
 
@@ -271,7 +270,6 @@
             {
                 <div class="du-action-menu">
                     <button class="du-restart-btn" @onclick="ChangeCharacter">← Change Character</button>
-                    <button class="du-restart-btn" @onclick="ToggleFullscreen">@(isFullscreen ? "⛶ Exit Full Screen" : "⛶ Full Screen")</button>
                     <button class="du-restart-btn" @onclick="ExportOutfitAsync">💾 Save Picture</button>
                     <button class="du-restart-btn" @onclick="ResetOutfit">Reset Outfit</button>
                 </div>
@@ -596,37 +594,6 @@
     private ElementReference baseImageRef;
     private ElementReference playRef;
     private IJSObjectReference? _module;
-
-    // ---- Fullscreen (tablet kiosk-style play) -------------------------------
-
-    private bool isFullscreen;
-    private bool fullscreenWatching;
-    private DotNetObjectReference<DressUpGame>? _dotNetRef;
-
-    private async Task ToggleFullscreen()
-    {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-
-        if (!fullscreenWatching)
-        {
-            _dotNetRef ??= DotNetObjectReference.Create(this);
-            await _module.InvokeVoidAsync("watchFullscreen", _dotNetRef);
-            fullscreenWatching = true;
-        }
-
-        await _module.InvokeVoidAsync(isFullscreen ? "exitFullscreen" : "requestFullscreen");
-    }
-
-    // Fires on ANY fullscreen change, not just ones triggered by our own
-    // button - e.g. a kid hitting Esc or swiping to exit at the OS level -
-    // so the button's label always reflects what's actually on screen.
-    [JSInvokable]
-    public void OnFullscreenChanged(bool nowFullscreen)
-    {
-        isFullscreen = nowFullscreen;
-        StateHasChanged();
-        PushHud();
-    }
 
     // ---- Undo -----------------------------------------------------------
     //
@@ -1290,18 +1257,9 @@
 
         if (_module is not null)
         {
-            try
-            {
-                if (fullscreenWatching)
-                {
-                    await _module.InvokeVoidAsync("unwatchFullscreen");
-                }
-                await _module.DisposeAsync();
-            }
+            try { await _module.DisposeAsync(); }
             catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
         }
-
-        _dotNetRef?.Dispose();
     }
 
     // ---- Result payload ------------------------------------------------------

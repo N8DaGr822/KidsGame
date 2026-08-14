@@ -31,16 +31,6 @@
     font-size: clamp(2rem, 7vw, 3.25rem);
 }
 
-.du-fullscreen-btn {
-    min-height: 42px;
-    padding: 0.55rem 0.9rem;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
-    background: var(--control-bg);
-    color: var(--text);
-    font-weight: 900;
-}
-
 .du-setup p {
     max-width: 36rem;
     color: var(--text-muted);
