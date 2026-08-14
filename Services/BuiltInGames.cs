@@ -41,6 +41,7 @@ public static class BuiltInGames
     public const string OddOneOut = "odd-one-out";
     public const string PatternComplete = "pattern-complete";
     public const string NumberSequence = "number-sequence";
+    public const string ColorMatch = "color-match";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -74,5 +75,6 @@ public static class BuiltInGames
         new BuiltInGame("Odd One Out", "🔎", OddOneOut),
         new BuiltInGame("Pattern Complete", "🧩", PatternComplete),
         new BuiltInGame("Number Sequence", "🔢", NumberSequence),
+        new BuiltInGame("Color Match", "🎨", ColorMatch),
     };
 }

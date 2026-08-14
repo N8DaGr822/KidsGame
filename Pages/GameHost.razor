@@ -142,6 +142,10 @@
             {
                 <NumberSequence PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleNumberSequenceComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.ColorMatch)
+            {
+                <ColorMatch PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleColorMatchComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -624,6 +628,21 @@
     }
 
     private async Task HandleNumberSequenceComplete(NumberSequence.NumberSequenceResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Score {result.Score}/{result.TotalRounds}",
+            Moves = result.Score,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleColorMatchComplete(ColorMatch.ColorMatchResult result)
     {
         if (State.CurrentProfile is null || _game is null) return;
 

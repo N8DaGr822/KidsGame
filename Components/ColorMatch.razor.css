@@ -1,0 +1,75 @@
+.cm-game {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.cm-diff-name {
+    font-weight: 900;
+}
+
+.cm-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.cm-title {
+    font-weight: 900;
+}
+
+.cm-target {
+    width: clamp(6rem, 26vw, 8rem);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    border-radius: var(--radius-lg);
+    border: 3px solid var(--line-strong);
+    box-shadow: var(--shadow-sm);
+}
+
+.cm-choices {
+    display: grid;
+    gap: 0.8rem;
+    width: min(480px, 100%);
+    margin: 0 auto;
+}
+
+.cm-choices-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.cm-choices-4 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.cm-choices-5 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.cm-choice {
+    aspect-ratio: 1;
+    border-radius: var(--radius-md);
+    border: 3px solid var(--line);
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.cm-choice:hover:not(:disabled) {
+    transform: translateY(-2px);
+}
+
+.cm-choice.correct {
+    border-color: rgba(78, 205, 196, 0.95);
+}
+
+.cm-choice.wrong {
+    border-color: rgba(255, 107, 107, 0.95);
+}
+
+.cm-message {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+}
