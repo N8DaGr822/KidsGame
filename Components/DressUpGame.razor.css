@@ -544,6 +544,32 @@
     backdrop-filter: blur(10px);
     transform: translateX(100%);
     transition: transform 0.22s ease;
+    /* Large, high-contrast scrollbar - .du-tray-item below is
+       touch-action:none (drag-to-place needs to own every touch gesture
+       that starts on a tile), so there's no native touch-scroll-by-dragging-
+       a-tile anymore. This is the thing a finger grabs to scroll instead. */
+    scrollbar-width: auto;
+    scrollbar-color: var(--accent) rgba(255, 255, 255, 0.08);
+}
+
+.du-drawer::-webkit-scrollbar {
+    width: 16px;
+}
+
+.du-drawer::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+}
+
+.du-drawer::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+}
+
+.du-drawer::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-strong);
 }
 
 .du-drawer.open {
@@ -708,12 +734,13 @@
     place-items: center;
     gap: 0.15rem;
     cursor: grab;
-    /* pan-y (not none) leaves vertical touch scrolling through the tray to
-       the browser - a finger pressing down on a tile to scroll the grid
-       gets a native scroll instead of our drag-out logic stealing that
-       gesture. Sideways/diagonal drags (pulling a sticker out toward the
-       stage) are still ours; see StartPendingTrayDrag's threshold. */
-    touch-action: pan-y;
+    /* none, not pan-y: pan-y let the browser claim any mostly-vertical
+       touch move as a native scroll before our own drag-out logic ever
+       saw it, which on tablets made dragging a sticker out next to
+       impossible (nearly every real drag has some vertical wobble). The
+       drawer's enlarged scrollbar (see .du-drawer) is how touch users
+       scroll the tray now instead. */
+    touch-action: none;
     user-select: none;
     -webkit-touch-callout: none;
 }

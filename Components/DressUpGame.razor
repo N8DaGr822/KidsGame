@@ -888,15 +888,13 @@
     // ---- Drag and drop (Pointer Events - works for mouse, touch, pen) ------
 
     // A tray pointerdown doesn't commit to adding+dragging a sticker right
-    // away - .du-tray-item's touch-action:pan-y already lets a mostly-
-    // vertical touch gesture scroll the tray natively (the browser fires
-    // pointercancel on us once it claims that gesture), but a *mouse* drag
-    // or a deliberately sideways touch drag never gets claimed that way, so
-    // without this threshold every attempt to scroll the tray by pressing
-    // on a tile would instead instantly place that sticker on the stage.
-    // Committing only once movement clears TrayDragThreshold - or on a
-    // plain tap/click with no movement at all - keeps "drag it out" and
-    // "flick to scroll" from fighting over the same pointerdown.
+    // away - it waits for movement to clear TrayDragThreshold first. That
+    // distinguishes a deliberate "drag it out onto the stage" gesture from
+    // a plain tap (which still adds the sticker via OnTrayPointerUp, just
+    // without a drag to finish). Scrolling the tray itself is handled by
+    // .du-drawer's own scrollbar now, not by touch gestures on a tile -
+    // .du-tray-item is touch-action:none so this logic owns every touch
+    // gesture that starts on one.
     private StickerDef? pendingTraySticker;
     private long? pendingTrayPointerId;
     private double pendingTrayStartClientX, pendingTrayStartClientY;
@@ -940,8 +938,8 @@
 
     private void OnTrayPointerCancel(PointerEventArgs e)
     {
-        // The browser claimed this gesture (pan-y scroll, or another
-        // pointer taking over) - back off and add nothing.
+        // Something else claimed this gesture (another pointer taking
+        // over, a system gesture, etc.) - back off and add nothing.
         if (pendingTrayPointerId != e.PointerId) return;
         pendingTraySticker = null;
         pendingTrayPointerId = null;
