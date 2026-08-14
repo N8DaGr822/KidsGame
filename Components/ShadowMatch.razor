@@ -1,0 +1,269 @@
+@*
+    ShadowMatch.razor
+    A dark silhouette shape appears - tap the colored shape option with
+    the same outline. Silhouettes are plain CSS clip-path shapes (same
+    shapes as ShapeSorter), not real art, per the roadmap's CSS-mask
+    allowance. Difficulty controls how many shape options are shown at
+    once. A fixed 8-round session ends with a result overlay.
+
+    Usage:
+        <ShadowMatch OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="sm-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="sm-setup game-setup-panel">
+            <h2>🌑 Shadow Match</h2>
+            <p>Look at the shadow's outline, then tap the shape that matches!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="sm-diff-name">@DifficultyName(diff)</span>
+                            <span class="sm-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="sm-title">Shadow Match</span>
+            <span class="game-stat">Round @Math.Min(round, TotalRounds)/@TotalRounds</span>
+            <span class="game-stat">🌟 Score @score</span>
+            <span class="game-stat">🔥 Streak @streak</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="sm-shadow sm-shape-@targetId"></div>
+
+        <div class="sm-choices">
+            @for (var i = 0; i < choices.Count; i++)
+            {
+                var index = i;
+                <button class="sm-choice sm-shape-@choices[index] @(ChoiceState(index))" disabled="@(locked)" @onclick="() => Pick(index)"></button>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="sm-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🌑 All Done!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great shadow spotting" : PlayerName + ", great shadow spotting")!</p>
+                    <div class="game-result-stats">
+                        <div><span class="game-stat-label">Score</span><span class="game-stat-value">@score/@TotalRounds</span></div>
+                        <div><span class="game-stat-label">Best streak</span><span class="game-stat-value">@bestStreak</span></div>
+                    </div>
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<ShadowMatchResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int TotalRounds = 8;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static readonly string[] EasyShapes = { "circle", "square", "triangle" };
+    private static readonly string[] MediumShapes = { "circle", "square", "triangle", "diamond" };
+    private static readonly string[] HardShapes = { "circle", "square", "triangle", "diamond", "pentagon", "star" };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static string[] ShapesFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => EasyShapes,
+        Difficulty.Medium => MediumShapes,
+        _ => HardShapes,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private string targetId = "circle";
+    private readonly List<string> choices = new();
+    private int? pickedIndex;
+    private bool locked;
+    private int round;
+    private int score;
+    private int streak;
+    private int bestStreak;
+    private string roundMessage = "";
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        round = 0;
+        score = 0;
+        streak = 0;
+        bestStreak = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        NextRound();
+    }
+
+    private void ExitToSetup()
+    {
+        phase = Phase.Setup;
+    }
+
+    private void NextRound()
+    {
+        round++;
+        roundMessage = "";
+        pickedIndex = null;
+        locked = false;
+
+        var shapeIds = ShapesFor(selectedDifficulty);
+        targetId = shapeIds[rng.Next(shapeIds.Length)];
+
+        choices.Clear();
+        choices.AddRange(shapeIds);
+        Shuffle(choices);
+    }
+
+    private void Shuffle(List<string> list)
+    {
+        for (var i = list.Count - 1; i > 0; i--)
+        {
+            var j = rng.Next(i + 1);
+            (list[i], list[j]) = (list[j], list[i]);
+        }
+    }
+
+    private string ChoiceState(int index)
+    {
+        if (pickedIndex is null) return "";
+        if (choices[index] == targetId) return "correct";
+        if (index == pickedIndex) return "wrong";
+        return "";
+    }
+
+    private async Task Pick(int index)
+    {
+        if (locked || phase != Phase.Playing) return;
+
+        locked = true;
+        pickedIndex = index;
+
+        if (choices[index] == targetId)
+        {
+            score++;
+            streak++;
+            bestStreak = Math.Max(bestStreak, streak);
+            roundMessage = "That's the shape!";
+            await PlaySoundAsync("playMatchSound");
+        }
+        else
+        {
+            streak = 0;
+            roundMessage = "So close - here's the match!";
+            await PlaySoundAsync("playMismatchSound");
+        }
+
+        StateHasChanged();
+        await Task.Delay(1000);
+
+        if (round >= TotalRounds)
+        {
+            await FinishGame();
+        }
+        else
+        {
+            NextRound();
+        }
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new ShadowMatchResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                TotalRounds: TotalRounds,
+                BestStreak: bestStreak,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3 shapes",
+        Difficulty.Medium => "4 shapes",
+        _ => "6 shapes",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record ShadowMatchResult(string Difficulty, int Score, int TotalRounds, int BestStreak, int ElapsedSeconds);
+}

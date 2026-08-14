@@ -1,0 +1,89 @@
+.sm-game {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.sm-diff-name {
+    font-weight: 900;
+}
+
+.sm-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.sm-title {
+    font-weight: 900;
+}
+
+.sm-shadow {
+    width: clamp(6rem, 24vw, 7.5rem);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    background: #1a1a2e;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.35));
+}
+
+.sm-choices {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.9rem;
+}
+
+.sm-choice {
+    width: clamp(3.4rem, 12vw, 4.6rem);
+    aspect-ratio: 1;
+    border: 3px solid transparent;
+    background: var(--accent);
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.sm-choice:hover:not(:disabled) {
+    transform: translateY(-2px);
+}
+
+.sm-choice.correct {
+    border-color: rgba(78, 205, 196, 0.95);
+}
+
+.sm-choice.wrong {
+    border-color: rgba(255, 107, 107, 0.95);
+}
+
+.sm-shape-circle {
+    border-radius: 50%;
+}
+
+.sm-shape-square {
+    border-radius: var(--radius-sm);
+}
+
+.sm-shape-triangle {
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+
+.sm-shape-diamond {
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+
+.sm-shape-pentagon {
+    clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+}
+
+.sm-shape-star {
+    clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+
+.sm-message {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+}

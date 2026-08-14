@@ -43,6 +43,7 @@ public static class BuiltInGames
     public const string NumberSequence = "number-sequence";
     public const string ColorMatch = "color-match";
     public const string ShapeSorter = "shape-sorter";
+    public const string ShadowMatch = "shadow-match";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -78,5 +79,6 @@ public static class BuiltInGames
         new BuiltInGame("Number Sequence", "🔢", NumberSequence),
         new BuiltInGame("Color Match", "🎨", ColorMatch),
         new BuiltInGame("Shape Sorter", "🔷", ShapeSorter),
+        new BuiltInGame("Shadow Match", "🌑", ShadowMatch),
     };
 }
