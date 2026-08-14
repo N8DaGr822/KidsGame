@@ -2,17 +2,20 @@
     TowerDefense.razor
     An older-kid game (see GAMES_ROADMAP.md Section 9) - noticeably bigger
     than the other built-ins, on par with TankDuel/DressUp rather than the
-    ~300-400 line norm. One fixed level/path (a real multi-level campaign
-    with save state is a later extension, not v1 - see the roadmap's
-    "start with small vertical slices" note).
+    ~300-400 line norm. Four selectable levels (same 12x8 board, different
+    paths); a real campaign with unlocks/save state is still a later
+    extension, not v1 - see the roadmap's "start with small vertical
+    slices" note.
 
-    Enemies walk a fixed S-shaped path across a 12x8 grid; tap a grass
-    cell with a tower selected from the build palette to place it (if you
-    can afford it). Towers auto-fire at the enemy furthest along the path
-    that's within range, with a small traveling dot standing in for the
-    shot so hits read clearly. Clear a wave, spend earned gold on more
-    towers, then start the next wave when ready - waves don't start
-    automatically, so pacing stays in the player's hands. Reach the end
+    Enemies (six animal types - see "Reuses Memory Match's animal art"
+    below) walk the chosen level's fixed path; tap a grass cell with a
+    tower selected from the build palette to place it (if you can afford
+    it). Towers auto-fire at the enemy furthest along the path that's
+    within range, with a small traveling dot standing in for the shot so
+    hits read clearly. The first wave needs a manual "Start Wave" tap to
+    give the player time to set up, but every wave after that auto-starts
+    a few seconds after the previous one clears - "Start Now" on the wave
+    button skips the wait for anyone who doesn't want to. Reach the end
     of the path and an enemy costs you lives instead of gold; run out of
     lives and the run ends. Difficulty controls starting gold/lives and
     enemy HP scaling rather than adding an AI opponent (there isn't one
@@ -37,6 +40,17 @@
         <div class="td-setup game-setup-panel">
             <h2>🏯 Tower Defense</h2>
             <p>Place towers along the path to stop the enemies before they reach the end. Earn gold for every enemy you defeat!</p>
+
+            <h3 class="td-section-title game-section-title">Choose a level</h3>
+            <div class="td-level-select game-option-grid">
+                @foreach (var level in Levels)
+                {
+                    <button class="td-level-btn game-option-button @(level.Id == selectedLevel.Id ? "selected" : "")" @onclick="() => selectedLevel = level">
+                        <span class="td-level-icon">@level.Icon</span>
+                        <span class="td-level-name">@level.Name</span>
+                    </button>
+                }
+            </div>
 
             <h3 class="td-section-title game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
@@ -66,7 +80,7 @@
             <span class="td-stat">❤️ @lives</span>
             <span class="td-stat">Wave @Math.Min(waveIndex + 1, TotalWaves)/@TotalWaves</span>
             <button class="td-wave-btn game-primary-action" disabled="@(!CanStartWave())" @onclick="StartWave">
-                @(waveInProgress ? "Wave in progress…" : "Start Wave")
+                @(waveInProgress ? "Wave in progress…" : nextWaveCountdownMs > 0 ? $"Start Now ({Math.Ceiling(nextWaveCountdownMs / 1000.0)}s)" : "Start Wave")
             </button>
             <button class="td-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
@@ -114,7 +128,7 @@
                 {
                     var c = col;
                     var r = row;
-                    var isPath = PathSet.Contains((c, r));
+                    var isPath = pathSet.Contains((c, r));
                     towers.TryGetValue((c, r), out var placed);
 
                     <button class="td-cell @(isPath ? "path" : "grass") @(placed is not null ? "occupied" : "") @(selectedPlacedTowerPos == (c, r) ? "selected-tower" : "")"
@@ -222,23 +236,41 @@
 
     private record EnemyType(string Id, string ImagePath, int Hp, double SpeedCellsPerSec, int Reward, int LifeCost);
 
-    private static readonly EnemyType BasicEnemy = new("tank", "images/tower-defense/enemy-tank.png", 40, 1.1, 5, 1);
-    private static readonly EnemyType ToughEnemy = new("tank-tough", "images/tower-defense/enemy-tank-tough.png", 95, 0.75, 9, 2);
+    // Reuses Memory Match's animal art rather than the tower-defense pack's
+    // tanks - reads friendlier for a kids' game, and six distinct stat
+    // profiles give waves real variety instead of one "basic" + one "tough".
+    private static readonly EnemyType RabbitEnemy = new("rabbit", "images/memory/animals/rabbit.png", 25, 1.6, 4, 1);
+    private static readonly EnemyType DuckEnemy = new("duck", "images/memory/animals/duck.png", 40, 1.1, 5, 1);
+    private static readonly EnemyType PigEnemy = new("pig", "images/memory/animals/pig.png", 55, 1.0, 6, 1);
+    private static readonly EnemyType DogEnemy = new("dog", "images/memory/animals/dog.png", 45, 1.35, 6, 1);
+    private static readonly EnemyType BearEnemy = new("bear", "images/memory/animals/bear.png", 100, 0.75, 10, 2);
+    private static readonly EnemyType ElephantEnemy = new("elephant", "images/memory/animals/elephant.png", 220, 0.5, 25, 3);
 
-    // ---- Grid / path ---------------------------------------------------
+    // ---- Grid / levels ---------------------------------------------------
 
     private const int GridCols = 12;
     private const int GridRows = 8;
     private const int TotalWaves = 8;
     private const int TickMs = 100;
     private const int SpawnIntervalMs = 550;
+    private const int AutoWaveDelayMs = 8000;
 
-    private static readonly (int Col, int Row)[] PathCells = BuildPath();
-    private static readonly HashSet<(int Col, int Row)> PathSet = new(PathCells);
+    private record LevelDefinition(string Id, string Name, string Icon, (int Col, int Row)[] Waypoints);
 
-    private static (int Col, int Row)[] BuildPath()
+    // Same GridCols x GridRows board, four different routes through it -
+    // a real multi-level campaign with unlocks/save state is still a
+    // later extension (see the file-header note), this just gives the
+    // one level real variety to replay.
+    private static readonly LevelDefinition[] Levels =
     {
-        var waypoints = new (int Col, int Row)[] { (0, 3), (3, 3), (3, 6), (8, 6), (8, 1), (11, 1) };
+        new("switchback", "Switchback", "↩️", new (int Col, int Row)[] { (0, 3), (3, 3), (3, 6), (8, 6), (8, 1), (11, 1) }),
+        new("straight-run", "Straight Run", "➡️", new (int Col, int Row)[] { (0, 1), (10, 1), (10, 6), (11, 6) }),
+        new("the-loop", "The Loop", "🔄", new (int Col, int Row)[] { (0, 6), (2, 6), (2, 1), (5, 1), (5, 6), (8, 6), (8, 1), (11, 1) }),
+        new("crossroads", "Crossroads", "✖️", new (int Col, int Row)[] { (0, 0), (3, 0), (3, 7), (6, 7), (6, 0), (9, 0), (9, 7), (11, 7) }),
+    };
+
+    private static ((int Col, int Row)[] Cells, HashSet<(int Col, int Row)> Set) BuildPath((int Col, int Row)[] waypoints)
+    {
         var cells = new List<(int, int)> { waypoints[0] };
 
         for (var i = 0; i < waypoints.Length - 1; i++)
@@ -256,7 +288,8 @@
             }
         }
 
-        return cells.ToArray();
+        var arr = cells.ToArray();
+        return (arr, new HashSet<(int Col, int Row)>(arr));
     }
 
     // ---- Runtime state --------------------------------------------------
@@ -300,6 +333,9 @@
     private Phase phase = Phase.Setup;
     private Difficulty selectedDifficulty = Difficulty.Easy;
     private DifficultyConfig config = ConfigFor(Difficulty.Easy);
+    private LevelDefinition selectedLevel = Levels[0];
+    private (int Col, int Row)[] pathCells = Array.Empty<(int, int)>();
+    private HashSet<(int Col, int Row)> pathSet = new();
     private readonly Dictionary<(int, int), PlacedTower> towers = new();
     private readonly List<ActiveEnemy> enemies = new();
     private readonly List<ShotVisual> shots = new();
@@ -313,6 +349,7 @@
     private int waveIndex;
     private bool waveInProgress;
     private int spawnCooldownMs;
+    private int nextWaveCountdownMs;
     private bool won;
     private readonly Random rng = new();
     private DateTime startedAtUtc;
@@ -327,6 +364,7 @@
     private void StartGame()
     {
         config = ConfigFor(selectedDifficulty);
+        (pathCells, pathSet) = BuildPath(selectedLevel.Waypoints);
         towers.Clear();
         enemies.Clear();
         shots.Clear();
@@ -340,6 +378,7 @@
         waveIndex = 0;
         waveInProgress = false;
         spawnCooldownMs = 0;
+        nextWaveCountdownMs = 0;
         won = false;
         startedAtUtc = DateTime.UtcNow;
         phase = Phase.Playing;
@@ -359,15 +398,41 @@
         if (!CanStartWave()) return;
 
         var count = 5 + waveIndex * 2;
-        var toughRatio = Math.Min(0.6, waveIndex * 0.08);
-
         for (var i = 0; i < count; i++)
         {
-            pendingSpawns.Enqueue(rng.NextDouble() < toughRatio ? ToughEnemy : BasicEnemy);
+            pendingSpawns.Enqueue(PickEnemyType(waveIndex));
         }
 
         waveInProgress = true;
         spawnCooldownMs = 0;
+        nextWaveCountdownMs = 0;
+    }
+
+    /// <summary>Weighted pick across the six animal enemy types - Rabbit/Duck
+    /// dominate early waves, Pig/Dog ramp in from wave 2, Bear from wave 3,
+    /// and Elephant (a rare mini-boss) only starts appearing from wave 5.</summary>
+    private EnemyType PickEnemyType(int wave)
+    {
+        var options = new (EnemyType Type, double Weight)[]
+        {
+            (RabbitEnemy, 3.0),
+            (DuckEnemy, 3.0),
+            (PigEnemy, Math.Min(2.5, 0.5 + wave * 0.3)),
+            (DogEnemy, wave >= 1 ? Math.Min(2.5, wave * 0.4) : 0),
+            (BearEnemy, wave >= 2 ? Math.Min(2.0, (wave - 1) * 0.35) : 0),
+            (ElephantEnemy, wave >= 4 ? Math.Min(0.8, (wave - 3) * 0.2) : 0),
+        };
+
+        var total = options.Sum(o => o.Weight);
+        var roll = rng.NextDouble() * total;
+
+        foreach (var (type, weight) in options)
+        {
+            if (roll < weight) return type;
+            roll -= weight;
+        }
+
+        return DuckEnemy;
     }
 
     private void SelectTowerType(TowerType type)
@@ -378,7 +443,7 @@
 
     private void PlaceTower(int col, int row)
     {
-        if (phase != Phase.Playing || PathSet.Contains((col, row)) || towers.ContainsKey((col, row))) return;
+        if (phase != Phase.Playing || pathSet.Contains((col, row)) || towers.ContainsKey((col, row))) return;
         if (selectedTowerType is not { } type || gold < type.Cost) return;
 
         gold -= type.Cost;
@@ -411,7 +476,7 @@
 
     private void HoverCell(int col, int row)
     {
-        if (selectedTowerType is null || PathSet.Contains((col, row)) || towers.ContainsKey((col, row))) return;
+        if (selectedTowerType is null || pathSet.Contains((col, row)) || towers.ContainsKey((col, row))) return;
         hoverPreviewCell = (col, row);
     }
 
@@ -441,27 +506,27 @@
         selectedPlacedTowerPos = null;
     }
 
-    private static string EnemyStyle(ActiveEnemy enemy) => CellPercentStyle(EnemyPosition(enemy));
+    private string EnemyStyle(ActiveEnemy enemy) => CellPercentStyle(EnemyPosition(enemy));
 
     /// <summary>Cell-centered coordinates (a raw path cell of (3,6) sits
     /// visually at the middle of that cell, i.e. (3.5, 6.5)) - every
     /// consumer (targeting distance, range circles, shot endpoints, HUD
     /// rendering) reads this same centered value so they all agree on
     /// where an enemy actually is.</summary>
-    private static (double Col, double Row) EnemyPosition(ActiveEnemy enemy)
+    private (double Col, double Row) EnemyPosition(ActiveEnemy enemy)
     {
         var idx = (int)Math.Floor(enemy.PathProgress);
         (double Col, double Row) cell;
 
-        if (idx >= PathCells.Length - 1)
+        if (idx >= pathCells.Length - 1)
         {
-            cell = PathCells[^1];
+            cell = pathCells[^1];
         }
         else
         {
             var frac = enemy.PathProgress - idx;
-            var a = PathCells[idx];
-            var b = PathCells[idx + 1];
+            var a = pathCells[idx];
+            var b = pathCells[idx + 1];
             cell = (a.Col + (b.Col - a.Col) * frac, a.Row + (b.Row - a.Row) * frac);
         }
 
@@ -495,6 +560,21 @@
     {
         if (phase != Phase.Playing) return;
 
+        // Auto-advance to the next wave after a short breather, unless the
+        // player already jumped in early via the wave button. The very
+        // first wave never auto-starts - StartGame leaves this at 0 - so
+        // there's always time to place opening towers before anything
+        // spawns.
+        if (!waveInProgress && nextWaveCountdownMs > 0 && waveIndex < TotalWaves)
+        {
+            nextWaveCountdownMs -= TickMs;
+            if (nextWaveCountdownMs <= 0)
+            {
+                nextWaveCountdownMs = 0;
+                StartWave();
+            }
+        }
+
         // Spawn scheduling for the current wave.
         if (pendingSpawns.Count > 0)
         {
@@ -514,7 +594,7 @@
             if (enemy.HitFlashMs > 0) enemy.HitFlashMs -= TickMs;
 
             enemy.PathProgress += enemy.Type.SpeedCellsPerSec * (TickMs / 1000.0);
-            if (enemy.PathProgress >= PathCells.Length - 1)
+            if (enemy.PathProgress >= pathCells.Length - 1)
             {
                 lives -= enemy.Type.LifeCost;
                 enemies.RemoveAt(i);
@@ -601,6 +681,8 @@
                 await FinishGame(won: true);
                 return;
             }
+
+            nextWaveCountdownMs = AutoWaveDelayMs;
         }
 
         StateHasChanged();

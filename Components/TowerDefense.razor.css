@@ -46,10 +46,43 @@
     background: rgba(255, 255, 255, 0.04);
 }
 
-.td-difficulty-select {
+.td-difficulty-select,
+.td-level-select {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
     gap: 0.7rem;
+}
+
+.td-level-btn {
+    min-height: 86px;
+    padding: 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    gap: 0.25rem;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.td-level-btn:hover {
+    transform: translateY(-2px);
+    background: var(--control-bg-hover);
+}
+
+.td-level-btn.selected {
+    border-color: rgba(78, 205, 196, 0.75);
+    background: var(--selected-bg);
+}
+
+.td-level-icon {
+    font-size: 1.8rem;
+}
+
+.td-level-name {
+    font-weight: 900;
+    font-size: 0.85rem;
 }
 
 .td-diff-btn {

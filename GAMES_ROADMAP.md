@@ -346,11 +346,15 @@ Implementation notes:
 
 - [x] Tower Defense — place different towers along a path to stop waves of
       enemies; good for upgrades, strategy, balancing, and progression.
-      Landed as one vertical slice (`Components/TowerDefense.razor`): a
-      single fixed 12x8 level/path, 3 towers, 2 enemy types, 8 waves,
-      difficulty controls gold/lives/enemy HP. No multi-level campaign,
-      upgrades, or save state yet - see the implementation notes above for
-      why that's intentional for a first pass.
+      Landed as one vertical slice (`Components/TowerDefense.razor`) and
+      since expanded: 4 selectable levels (same 12x8 board, different
+      paths), 3 towers with a working Upgrade/Sell economy plus range
+      previews and visible shots, 6 animal enemy types (reusing Memory
+      Match's art) with weighted wave composition, 8 waves that
+      auto-advance a few seconds after each clears (with a manual
+      "Start Now" skip). Difficulty controls gold/lives/enemy HP. Still no
+      persistent campaign/save state (unlocks, best-run records) - see the
+      implementation notes above for why that's intentional for now.
 - [ ] Dungeon Crawler — small randomly generated rooms with enemies, treasure,
       keys, traps, and upgrades.
 - [ ] Roguelike Arena — survive increasingly difficult waves, choose upgrades

@@ -25,16 +25,20 @@ do not leave blank UI.
   anyway because it's a great resource).
 - `dressup/*.png` - see git history/commit messages for provenance if adding
   more from the same source.
-- `tower-defense/*.png` are from [Kenney](https://kenney.nl) ("Tower Defense
-  (top-down) Pack"), CC0. Pulled from `kenney_tower-defense-top-down.zip`'s
-  300 generically-numbered tiles (`towerDefense_tile203.png`, etc. - no XML
-  atlas in that pack, so tiles were identified visually via a generated
-  contact sheet): `tower-gatling.png` = tile203, `tower-cannon.png` = tile250,
-  `tower-rocket.png` = tile205, `enemy-tank.png` = tile268,
-  `enemy-tank-tough.png` = tile269, `coin.png` = tile272. Terrain (grass/path)
-  is plain CSS color rather than the pack's tiles - the terrain tiles are
+- `tower-defense/*.png` (towers + coin only) are from
+  [Kenney](https://kenney.nl) ("Tower Defense (top-down) Pack"), CC0. Pulled
+  from `kenney_tower-defense-top-down.zip`'s 300 generically-numbered tiles
+  (`towerDefense_tile203.png`, etc. - no XML atlas in that pack, so tiles
+  were identified visually via a generated contact sheet):
+  `tower-gatling.png` = tile203, `tower-cannon.png` = tile250,
+  `tower-rocket.png` = tile205, `coin.png` = tile272. Terrain (grass/path) is
+  plain CSS color rather than the pack's tiles - the terrain tiles are
   autotile edge/corner pieces meant to blend with neighbors, not flat
-  seamless squares, so flat CSS reads cleaner for a simple single-level grid.
+  seamless squares, so flat CSS reads cleaner for a grid this simple.
+  Enemies switched from this pack's tanks (`enemy-tank.png`/
+  `enemy-tank-tough.png`, since removed) to `memory/animals/*.png` - reads
+  friendlier for a kids' game and reuses art already in the project instead
+  of adding more.
 
 ## Downloaded Kenney pack triage
 
