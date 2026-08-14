@@ -1,0 +1,16 @@
+@* Theme/mode/difficulty picker button (.game-option-button in app.css).
+   Deliberately no typed Label/Detail/Icon parameters - callers have wildly
+   different content shapes (icon+name, name+detail, boolean toggle icons),
+   so ChildContent lets every call site keep its existing inner markup. *@
+
+<button class="game-option-button @(Selected ? "selected" : "") @Class" disabled="@Disabled" @onclick="OnClick">
+    @ChildContent
+</button>
+
+@code {
+    [Parameter] public bool Selected { get; set; }
+    [Parameter] public EventCallback OnClick { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

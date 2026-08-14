@@ -352,6 +352,16 @@ h1[tabindex="-1"]:focus {
   box-shadow: var(--shadow-sm);
 }
 
+.game-setup-panel h2 {
+  margin-bottom: 0;
+  font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.game-setup-panel p {
+  max-width: 34rem;
+  color: var(--text-muted);
+}
+
 .game-section-title {
   margin: 0.4rem 0 0;
   color: var(--text-soft);
@@ -389,6 +399,15 @@ h1[tabindex="-1"]:focus {
 .game-option-button.selected {
   border-color: rgba(78, 205, 196, 0.75);
   background: var(--selected-bg);
+}
+
+.game-choice-locked {
+  margin: 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--line);
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .game-primary-action,

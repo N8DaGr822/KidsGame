@@ -1,0 +1,16 @@
+@* Top bar shown during play (.game-hud in app.css - a centered, wrapping
+   flex row). Deliberately thin: HUD content varies too much across games
+   to model as a typed Stats list (HP-pip rows, mode toggles, progress
+   dots, free-text counters all show up alongside plain stat pills), so
+   this is just the shared wrapper - compose StatPills and buttons inside
+   ChildContent. No GameHudSlot (title-bar-hoisting) integration yet -
+   only one game uses that mechanism today; revisit when more do. *@
+
+<div class="game-hud @Class">
+    @ChildContent
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RenderFragment ChildContent { get; set; } = default!;
+    [Parameter] public string? Class { get; set; }
+}

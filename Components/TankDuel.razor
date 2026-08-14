@@ -22,20 +22,13 @@
 
     @if (phase == Phase.Setup)
     {
-        <div class="tk-setup game-setup-panel">
-            <h2>🎯 Tank Duel</h2>
-            <p>Drag anywhere on the battlefield to aim - the dotted line shows
-               exactly where your shot will land. Let go to fire! Five hits
-               and a tank is out. Watch out for the crate wall in the middle -
-               you'll need a real arc to clear it, and every battle you win
-               makes the walls taller, trickier to line up, and eventually
-               more than one.</p>
+        <GameSetupPanel Class="tk-setup" Title="🎯 Tank Duel" Description="Drag anywhere on the battlefield to aim - the dotted line shows exactly where your shot will land. Let go to fire! Five hits and a tank is out. Watch out for the crate wall in the middle - you'll need a real arc to clear it, and every battle you win makes the walls taller, trickier to line up, and eventually more than one.">
             <button class="tk-start-btn game-primary-action" @onclick="StartNewCampaign">▶️ Start Battle</button>
-        </div>
+        </GameSetupPanel>
     }
     else
     {
-        <div class="tk-hud game-hud">
+        <GameHud Class="tk-hud">
             <div class="tk-hp-group">
                 <span class="tk-hp-label">You</span>
                 <div class="tk-hp-pips">
@@ -59,7 +52,7 @@
                 </div>
             </div>
             <button class="tk-restart-btn game-secondary-action" @onclick="ExitToSetup">Change Game</button>
-        </div>
+        </GameHud>
 
         <div class="tk-battlefield" @ref="fieldRef"
              @onpointerdown="OnFieldPointerDown"
@@ -115,20 +108,18 @@
 
         @if (phase == Phase.RoundEnd)
         {
-            <div class="tk-win-overlay game-result-overlay">
-                <div class="tk-win-panel game-result-panel">
-                    <h2>@(playerWon ? "🎉 Direct hit - enemy tank down!" : "💥 Your tank was destroyed!")</h2>
-                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@(playerWon ? "great shooting!" : "give it another go!")</p>
-                    <div class="tk-win-stats game-result-stats">
-                        <div><span class="tk-stat-label game-stat-label">Shots fired</span><span class="tk-stat-value game-stat-value">@shotsFired</span></div>
-                        <div><span class="tk-stat-label game-stat-label">Time</span><span class="tk-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
-                    </div>
-                    <div class="tk-win-actions game-result-actions">
-                        <button class="tk-start-btn game-primary-action" @onclick="PlayAgain">@(playerWon ? $"Next Battle (Level {level + 1})" : "Try Again")</button>
-                        <button class="tk-restart-btn game-secondary-action" @onclick="ExitToSetup">Change Game</button>
-                    </div>
+            <GameOverlay PanelClass="tk-win-panel">
+                <h2>@(playerWon ? "🎉 Direct hit - enemy tank down!" : "💥 Your tank was destroyed!")</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@(playerWon ? "great shooting!" : "give it another go!")</p>
+                <div class="tk-win-stats game-result-stats">
+                    <div><span class="tk-stat-label game-stat-label">Shots fired</span><span class="tk-stat-value game-stat-value">@shotsFired</span></div>
+                    <div><span class="tk-stat-label game-stat-label">Time</span><span class="tk-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
                 </div>
-            </div>
+                <div class="tk-win-actions game-result-actions">
+                    <button class="tk-start-btn game-primary-action" @onclick="PlayAgain">@(playerWon ? $"Next Battle (Level {level + 1})" : "Try Again")</button>
+                    <button class="tk-restart-btn game-secondary-action" @onclick="ExitToSetup">Change Game</button>
+                </div>
+            </GameOverlay>
         }
     }
 

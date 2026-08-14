@@ -1,0 +1,22 @@
+@* Label+value chip used in game HUDs and result overlays (.game-stat in app.css). *@
+
+<div class="game-stat @Class">
+    <span class="game-stat-label">@Label</span>
+    <span class="game-stat-value">
+        @if (ChildContent is not null)
+        {
+            @ChildContent
+        }
+        else
+        {
+            @Value
+        }
+    </span>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string? Class { get; set; }
+}

@@ -1,0 +1,23 @@
+@* The "choose options, then Start" card shell (.game-setup-panel in
+   app.css). Title/Description cover the common case; everything else
+   (choice grids, LockedChoiceNotice, rules lists, extra CTAs, cast
+   previews) is caller-composed in ChildContent rather than modeled as
+   typed parameters - setups range from zero choice grids (Tank Duel) to
+   several plus multiple independent start buttons (Manners Garden), too
+   much variance for a rigid shape. *@
+
+<div class="game-setup-panel @Class">
+    <h2>@Title</h2>
+    @if (!string.IsNullOrEmpty(Description))
+    {
+        <p>@Description</p>
+    }
+    @ChildContent
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string? Description { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter, EditorRequired] public RenderFragment ChildContent { get; set; } = default!;
+}

@@ -1,0 +1,17 @@
+@* Generic modal shell (.game-result-overlay > .game-result-panel in app.css).
+   No Title/Stats/Actions/Won parameters on purpose - some games reuse this
+   exact shell for a mid-game choice (e.g. Uno's wild-color picker) that
+   isn't a win/lose result at all. Callers compose their own
+   .game-result-stats (with StatPill) and .game-result-actions inside
+   ChildContent when they do want the win/lose look. *@
+
+<div class="game-result-overlay">
+    <div class="game-result-panel @PanelClass">
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public RenderFragment ChildContent { get; set; } = default!;
+    [Parameter] public string? PanelClass { get; set; }
+}

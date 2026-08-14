@@ -1,0 +1,19 @@
+@* The "🔒 A parent set this to X (Y)" notice that replaces a choice grid
+   when a parent has locked a game's difficulty - identical shape repeated
+   across MemoryMatch/SimonSays/Minesweeper/WordScramble/etc. before this. *@
+
+@if (Locked)
+{
+    <p class="game-choice-locked">🔒 A parent set this to <strong>@Label</strong>@(string.IsNullOrEmpty(Detail) ? "" : $" ({Detail})").</p>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public bool Locked { get; set; }
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? Detail { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

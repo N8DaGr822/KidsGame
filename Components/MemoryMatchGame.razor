@@ -24,52 +24,42 @@
 
     @if (!started)
     {
-        <div class="mg-setup game-setup-panel">
-            <h2>Memory Match</h2>
-            <p>Flip two cards at a time and find all the matching pairs!</p>
-
+        <GameSetupPanel Class="mg-setup" Title="Memory Match" Description="Flip two cards at a time and find all the matching pairs!">
             <h3 class="mg-section-title game-section-title">Choose a theme</h3>
             <div class="mg-theme-select game-option-grid">
                 @foreach (var theme in Themes)
                 {
-                    <button class="mg-theme-btn game-option-button @(theme.Name == selectedTheme.Name ? "selected" : "")"
-                            @onclick="() => SetTheme(theme)">
+                    <GameChoiceButton Selected="@(theme.Name == selectedTheme.Name)" OnClick="() => SetTheme(theme)">
                         <span class="mg-theme-icon">@theme.Icon</span>
                         <span class="mg-theme-name">@theme.Name</span>
-                    </button>
+                    </GameChoiceButton>
                 }
             </div>
 
             <h3 class="mg-section-title game-section-title">Choose a difficulty</h3>
-            @if (LockedDifficulty is not null)
-            {
-                <p class="mg-difficulty-locked">🔒 A parent set this to <strong>@LockedDifficulty.Name</strong> (@LockedDifficulty.PairCount pairs).</p>
-            }
-            else
-            {
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@LockedDifficulty?.Name" Detail="@(LockedDifficulty is null ? null : $"{LockedDifficulty.PairCount} pairs")">
                 <div class="mg-difficulty-select game-option-grid">
                     @foreach (var level in Difficulties)
                     {
-                        <button class="mg-diff-btn game-option-button @(level.Name == selectedDifficulty.Name ? "selected" : "")"
-                                @onclick="() => selectedDifficulty = level">
+                        <GameChoiceButton Selected="@(level.Name == selectedDifficulty.Name)" OnClick="() => selectedDifficulty = level">
                             <span class="mg-diff-name">@level.Name</span>
                             <span class="mg-diff-detail">@(level.PairCount) pairs</span>
-                        </button>
+                        </GameChoiceButton>
                     }
                 </div>
-            }
+            </LockedChoiceNotice>
 
             <button class="mg-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
-        </div>
+        </GameSetupPanel>
     }
     else
     {
-        <div class="mg-hud game-hud">
-            <div class="mg-stat game-stat"><span class="mg-stat-label game-stat-label">Moves</span><span class="mg-stat-value game-stat-value">@moves</span></div>
-            <div class="mg-stat game-stat"><span class="mg-stat-label game-stat-label">Matches</span><span class="mg-stat-value game-stat-value">@matchedPairs / @selectedDifficulty.PairCount</span></div>
-            <div class="mg-stat game-stat"><span class="mg-stat-label game-stat-label">Time</span><span class="mg-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
+        <GameHud Class="mg-hud">
+            <StatPill Label="Moves" Value="@moves.ToString()" />
+            <StatPill Label="Matches" Value="@($"{matchedPairs} / {selectedDifficulty.PairCount}")" />
+            <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
             <button class="mg-restart-btn game-secondary-action" @onclick="ResetToSetup">Change Game</button>
-        </div>
+        </GameHud>
 
         <div class="mg-board @(selectedTheme.BoardClass)" style="--cols:@selectedDifficulty.Columns;">
             @foreach (var card in cards)
@@ -88,20 +78,18 @@
 
         @if (gameWon)
         {
-            <div class="mg-win-overlay game-result-overlay">
-                <div class="mg-win-panel game-result-panel">
-                    <h2>🎉 You did it!</h2>
-                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") matching every pair!</p>
-                    <div class="mg-win-stats game-result-stats">
-                        <div><span class="mg-stat-label game-stat-label">Moves</span><span class="mg-stat-value game-stat-value">@moves</span></div>
-                        <div><span class="mg-stat-label game-stat-label">Time</span><span class="mg-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
-                    </div>
-                    <div class="mg-win-actions game-result-actions">
-                        <button class="mg-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
-                        <button class="mg-restart-btn game-secondary-action" @onclick="ResetToSetup">Change Game</button>
-                    </div>
+            <GameOverlay PanelClass="mg-win-panel">
+                <h2>🎉 You did it!</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") matching every pair!</p>
+                <div class="mg-win-stats game-result-stats">
+                    <div><span class="mg-stat-label game-stat-label">Moves</span><span class="mg-stat-value game-stat-value">@moves</span></div>
+                    <div><span class="mg-stat-label game-stat-label">Time</span><span class="mg-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
                 </div>
-            </div>
+                <div class="mg-win-actions game-result-actions">
+                    <button class="mg-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                    <button class="mg-restart-btn game-secondary-action" @onclick="ResetToSetup">Change Game</button>
+                </div>
+            </GameOverlay>
         }
     }
 
