@@ -232,13 +232,33 @@ above without being its own theme.
 Great for younger kids, cheapest to build, no art needed — same shape as
 Sudoku/Minesweeper's "generate a grid, validate a solution" loop.
 
-- [ ] Odd One Out
-- [ ] Pattern Complete
-- [ ] Number Sequence
-- [ ] Color Match
-- [ ] Shape Sorter (drag-and-drop; reuses whatever drag infra Dress Up has)
-- [ ] Shadow Match (needs simple silhouette art — mark **[art needed]** if
-      no vector/CSS-mask approach is used)
+- [x] Odd One Out — spot the tile that differs from the rest; grid size
+      (4/6/9 tiles) scales with difficulty.
+- [x] Pattern Complete — repeating emoji cycle with the last symbol
+      hidden; cycle length (2/3/4 symbols) scales with difficulty.
+- [x] Number Sequence — counting sequence (up or down, variable step)
+      with the next number hidden.
+- [x] Color Match — tap the swatch matching a target color, no reading
+      required; palette size and hue closeness scale with difficulty.
+- [x] Shape Sorter — tap a shape then tap its matching outline, rather
+      than true pointer drag (native HTML5 drag-and-drop doesn't fire on
+      touch/tablet browsers, which is how this app is actually played).
+      CSS `clip-path` shapes, no art assets.
+- [x] Shadow Match — match a dark CSS-silhouette shape to its colored
+      counterpart among several options; used the CSS-mask escape hatch
+      instead of real art, same shape set as Shape Sorter.
+
+All six follow the `HigherOrLower.razor` template shape (Setup/Playing/
+Finished phase enum, `ForcedDifficulty` threading, fixed-length session,
+`<GameName>Result` record) and reuse the shared `game-setup-panel` /
+`game-hud` / `game-option-grid` / `game-result-*` CSS classes from
+`app.css` rather than hand-rolling setup/HUD/overlay chrome. Each is a
+fixed 8-round (or 4-set, for Shape Sorter) session with score/streak
+tracking, ending in a result overlay — no fail state, matches the
+scoring feel of `HigherOrLower`/`TicTacToe`. New games only appear for a
+kid profile once a parent adds them via Manage games → "+ Add game to
+catalog" — that's the per-profile catalog opt-in, not a bug to chase if
+a freshly-added game isn't visible right away.
 
 ## 2. Classic strategy / AI opponent games
 
