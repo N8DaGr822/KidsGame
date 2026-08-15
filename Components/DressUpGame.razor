@@ -223,7 +223,7 @@
                             ? (string.IsNullOrWhiteSpace(PlayerName) ? "Great scene!" : PlayerName + ", great scene!")
                             : (string.IsNullOrWhiteSpace(PlayerName) ? "Great styling" : PlayerName + ", great styling") + " on your " + selectedCharacter.Name + "!")</p>
                     <div class="du-win-actions game-result-actions">
-                        <button class="du-start-btn game-primary-action" @onclick="() => { celebrate = false; selectedCharacter = null; }">Dress Another</button>
+                        <button class="du-start-btn game-primary-action" @onclick="DressAnother">Dress Another</button>
                     </div>
                 </div>
             </div>
@@ -873,6 +873,20 @@
         selectedCharacter = null;
         actionMenuOpen = false;
         PushHud();
+    }
+
+    // Same as ChangeCharacter, but also clears the celebration overlay -
+    // this is the "Dress Another" button reached from that overlay, rather
+    // than the in-menu "← Change Character" reached mid-dress-up. Routing
+    // through ChangeCharacter() (instead of setting selectedCharacter = null
+    // inline) matters: HudSlot still holds the previous HudFragment
+    // delegate, which dereferences selectedCharacter - skipping PushHud()
+    // here left that stale fragment able to NullReferenceException on the
+    // next unrelated re-render while back on character-select.
+    private void DressAnother()
+    {
+        celebrate = false;
+        ChangeCharacter();
     }
 
     // A full reset also resets undo history - keeping stale sticker/stroke

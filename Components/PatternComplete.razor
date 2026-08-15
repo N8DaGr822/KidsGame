@@ -172,14 +172,23 @@
         var cycleLength = CycleLengthFor(selectedDifficulty);
         var pool = SymbolPool.OrderBy(_ => rng.Next()).ToArray();
         var activeSet = pool.Take(cycleLength).ToArray();
-        var displayLen = cycleLength * 2 + 1;
+
+        // Show two full cycles plus a random number of extra symbols into a
+        // third partial cycle before hiding the next one. The extra amount
+        // varies the hidden position within the cycle (0..cycleLength-1) -
+        // without it, displayLen-1 was always an exact multiple of
+        // cycleLength, so the hidden answer was always the very first tile
+        // of the sequence regardless of difficulty, and a kid could win by
+        // copying the leftmost tile without ever reading the pattern.
+        var extra = rng.Next(cycleLength);
+        var displayLen = cycleLength * 2 + extra;
 
         sequence.Clear();
-        for (var i = 0; i < displayLen - 1; i++)
+        for (var i = 0; i < displayLen; i++)
         {
             sequence.Add(activeSet[i % cycleLength]);
         }
-        correctSymbol = activeSet[(displayLen - 1) % cycleLength];
+        correctSymbol = activeSet[displayLen % cycleLength];
 
         var distractors = activeSet.Where(s => s != correctSymbol).ToList();
         var extras = pool.Skip(cycleLength).Where(s => !distractors.Contains(s)).ToList();
