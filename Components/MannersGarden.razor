@@ -788,8 +788,20 @@
         }
     }
 
-    private void ExitToSetup()
+    // Reached from two places: the persistent HUD's "Change Game" during an
+    // active Playing/Reward session (a genuine early exit, never yet
+    // logged), and the SessionComplete overlay's "Change Game" (reached
+    // after FinishSession() already logged it - must not log again here).
+    private async Task ExitToSetup()
     {
+        if ((phase == Phase.Playing || phase == Phase.Reward) && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MannersGardenResult(
+                ScenariosCompleted: quizMode ? quizIndex : roundIndex,
+                GardenItemsEarned: gardenItems.Count,
+                ElapsedSeconds: elapsedSeconds));
+        }
+
         StopTimer();
         _ = StopSpeakingAsync();
         phase = Phase.Setup;

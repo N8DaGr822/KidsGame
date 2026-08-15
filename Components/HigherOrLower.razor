@@ -158,8 +158,23 @@
         phase = Phase.Playing;
     }
 
-    private void ExitToSetup()
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    // Guarded to Playing so the Finished-overlay's Exit button (which
+    // shares this handler) doesn't double-fire after FinishGame already
+    // invoked OnComplete.
+    private async Task ExitToSetup()
     {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new HigherOrLowerResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                FinalStreak: streak,
+                BestStreak: bestStreak,
+                Rounds: rounds,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
         phase = Phase.Setup;
     }
 

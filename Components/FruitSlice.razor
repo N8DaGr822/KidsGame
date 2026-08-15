@@ -163,8 +163,21 @@
         StartTimer();
     }
 
-    private void ExitToSetup()
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    private async Task ExitToSetup()
     {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new FruitSliceResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                Sliced: sliced,
+                BombsHit: bombsHit,
+                BestStreak: bestStreak,
+                ElapsedSeconds: config.RoundSeconds - remainingMs / 1000));
+        }
         StopTimer();
         phase = Phase.Setup;
         items.Clear();

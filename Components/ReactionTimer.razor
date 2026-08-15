@@ -152,9 +152,23 @@
         BeginWaiting();
     }
 
-    private void ExitToSetup()
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    // Only fires if at least one round's reaction time was recorded, since
+    // Best/Average are undefined otherwise.
+    private async Task ExitToSetup()
     {
         waitCts?.Cancel();
+        if (phase != Phase.Setup && phase != Phase.Finished && results.Count > 0 && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new ReactionTimerResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Rounds: results.Count,
+                BestMs: results.Min(),
+                AverageMs: (int)Math.Round(results.Average()),
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
         phase = Phase.Setup;
     }
 

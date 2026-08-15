@@ -284,8 +284,21 @@
         StartTimer();
     }
 
-    private void ResetToSetup()
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    private async Task ResetToSetup()
     {
+        if (started && !gameWon && !gameOver && OnComplete.HasDelegate)
+        {
+            StopTimer();
+            await OnComplete.InvokeAsync(new FishingResult(
+                Mode: selectedMode.Name,
+                TargetsCompleted: targetIndex,
+                Attempts: attempts,
+                ElapsedSeconds: elapsedSeconds));
+        }
+
         started = false;
         gameWon = false;
         gameOver = false;

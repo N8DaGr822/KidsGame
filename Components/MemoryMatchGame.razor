@@ -336,8 +336,21 @@
         StartTimer();
     }
 
-    private void ResetToSetup()
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    private async Task ResetToSetup()
     {
+        if (started && !gameWon && OnComplete.HasDelegate)
+        {
+            StopTimer();
+            await OnComplete.InvokeAsync(new MemoryMatchResult(
+                Theme: selectedTheme.Name,
+                Difficulty: selectedDifficulty.Name,
+                Moves: moves,
+                ElapsedSeconds: elapsedSeconds));
+        }
+
         started = false;
         gameWon = false;
         StopTimer();
@@ -352,7 +365,7 @@
             .ToList();
     }
 
-    private async void FlipCard(CardState card)
+    private async Task FlipCard(CardState card)
     {
         if (isResolvingMismatch || card.IsFaceUp || card.IsMatched) return;
 

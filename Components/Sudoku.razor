@@ -59,7 +59,7 @@
         <div class="sk-hud game-hud">
             <span class="sk-title">Sudoku</span>
             <span class="sk-timer">⏱️ @FormatTime(elapsedSeconds)</span>
-            <button class="sk-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
+            <button class="sk-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
         <div class="sk-board" style="--sk-size:@size;">
@@ -95,7 +95,7 @@
                     <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") - solved in @FormatTime(elapsedSeconds)!</p>
                     <div class="sk-win-actions game-result-actions">
                         <button class="sk-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
-                        <button class="sk-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
+                        <button class="sk-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
                     </div>
                 </div>
             </div>
@@ -176,6 +176,25 @@
 
         phase = Phase.Playing;
         StartTimer();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously the "Exit"
+    // buttons just reset phase to Setup and only a natural finish (solved)
+    // invoked OnComplete, so an abandoned session left no trace. Guarded
+    // to Phase.Playing so the post-finish overlay's own Exit button
+    // (visible only after Won, which already invoked OnComplete once)
+    // doesn't fire it a second time.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SudokuResult(
+                GridSize: size,
+                ElapsedSeconds: elapsedSeconds));
+        }
+        StopTimer();
+        phase = Phase.Setup;
     }
 
     private void SelectCell(int index)

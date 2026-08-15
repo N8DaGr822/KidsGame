@@ -237,8 +237,20 @@
         StartClock();
     }
 
-    private void ExitToSetup()
+    // Reached from two places: the persistent HUD's "Change Game" during an
+    // active PlayerAiming/Busy battle (a genuine early exit, never yet
+    // logged), and the RoundEnd overlay's "Change Game" (reached after
+    // EndRoundAsync already logged it - must not log again here).
+    private async Task ExitToSetup()
     {
+        if ((phase == Phase.PlayerAiming || phase == Phase.Busy) && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new TankDuelResult(
+                Won: false,
+                ShotsFired: shotsFired,
+                ElapsedSeconds: elapsedSeconds));
+        }
+
         StopClock();
         StopImpactTimer();
         phase = Phase.Setup;

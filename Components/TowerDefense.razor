@@ -498,8 +498,24 @@
         StartTimer();
     }
 
-    private void ExitToSetup()
+    // Reached from two places: the persistent HUD's "← Exit" during an
+    // active run (a genuine early exit, never yet logged), and the
+    // Finished overlay's "Exit" (reached after FinishGame() already
+    // logged it - must not log again here).
+    private async Task ExitToSetup()
     {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new TowerDefenseResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                LevelsReached: levelNumber,
+                TotalWavesCleared: totalWavesCleared,
+                Kills: kills,
+                Lives: Math.Max(0, lives),
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+
         StopTimer();
         phase = Phase.Setup;
     }

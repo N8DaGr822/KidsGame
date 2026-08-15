@@ -52,7 +52,7 @@
                 <button class="ms-mode-btn @(tapMode == TapMode.Reveal ? "active" : "")" @onclick="() => tapMode = TapMode.Reveal" aria-label="Reveal mode">🔍</button>
                 <button class="ms-mode-btn @(tapMode == TapMode.Flag ? "active" : "")" @onclick="() => tapMode = TapMode.Flag" aria-label="Flag mode">🚩</button>
             </div>
-            <button class="ms-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
+            <button class="ms-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
         <div class="ms-board" style="--ms-size:@gridSize;">
@@ -93,7 +93,7 @@
                     }
                     <div class="ms-win-actions game-result-actions">
                         <button class="ms-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
-                        <button class="ms-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
+                        <button class="ms-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
                     </div>
                 </div>
             </div>
@@ -164,6 +164,26 @@
         tapMode = TapMode.Reveal;
         StopTimer();
         phase = Phase.Playing;
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously the "Exit"
+    // buttons just reset phase to Setup and only a natural finish (win or
+    // loss) invoked OnComplete, so an abandoned session left no trace.
+    // Guarded to Phase.Playing so the post-finish overlay's own Exit
+    // button (visible only after Won/Lost, which already invoked
+    // OnComplete once) doesn't fire it a second time.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MinesweeperResult(
+                Won: false,
+                GridSize: gridSize,
+                ElapsedSeconds: elapsedSeconds));
+        }
+        StopTimer();
+        phase = Phase.Setup;
     }
 
     private IEnumerable<int> AdjacentIndexes(int index)

@@ -36,7 +36,7 @@
         <GameHud Class="uno-hud">
             <span class="uno-title">UNO</span>
             <span class="uno-direction" title="@(direction == 1 ? "Clockwise" : "Counter-clockwise")">@(direction == 1 ? "↻" : "↺")</span>
-            <button class="uno-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
+            <button class="uno-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </GameHud>
 
         <div class="uno-table">
@@ -155,6 +155,27 @@
     private IJSObjectReference? _module;
 
     private UnoCard? TopDiscard => discardPile.Count > 0 ? discardPile[^1] : null;
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    // This HUD button stays visible through RoundEnd too, but that's
+    // already covered: HandleRoundEndAsync invokes OnComplete as soon as
+    // a hand is emptied, so the guard excludes RoundEnd to avoid a double
+    // fire. The separate round-end panel's own Exit button is reached
+    // only after that already happened, so it needs no change.
+    private async Task ExitToSetup()
+    {
+        if (phase != Phase.RoundEnd && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new UnoResult(
+                Won: false,
+                CardsRemaining: players[0].Hand.Count,
+                TurnsPlayed: turnsPlayed,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
 
     private void StartGame()
     {

@@ -54,7 +54,7 @@
                 }
             </div>
             <span class="ws-timer">⏱️ @FormatTime(elapsedSeconds)</span>
-            <button class="ws-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
+            <button class="ws-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
         <div class="ws-emoji-clue">@CurrentWord.Emoji</div>
@@ -176,6 +176,24 @@
         LoadWord();
         phase = Phase.Playing;
         StartTimer();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    // Guarded to Playing so the SessionComplete overlay's own Exit button
+    // (a separate handler) doesn't need to change - FinishAsync already
+    // invoked OnComplete by the time that overlay is reachable.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            StopTimer();
+            await OnComplete.InvokeAsync(new WordScrambleResult(
+                WordsCompleted: wordIndex,
+                ElapsedSeconds: elapsedSeconds));
+        }
+        phase = Phase.Setup;
     }
 
     private void LoadWord()

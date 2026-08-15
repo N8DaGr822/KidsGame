@@ -269,7 +269,7 @@
             @if (actionMenuOpen)
             {
                 <div class="du-action-menu">
-                    <button class="du-restart-btn" @onclick="ChangeCharacter">← Change Character</button>
+                    <button class="du-restart-btn" @onclick="AbandonDressUp">← Change Character</button>
                     <button class="du-restart-btn" @onclick="ExportOutfitAsync">💾 Save Picture</button>
                     <button class="du-restart-btn" @onclick="ResetOutfit">Reset Outfit</button>
                 </div>
@@ -873,6 +873,24 @@
         selectedCharacter = null;
         actionMenuOpen = false;
         PushHud();
+    }
+
+    // The "← Change Character" menu item mid-dress-up, as opposed to
+    // ChangeCharacter() itself (also reused by DressAnother() after "Done!"
+    // already logged the session via FinishDressUp - that path must NOT
+    // log again). An abandoned outfit still counts as real engagement if
+    // any stickers were placed, so it logs the same DressUpResult "Done!"
+    // would have, just with whatever was placed so far.
+    private async Task AbandonDressUp()
+    {
+        if (selectedCharacter is not null && placedStickers.Count > 0 && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new DressUpResult(
+                Character: selectedCharacter.Name,
+                StickersPlaced: placedStickers.Count));
+        }
+
+        ChangeCharacter();
     }
 
     // Same as ChangeCharacter, but also clears the celebration overlay -

@@ -49,7 +49,7 @@
             <span class="sp-moves">Moves: @moves</span>
             <span class="sp-timer">⏱️ @FormatTime(elapsedSeconds)</span>
             <button class="sp-preview-btn game-secondary-action" @onclick="() => showPreview = !showPreview">@(showPreview ? "Hide Picture" : "Show Picture")</button>
-            <button class="sp-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
+            <button class="sp-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
         <div class="sp-board-wrap">
@@ -176,6 +176,25 @@
 
         phase = Phase.Playing;
         StartTimer();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    // Guarded to Playing so the Won overlay's own Exit button (a separate
+    // handler) doesn't need to change - FinishAsync already invoked
+    // OnComplete by the time that overlay is reachable.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            StopTimer();
+            await OnComplete.InvokeAsync(new SlidingPuzzleResult(
+                GridSize: gridSize,
+                Moves: moves,
+                ElapsedSeconds: elapsedSeconds));
+        }
+        phase = Phase.Setup;
     }
 
     // Shuffling via random *legal* moves (rather than a random permutation

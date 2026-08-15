@@ -50,7 +50,7 @@
             <span class="simon-title">Simon Says</span>
             <span class="simon-round">Round @Math.Max(sequence.Count, 1)</span>
             <span class="simon-mistakes">@MistakesText()</span>
-            <button class="simon-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
+            <button class="simon-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
         <div class="simon-status">@StatusText()</div>
@@ -140,6 +140,26 @@
         mistakesMade = 0;
         startedAtUtc = DateTime.UtcNow;
         _ = PlaybackAsync();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    // On Easy this is the ONLY way a session ever gets logged, since
+    // MaxMistakes is int.MaxValue there and EndRoundAsync never runs.
+    // Guarded to Watching/Listening (not RoundEnd) because this button
+    // stays visible after a natural finish too, and EndRoundAsync already
+    // invoked OnComplete by then - the RoundEnd overlay's own Exit button
+    // needs no change for the same reason.
+    private async Task ExitToSetup()
+    {
+        if ((phase == Phase.Watching || phase == Phase.Listening) && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SimonSaysResult(
+                RoundsReached: roundsReached,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
     }
 
     private async Task PlaybackAsync()
