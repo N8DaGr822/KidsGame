@@ -21,6 +21,15 @@ public class Game
     // Admin can hide a game from the entire catalog (e.g. still being
     // built) independent of any one kid's access list.
     public bool IsCatalogEnabled { get; set; } = true;
+
+    // Suggested age range in years, editable per catalog entry (starts as
+    // a copy of the BuiltInGame's suggested range when added, but admin
+    // can override it - e.g. a custom iframe game has no BuiltInGame to
+    // copy from). Null means "not set yet"; both sort as "unset" rather
+    // than 0 so old catalog entries from before this field existed don't
+    // suddenly look like toddler games.
+    public int? MinAge { get; set; }
+    public int? MaxAge { get; set; }
 }
 
 public enum GameLaunchMode

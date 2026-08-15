@@ -349,7 +349,9 @@ public class AppDataService
             ThumbnailImagePath = memoryMatchDef.ThumbnailImagePath,
             ThumbnailEmoji = memoryMatchDef.ThumbnailEmoji,
             LaunchTarget = memoryMatchDef.LaunchTarget,
-            LaunchMode = GameLaunchMode.InternalRoute
+            LaunchMode = GameLaunchMode.InternalRoute,
+            MinAge = memoryMatchDef.MinAge,
+            MaxAge = memoryMatchDef.MaxAge
         };
 
         var fishingDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.Fishing);
@@ -359,7 +361,9 @@ public class AppDataService
             ThumbnailImagePath = fishingDef.ThumbnailImagePath,
             ThumbnailEmoji = fishingDef.ThumbnailEmoji,
             LaunchTarget = fishingDef.LaunchTarget,
-            LaunchMode = GameLaunchMode.InternalRoute
+            LaunchMode = GameLaunchMode.InternalRoute,
+            MinAge = fishingDef.MinAge,
+            MaxAge = fishingDef.MaxAge
         };
 
         var dressUpDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.DressUp);
@@ -369,7 +373,9 @@ public class AppDataService
             ThumbnailImagePath = dressUpDef.ThumbnailImagePath,
             ThumbnailEmoji = dressUpDef.ThumbnailEmoji,
             LaunchTarget = dressUpDef.LaunchTarget,
-            LaunchMode = GameLaunchMode.InternalRoute
+            LaunchMode = GameLaunchMode.InternalRoute,
+            MinAge = dressUpDef.MinAge,
+            MaxAge = dressUpDef.MaxAge
         };
 
         var mannersGardenDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.MannersGarden);
@@ -379,7 +385,9 @@ public class AppDataService
             ThumbnailImagePath = mannersGardenDef.ThumbnailImagePath,
             ThumbnailEmoji = mannersGardenDef.ThumbnailEmoji,
             LaunchTarget = mannersGardenDef.LaunchTarget,
-            LaunchMode = GameLaunchMode.InternalRoute
+            LaunchMode = GameLaunchMode.InternalRoute,
+            MinAge = mannersGardenDef.MinAge,
+            MaxAge = mannersGardenDef.MaxAge
         };
 
         // Externally-built (React/Vite), loaded via iframe rather than as a
@@ -394,7 +402,9 @@ public class AppDataService
             ThumbnailImagePath = "games/crown-and-banner/assets/units/griffin.png",
             ThumbnailEmoji = "👑",
             LaunchTarget = "games/crown-and-banner/index.html",
-            LaunchMode = GameLaunchMode.ExternalIframe
+            LaunchMode = GameLaunchMode.ExternalIframe,
+            MinAge = 7,
+            MaxAge = 13
         };
 
         // Turn-based artillery duel with tanks exploding after 5 hits -
@@ -408,7 +418,9 @@ public class AppDataService
             ThumbnailImagePath = tankDuelDef.ThumbnailImagePath,
             ThumbnailEmoji = tankDuelDef.ThumbnailEmoji,
             LaunchTarget = tankDuelDef.LaunchTarget,
-            LaunchMode = GameLaunchMode.InternalRoute
+            LaunchMode = GameLaunchMode.InternalRoute,
+            MinAge = tankDuelDef.MinAge,
+            MaxAge = tankDuelDef.MaxAge
         };
 
         // Card and reflex-memory games - seeded into the catalog like Tank
@@ -421,7 +433,9 @@ public class AppDataService
             ThumbnailImagePath = unoDef.ThumbnailImagePath,
             ThumbnailEmoji = unoDef.ThumbnailEmoji,
             LaunchTarget = unoDef.LaunchTarget,
-            LaunchMode = GameLaunchMode.InternalRoute
+            LaunchMode = GameLaunchMode.InternalRoute,
+            MinAge = unoDef.MinAge,
+            MaxAge = unoDef.MaxAge
         };
 
         var simonSaysDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.SimonSays);
@@ -431,7 +445,9 @@ public class AppDataService
             ThumbnailImagePath = simonSaysDef.ThumbnailImagePath,
             ThumbnailEmoji = simonSaysDef.ThumbnailEmoji,
             LaunchTarget = simonSaysDef.LaunchTarget,
-            LaunchMode = GameLaunchMode.InternalRoute
+            LaunchMode = GameLaunchMode.InternalRoute,
+            MinAge = simonSaysDef.MinAge,
+            MaxAge = simonSaysDef.MaxAge
         };
 
         var slidingPuzzleDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.SlidingPuzzle);
@@ -441,7 +457,9 @@ public class AppDataService
             ThumbnailImagePath = slidingPuzzleDef.ThumbnailImagePath,
             ThumbnailEmoji = slidingPuzzleDef.ThumbnailEmoji,
             LaunchTarget = slidingPuzzleDef.LaunchTarget,
-            LaunchMode = GameLaunchMode.InternalRoute
+            LaunchMode = GameLaunchMode.InternalRoute,
+            MinAge = slidingPuzzleDef.MinAge,
+            MaxAge = slidingPuzzleDef.MaxAge
         };
 
         var wordScrambleDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.WordScramble);
@@ -451,7 +469,9 @@ public class AppDataService
             ThumbnailImagePath = wordScrambleDef.ThumbnailImagePath,
             ThumbnailEmoji = wordScrambleDef.ThumbnailEmoji,
             LaunchTarget = wordScrambleDef.LaunchTarget,
-            LaunchMode = GameLaunchMode.InternalRoute
+            LaunchMode = GameLaunchMode.InternalRoute,
+            MinAge = wordScrambleDef.MinAge,
+            MaxAge = wordScrambleDef.MaxAge
         };
 
         var minesweeperDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.Minesweeper);
@@ -461,7 +481,9 @@ public class AppDataService
             ThumbnailImagePath = minesweeperDef.ThumbnailImagePath,
             ThumbnailEmoji = minesweeperDef.ThumbnailEmoji,
             LaunchTarget = minesweeperDef.LaunchTarget,
-            LaunchMode = GameLaunchMode.InternalRoute
+            LaunchMode = GameLaunchMode.InternalRoute,
+            MinAge = minesweeperDef.MinAge,
+            MaxAge = minesweeperDef.MaxAge
         };
 
         var sudokuDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.Sudoku);
@@ -471,7 +493,9 @@ public class AppDataService
             ThumbnailImagePath = sudokuDef.ThumbnailImagePath,
             ThumbnailEmoji = sudokuDef.ThumbnailEmoji,
             LaunchTarget = sudokuDef.LaunchTarget,
-            LaunchMode = GameLaunchMode.InternalRoute
+            LaunchMode = GameLaunchMode.InternalRoute,
+            MinAge = sudokuDef.MinAge,
+            MaxAge = sudokuDef.MaxAge
         };
 
         var whackAMoleDef = BuiltInGames.All.First(g => g.LaunchTarget == BuiltInGames.WhackAMole);
@@ -481,7 +505,9 @@ public class AppDataService
             ThumbnailImagePath = whackAMoleDef.ThumbnailImagePath,
             ThumbnailEmoji = whackAMoleDef.ThumbnailEmoji,
             LaunchTarget = whackAMoleDef.LaunchTarget,
-            LaunchMode = GameLaunchMode.InternalRoute
+            LaunchMode = GameLaunchMode.InternalRoute,
+            MinAge = whackAMoleDef.MinAge,
+            MaxAge = whackAMoleDef.MaxAge
         };
 
         var data = new AppData();

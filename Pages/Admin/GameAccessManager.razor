@@ -25,6 +25,17 @@
                 <button class="btn-primary" @onclick="StartAddGame">+ Add game to catalog</button>
             </div>
 
+            @if (_allGames.Count > 0)
+            {
+                <label class="access-sort">
+                    <span class="muted">Sort by</span>
+                    <select value="@_sortKey" @onchange="e => SetSortKey((string)e.Value!)">
+                        <option value="@nameof(GameSortKey.Name)">Name</option>
+                        <option value="@nameof(GameSortKey.Age)">Age</option>
+                    </select>
+                </label>
+            }
+
             @if (_allGames.Count == 0)
             {
                 <p class="muted">No games in the catalog yet. Add one to get started.</p>
@@ -32,7 +43,7 @@
             else
             {
                 <div class="access-list">
-                    @foreach (var game in _allGames)
+                    @foreach (var game in SortedGames())
                     {
                         <div class="access-row">
                             <input type="checkbox"
@@ -41,6 +52,10 @@
                             <AssetGlyph Class="access-row-thumb" Src="@game.ThumbnailImagePath" Fallback="@game.ThumbnailEmoji" Alt="@game.Title" />
                             <span class="access-row-title">@game.Title</span>
                             <div class="access-row-meta">
+                                @if (game.MinAge is not null || game.MaxAge is not null)
+                                {
+                                    <span class="access-row-age">Ages @AgeRangeLabel(game)</span>
+                                }
                                 @if (!game.IsCatalogEnabled)
                                 {
                                     <span class="access-row-hidden">Hidden from catalog</span>
@@ -83,6 +98,16 @@
                         Thumbnail fallback emoji
                         <input @bind="_editingCatalogGame.ThumbnailEmoji" maxlength="8" />
                     </label>
+                    <div class="age-range-fields">
+                        <label>
+                            Min age
+                            <input type="number" min="0" max="18" @bind="_editingCatalogGame.MinAge" />
+                        </label>
+                        <label>
+                            Max age
+                            <input type="number" min="0" max="18" @bind="_editingCatalogGame.MaxAge" />
+                        </label>
+                    </div>
                     <label>
                         <span>
                             <input type="checkbox" @bind="_editingCatalogGame.IsCatalogEnabled" />
@@ -139,6 +164,16 @@
                             Web address
                             <input @bind="_editingGame.LaunchTarget" placeholder="https://…" />
                         </label>
+                        <div class="age-range-fields">
+                            <label>
+                                Min age
+                                <input type="number" min="0" max="18" @bind="_editingGame.MinAge" />
+                            </label>
+                            <label>
+                                Max age
+                                <input type="number" min="0" max="18" @bind="_editingGame.MaxAge" />
+                            </label>
+                        </div>
                         <div class="pin-modal-actions">
                             <button class="btn-primary" @onclick="SaveExternalGameAsync">Add web game</button>
                         </div>
@@ -177,8 +212,14 @@
         BuiltInGames.TowerDefense,
     };
 
+    // Extend with more cases (e.g. play count, difficulty) as new sortable
+    // fields get added to Game - the dropdown and SortedGames() below are
+    // the only two places a new key needs wiring.
+    private enum GameSortKey { Name, Age }
+
     private Profile? _profile;
     private List<Game>? _allGames;
+    private GameSortKey _sortKey = GameSortKey.Name;
     private List<string> _allowedIds = new();
     private Dictionary<string, string> _difficultyOverrides = new();
     private bool _showAddGame;
@@ -224,6 +265,27 @@
 
     private static bool SupportsDifficultyLock(Game game) => DifficultyLockableTargets.Contains(game.LaunchTarget);
 
+    private void SetSortKey(string value)
+    {
+        _sortKey = Enum.TryParse<GameSortKey>(value, out var key) ? key : GameSortKey.Name;
+    }
+
+    // Games without an age set sort after ones that have it, regardless of
+    // sort direction, so unrated catalog entries don't scatter to the top.
+    private IEnumerable<Game> SortedGames() => _sortKey switch
+    {
+        GameSortKey.Age => _allGames!.OrderBy(g => g.MinAge is null).ThenBy(g => g.MinAge).ThenBy(g => g.Title),
+        _ => _allGames!.OrderBy(g => g.Title),
+    };
+
+    private static string AgeRangeLabel(Game game) => (game.MinAge, game.MaxAge) switch
+    {
+        (int min, int max) => $"{min}-{max}",
+        (int min, null) => $"{min}+",
+        (null, int max) => $"up to {max}",
+        _ => "",
+    };
+
     private async Task SetDifficultyOverrideAsync(string gameId, string difficulty)
     {
         await Data.SetDifficultyOverrideAsync(ProfileId, gameId, difficulty);
@@ -264,7 +326,9 @@
             ThumbnailEmoji = game.ThumbnailEmoji,
             LaunchTarget = game.LaunchTarget,
             LaunchMode = game.LaunchMode,
-            IsCatalogEnabled = game.IsCatalogEnabled
+            IsCatalogEnabled = game.IsCatalogEnabled,
+            MinAge = game.MinAge,
+            MaxAge = game.MaxAge
         };
     }
 
@@ -288,7 +352,9 @@
             ThumbnailImagePath = builtIn.ThumbnailImagePath,
             ThumbnailEmoji = builtIn.ThumbnailEmoji,
             LaunchTarget = builtIn.LaunchTarget,
-            LaunchMode = GameLaunchMode.InternalRoute
+            LaunchMode = GameLaunchMode.InternalRoute,
+            MinAge = builtIn.MinAge,
+            MaxAge = builtIn.MaxAge
         });
 
         _showAddGame = false;
