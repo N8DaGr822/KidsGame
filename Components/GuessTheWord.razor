@@ -203,8 +203,20 @@
         LoadWord();
     }
 
-    private void ExitToSetup()
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    private async Task ExitToSetup()
     {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new GuessTheWordResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                WordsWon: wordsWon,
+                SessionSize: SessionSize,
+                BestStreak: bestStreak,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
         phase = Phase.Setup;
     }
 
