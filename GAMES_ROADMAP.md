@@ -57,6 +57,38 @@ Space Game should all be able to consume the same session service for score,
 elapsed time, pause state, and game-over handling. Each game should then only
 implement what makes it mechanically distinct.
 
+## Fun pass checklist
+
+Before implementing a new game, give it a quick game-design pass so it does
+not land as a technically correct but visually flat mechanic. Every game
+should have a clear fantasy, satisfying feedback, and at least one reason to
+replay.
+
+Ask these before coding:
+
+- What is the fantasy? A garden, dungeon, space mission, toy box, mystery,
+  tournament, workshop, aquarium, etc.
+- What moves on screen? Static boards need animated pieces, reveals, effects,
+  timers, progress, or character reactions.
+- What sound/animation rewards the main action? Taps, matches, hits, solves,
+  upgrades, and mistakes should all feel intentional.
+- What can the player unlock? New levels, skins, characters, stickers,
+  towers, songs, puzzles, creatures, decorations, badges, or tools.
+- What makes a replay different? Randomized layouts, puzzle packs, upgrade
+  drafts, AI personalities, daily challenges, optional goals, or player-made
+  content.
+- What is the smallest version that still feels complete? Prefer a polished
+  vertical slice over a large unfinished system.
+
+Age-specific expectations:
+
+- Toddler games should feel like interactive toys: giant tap targets, slow
+  movement, gentle audio, no failure state, and immediate cause/effect.
+- Younger-kid games should use collectible rewards, friendly characters,
+  bright motion, and forgiving difficulty.
+- Older-kid games should add strategy, progression, mastery, records, optional
+  challenge, and meaningful choices without manipulative grind.
+
 ## Priority
 
 Build in roughly this order — cheapest, most-reusable, least-art-dependent
@@ -285,10 +317,15 @@ building the first of these, since all five reskin it.
 
 ## 4. Word games
 
-- [ ] Hangman / Guess the Word (age-appropriate categories; consider a
-      non-hangman fail state, e.g. "build a rocket before guesses run out")
-- [ ] Word Search (procedurally generated grid from themed word lists —
-      reuse Word Scramble's word-list data)
+- [x] Hangman / Guess the Word — landed as `Components/GuessTheWord.razor`,
+      the non-hangman fail state suggested here: wrong guesses burn rocket
+      fuel instead of drawing a gallows, a solved word launches the rocket.
+- [x] Word Search — landed as `Components/WordSearch.razor`, procedurally
+      generated grid from themed word lists (Animals/Space/Food/Ocean).
+      Drag-select tracks the pointer at the grid-container level rather
+      than per-cell, the same touch-reliability reasoning as Dress Up's
+      drag (see `ROADMAP.md` asset-cleanup notes and Shape Sorter above
+      for the same lesson applied elsewhere in this repo).
 
 ## 5. Memory / sequence games
 
