@@ -112,6 +112,7 @@
 
 .pr-egg.crack-1 { transform: rotate(-4deg); }
 .pr-egg.crack-2 { transform: rotate(4deg) scale(1.05); }
+.pr-egg.crack-3 { transform: rotate(-6deg) scale(1.1); }
 
 .pr-reveal-item {
     font-size: clamp(4rem, 22vw, 6rem);
