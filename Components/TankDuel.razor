@@ -248,9 +248,13 @@
     // the player's tank to the pointer, not from the drag's start point -
     // more forgiving for small/imprecise taps) ------------------------------
 
+    private long? activeFieldPointerId;
+
     private async Task OnFieldPointerDown(PointerEventArgs e)
     {
         if (phase != Phase.PlayerAiming) return;
+
+        activeFieldPointerId = e.PointerId;
 
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
         var rect = await _module.InvokeAsync<FieldRect>("getBoundingRect", fieldRef);
@@ -260,6 +264,13 @@
         fieldHeight = rect.Height;
 
         await _module.InvokeVoidAsync("setPointerCapture", fieldRef, e.PointerId);
+
+        // A fast tap-release can fire OnFieldPointerUp (which clears
+        // activeFieldPointerId synchronously, before any awaits of its own)
+        // while the awaits above are still in flight - don't start a drag
+        // with nothing left to end it, or the aim-preview trajectory is
+        // left stuck active until the next unrelated pointerdown.
+        if (activeFieldPointerId != e.PointerId) return;
 
         isDragging = true;
         UpdateAim(e.ClientX, e.ClientY);
@@ -273,6 +284,7 @@
 
     private async Task OnFieldPointerUp(PointerEventArgs e)
     {
+        activeFieldPointerId = null;
         if (!isDragging) return;
         isDragging = false;
 

@@ -1102,8 +1102,12 @@
 
     // ---- Clean-up lesson (drag toys into the basket) ----------------------
 
+    private long? activeCleanupPointerId;
+
     private async Task StartDragToy(PointerEventArgs e, CleanUpToy toy)
     {
+        activeCleanupPointerId = e.PointerId;
+
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
 
         var areaRect = await _module.InvokeAsync<StageRect>("getBoundingRect", cleanupAreaRef);
@@ -1120,6 +1124,13 @@
 
         await _module.InvokeVoidAsync("setPointerCapture", cleanupAreaRef, e.PointerId);
 
+        // A fast tap-and-release can fire OnCleanupPointerUp (which clears
+        // activeCleanupPointerId synchronously, before any awaits of its
+        // own) while the awaits above are still in flight - don't start a
+        // drag with nothing left to end it, or the toy is left rendering
+        // as "dragging" with no pointer down to clear it.
+        if (activeCleanupPointerId != e.PointerId) return;
+
         draggingToy = toy;
         SetToyPosition(e.ClientX, e.ClientY);
     }
@@ -1132,6 +1143,7 @@
 
     private async Task OnCleanupPointerUp(PointerEventArgs e)
     {
+        activeCleanupPointerId = null;
         if (draggingToy is null) return;
 
         var toy = draggingToy;
@@ -1175,9 +1187,12 @@
     private double achooAreaLeft, achooAreaTop, achooAreaWidth, achooAreaHeight;
     private double achooTargetLeft, achooTargetTop, achooTargetWidth, achooTargetHeight;
     private bool draggingElbow;
+    private long? activeAchooPointerId;
 
     private async Task StartDragElbow(PointerEventArgs e)
     {
+        activeAchooPointerId = e.PointerId;
+
         _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
 
         var areaRect = await _module.InvokeAsync<StageRect>("getBoundingRect", achooAreaRef);
@@ -1194,6 +1209,10 @@
 
         await _module.InvokeVoidAsync("setPointerCapture", achooAreaRef, e.PointerId);
 
+        // Same fast tap-and-release race as StartDragToy above - bail out
+        // if OnAchooPointerUp already cleared this pointer while we awaited.
+        if (activeAchooPointerId != e.PointerId) return;
+
         draggingElbow = true;
         SetElbowPosition(e.ClientX, e.ClientY);
     }
@@ -1206,6 +1225,7 @@
 
     private async Task OnAchooPointerUp(PointerEventArgs e)
     {
+        activeAchooPointerId = null;
         if (!draggingElbow) return;
         draggingElbow = false;
 
