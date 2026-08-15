@@ -135,10 +135,48 @@ roadmap games:
 - `kenney_space-shooter-remastered.zip`, `kenney_space-shooter-extension.zip`,
   and `kenney_simple-space.zip` - real-time arcade games after the shared game
   loop exists.
-- `kenney_shape-characters.zip` - Shape Sorter, Pattern Complete, and
-  child-friendly procedural puzzle dressing.
+- `kenney_shape-characters.zip` - earmarked for Shape Sorter/Pattern Complete
+  dressing, but both landed CSS-only (`clip-path` shapes, zero-asset by
+  design - see Section 1) and don't need it now. Still fine for future
+  procedural-puzzle dressing.
 - `kenney_tiny-town.zip` and `kenney_tiny-dungeon.zip` - later Maze Escape,
   Treasure Hunt, or Story Builder scenes.
+
+More packs found in Downloads/Assets on 2026-08-14 (second pass, same session
+as the improvement-backlog audit below). Most of this second batch is 3D FBX
+models - **not directly usable** by this app, which is entirely 2D
+CSS/PNG/canvas art with no 3D rendering pipeline (no Three.js/Babylon or
+similar). Flagging that explicitly so nobody burns time on a 3D import path
+this stack doesn't support:
+
+- `kenney_medals.zip` **(2D PNG, usable)** - flat award-ribbon/medal icons.
+  Directly fits the single most-repeated gap from the improvement-backlog
+  audit below: almost no game persists a personal-best/record, so there's
+  nothing to show for a strong run. This pack is the art half of that fix -
+  see "Missing progression & rewards" below.
+- `kenney_animal-pack-remastered.zip` **(2D PNG, usable)** - "Round" style
+  flat animal sprites (bear, buffalo, chick, chicken, cow, crocodile, etc).
+  More variety than the current Memory Match/animal art draws from; also a
+  candidate for a Word Search "Animals" category thumbnail or a new toddler
+  animal-sound theme.
+- `kenney_scribble-platformer.zip` **(2D PNG, usable)** - hand-drawn
+  "scribble" style character + parallax background art. Fits Section 9's
+  Platformer/Precision Platformer entries once the real-time game loop
+  exists (Section 6).
+- `kenney_tanks.zip` **(2D PNG, usable)** - tank bodies, turrets, bullets,
+  arrows in more colors/styles than Tank Duel's current single green/grey
+  pair (`wwwroot/images/tanks/`). A variety upgrade for an already-shipped
+  game, not a new-game unlock - low priority, but cheap if picked up.
+- `kenney_tower-defense.zip` and `kenney_tower-defense-top-down.zip`
+  **(2D PNG/spritesheet, usable)** - landscape tiles + towers in brown/grey/
+  red variants. Same story as the tanks pack: Tower Defense already has its
+  own art (`wwwroot/images/tower-defense/`), this would only be a visual
+  variety pass, not a blocker for anything on this roadmap.
+- `kenney_blocky-characters_20.zip`, `kenney_car-kit.zip`,
+  `kenney_mini-characters.zip`, `kenney_mini-forest_1.0.zip`,
+  `kenney_tower-defense-kit.zip` - **3D FBX only, not usable as-is.** Leave
+  these untouched unless the app ever adds a 3D rendering path; re-triage
+  then rather than guessing now.
 
 Do not bulk-import these packs. Pull only the sprites used by a landed game
 or shared UI reward, then document the copied subset in `wwwroot/images/README.md`.
@@ -598,3 +636,261 @@ Implementation notes:
       timeline.
 - [ ] Animation Studio — place characters, move them frame-by-frame, and
       create short animations.
+
+## 10. Existing-game improvement backlog
+
+Captured 2026-08-14 via a full read-through of every `Components/*.razor`
+game (+ matching `.razor.css`) after Sections 0-4 landed — a retrospective
+pass, not a new-game pass. This is a documentation-only audit: nothing below
+has been fixed yet, it's a prioritized punch list. Re-triage as items land;
+delete a bullet once it's actually fixed rather than checking it off, since
+most of these aren't a single-line change.
+
+### Bugs to fix first
+
+These are real, reproducible defects, not polish:
+
+- [ ] **PatternComplete — the "pattern" never has to be understood.**
+      `correctSymbol = activeSet[(displayLen - 1) % cycleLength]` reduces to
+      `activeSet[0]` on every round at every difficulty (`displayLen =
+      cycleLength * 2 + 1`, so `(displayLen-1) % cycleLength` is always 0).
+      The right answer is always identical to the first tile shown - a kid
+      can score 100% by copying the leftmost tile and ignoring the sequence
+      entirely.
+- [ ] **DressUpGame — "Dress Another" can crash the tab.** The button sets
+      `celebrate = false; selectedCharacter = null;` directly instead of
+      going through `ChangeCharacter()`/`PushHud()`, leaving `HudSlot`
+      holding a stale fragment that dereferences `selectedCharacter!.Name`.
+      The next unrelated re-render while back on character-select throws a
+      `NullReferenceException`.
+- [ ] **RedLightGreenLight — penalty can stack from one rapid tap burst.**
+      `Move()` has no debounce while `caughtFlash` is true, so mashing
+      during/right after getting caught applies multiple `strikes++` and
+      progress penalties for what reads to the kid as one mistake.
+- [ ] **WhackAMole — hitting a mole can immediately count as a miss.**
+      During the 320ms post-hit "hop out" animation the hole is still
+      `Up` with `Bonked = true`; a second tap in that window (very likely
+      from an excited kid) falls through to the miss branch and resets the
+      streak right after a successful hit.
+- [ ] **MannersGarden — drag can get stuck "on."** `StartDragToy`/
+      `StartDragElbow` await two `getBoundingRect` calls + `setPointerCapture`
+      *before* setting the dragging flag, so a fast tap-release during that
+      window can leave the flag set with no matching pointer-up to clear it.
+      `DressUpGame` guards this exact race elsewhere in the same codebase
+      (`if (pinchingSticker is not null) return;` after every await) - this
+      file doesn't have the equivalent check.
+- [ ] **TankDuel — same stuck-drag race as MannersGarden**, in
+      `OnFieldPointerDown`: a very fast tap-release can leave `isDragging`
+      stuck true with the aim-preview trajectory active until the next real
+      pointerdown overwrites it.
+- [ ] **TowerDefense — `Tick`'s timer callback has no re-entrancy guard.**
+      If a tick's cumulative `await PlaySoundAsync(...)` calls (one per tower
+      firing that tick) run past the 100ms `TickMs` interval, the next timer
+      callback can start while the previous one is still suspended, both
+      mutating the same `enemies`/`towers`/`gold` state. Latent, more likely
+      under a full board of towers firing simultaneously.
+- [ ] **MemoryMatchGame — `FlipCard` is `async void`**, not `async Task`
+      like every other async handler in the codebase. An exception inside it
+      (e.g. a JS interop failure) bypasses Blazor's normal event-handler
+      error handling instead of failing gracefully.
+
+### Systemic, cross-cutting
+
+One pattern, many files - worth fixing once with a shared approach rather
+than N one-off patches:
+
+- [ ] **Abandoning a game mid-session never logs to play history.** Every
+      single game's "← Exit"/"Change Game" button resets straight to the
+      setup screen without invoking `OnComplete`. Confirmed present in
+      literally every game audited: OddOneOut, PatternComplete,
+      NumberSequence, ColorMatch, ShapeSorter, ShadowMatch, SimonSays,
+      TicTacToe, ConnectFour, RockPaperScissors, HigherOrLower, UnoGame,
+      WhackAMole, CatchGame, FruitSlice, BubblePop, ReactionTimer,
+      RedLightGreenLight, WordScramble, GuessTheWord, WordSearch,
+      SlidingPuzzle, Minesweeper, Sudoku, MemoryMatchGame, FishingGame,
+      DressUpGame, MannersGarden, TankDuel, TowerDefense. A parent looking
+      at play history has no idea how much a kid actually played beyond
+      completed sessions. Worth a shared convention (e.g. an
+      `OnComplete`-with-an-`Abandoned`-flag call, or a lightweight
+      `GameSessionService` per the "Shared game systems" list above) rather
+      than editing 29 files by hand.
+- [ ] **`.game-choice-locked`/`.game-stat` get reimplemented per-game
+      instead of reused.** `app.css` already has these classes, but
+      WhackAMole, CatchGame, FruitSlice, BubblePop, ReactionTimer,
+      RedLightGreenLight, WordScramble, SlidingPuzzle, Minesweeper, Sudoku,
+      PeekReveal, SoundButtons, PopAndSparkle, BabyPiano, and MagicGarden
+      all define byte-for-byte (or near-identical) duplicates in their own
+      `.razor.css` (`.wa-difficulty-locked`, `.cg-difficulty-locked`, etc.)
+      even though their markup could just apply the shared class directly.
+      Cheap, low-risk cleanup, no behavior change.
+- [ ] **Timer/sound/format boilerplate duplicated across the 6 timed-arcade
+      games** (WhackAMole, CatchGame, FruitSlice, BubblePop, ReactionTimer,
+      RedLightGreenLight): the `System.Threading.Timer` tick-loop
+      (`TickMs = 100`, start/stop/tick), `FormatTime`, the lazy-JS-module
+      `PlaySoundAsync` pattern, and the identical streak-multiplier formula
+      `1 + Math.Min(streak / 5, 3)` are copy-pasted across 4-5 of these
+      files. Worth extracting as shared helpers. **Narrower than the
+      original "shared `TimedTargetSpawner`" idea in Section 3 above** -
+      only FruitSlice and BubblePop are actually close enough in shape
+      (free random-XY spawn, `Task.Delay` expiry, CSS-animation-driven
+      motion) to share a spawner; WhackAMole (fixed grid slots) and
+      CatchGame (lane + fall-position) are geometry-specific and don't
+      generalize cleanly. ReactionTimer/RedLightGreenLight don't spawn
+      targets at all. Build the narrow spawner for FruitSlice/BubblePop
+      only, and the timer/sound/format helpers for all six.
+- [ ] **No audio at all in Sudoku, Minesweeper, SlidingPuzzle, or
+      WordScramble** - no `IJSRuntime` even injected in any of the four.
+      Minesweeper is the starkest miss: the mine explosion and win state
+      both have zero sound. WordScramble already has dedicated shake/solve
+      animation states a sound would pair naturally with.
+- [ ] **Only one game (UnoGame) actually uses the `Components/Shared/*`
+      components** (`GameSetupPanel`, `GameHud`, `GameOverlay`, etc.) -
+      every other game hand-rolls equivalent markup against the same CSS
+      classes those components wrap. This is the same tension `ROADMAP.md`
+      item 1 ("Shared UI primitives") already flags; worth resolving that
+      open question (migrate everyone to the components, or accept
+      hand-rolling as the real convention and consider removing the mostly
+      unused shared components) rather than letting new games keep picking
+      one pattern arbitrarily.
+
+### Missing progression & rewards
+
+The single most-repeated "fun pass" gap across the whole audit: almost
+nothing persists a record of a strong run.
+
+- [ ] No persisted best time/fewest moves per theme+difficulty in
+      MemoryMatchGame, despite already tracking both stats every round.
+- [ ] No persisted fastest-clear/fewest-attempts record in FishingGame.
+- [ ] No persisted best-level-reached in TankDuel (`StartNewCampaign()`
+      always resets to level 1) or TowerDefense (best-level/total-kills/
+      unlocked starting bonus all absent, despite being the most
+      mechanically complete game in the app).
+- [ ] GuessTheWord tracks `streak`/`bestStreak` but never uses either for
+      anything (badge, cosmetic, unlock) - the fun-pass checklist's "what's
+      unlockable" box is effectively unaddressed despite this game being
+      designed against that checklist.
+- [ ] MannersGarden's persisted cross-session Garden
+      (`AppDataService.GetGardenItemsAsync`/`AddGardenItemAsync`) is the one
+      genuine progression/collection hook in the whole app today - the
+      model other games above should copy, not reinvent differently each
+      time.
+- `kenney_medals.zip` (see "Downloaded asset fit" above) is the art half of
+  a fix here - flat medal/ribbon icons ready to use as the visual reward
+  once a shared "personal best" or achievement concept exists. Pairs
+  naturally with the `GameSessionService`/achievements idea already listed
+  under "Shared game systems".
+
+### Balance
+
+- [ ] **HigherOrLower's difficulty is backwards.** "Hard" narrows the range
+      to 1-8, which makes ties (which never break a streak) *more* common,
+      not less - the tightest range is the most forgiving one, opposite of
+      what the label promises.
+- [ ] **RockPaperScissors "Hard" AI is exploitable.** Both Medium and Hard
+      counter the player's *all-time* most-frequent choice (gated at 50%
+      vs. 100% probability), with no recency weighting. A kid who baits it
+      by throwing one choice a few times then switching can farm wins
+      against "Hard" once they notice the tell.
+- [ ] **ReactionTimer's "Hard" has a longer max wait than "Easy."**
+      Hard's delay range (700-3600ms) tops out higher than Easy's
+      (1500-3000ms) - the tiers differ in unpredictability more than in
+      being straightforwardly faster, which doesn't match the label.
+- [ ] **FishingGame's Letters/Numbers mode is likely near-unwinnable.**
+      `MaxStrikes = 3` for the whole session, but Letters/Numbers require
+      clearing a fixed 26- or 20-item sequence (`WinCount = 3` per item) -
+      3 total misses across 60-78 catches is a very tight budget compared
+      to Colors mode's 3 misses across 18 catches.
+- [ ] **TankDuel's CPU difficulty plateaus around level 9** (`spread =
+      Math.Max(0.06, 0.3 - (level-1)*0.03)`, obstacle height caps at level
+      7) - a skilled player stops seeing new challenge well before they'd
+      stop wanting to replay.
+- [ ] **Minesweeper's mine density barely changes across tiers** (~15.6% /
+      16% / 16.7%) - difficulty comes almost entirely from grid size, not
+      genuinely different risk/reasoning demands.
+- [ ] **ColorMatch's Hard palette has a near-duplicate pair** - Violet
+      (#6A0DAD) and Easy's Purple (#9D4EDD) sit in the same hue family and
+      can read as "the same purple" to a kid going by hue rather than exact
+      shade, undercutting the palette's own difficulty-via-similarity
+      design.
+- [ ] **OddOneOut's odd-tile visual distinctness isn't tied to
+      difficulty** - only grid size scales; the base/odd pair is drawn fully
+      at random, so a "Hard" round can draw an obvious pair while "Easy"
+      draws a subtle one.
+- [ ] **SlidingPuzzle's always-visible tile numbers flatten the curve** -
+      combined with the picture-preview toggle, the puzzle is largely
+      solvable by numeric bookkeeping alone; a Hard 5x5 is "more numbers,"
+      not more spatially demanding.
+
+### Per-game polish (smaller items)
+
+- [ ] **FruitSlice** — tap targets are only as big as the rendered emoji
+      glyph (~26-42px, under the ~44px touch guideline) on a moving arc;
+      the most touch-unfriendly hitbox found in the audit.
+- [ ] **FruitSlice, BubblePop, PopAndSparkle** — spawn position is fully
+      random with no collision avoidance, so items can stack/overlap,
+      worst at Fruit Slice's Hard tier (`MaxActive: 8`).
+- [ ] **BubblePop** — a wrong-symbol pop and a correct pop look identical
+      (both just fade/scale out); only the sound tells them apart, which
+      fails silently for a kid playing with sound off.
+- [ ] **CatchGame** — caught items just vanish instantly, no catch
+      animation, unlike FruitSlice's slice-fade or BubblePop's pop-fade.
+- [ ] **ConnectFour** — no drop-preview ghost disc before a column tap, and
+      discs appear instantly with no drop/bounce animation despite the CSS
+      transition already being wired up but never triggered.
+- [ ] **TicTacToe** — no cell-placement animation and no winning-line
+      highlight; the result overlay is the only payoff.
+- [ ] **UnoGame** — the mechanically richest game here has the least
+      reactive visuals: no card-flight animation, no opponent reaction to
+      Skip/Reverse/Draw landing on them. Also the only card/board game in
+      the app with no difficulty selector at all - may be intentional given
+      its simplified greedy bots, but worth a deliberate decision either way.
+- [ ] **WordSearch** — a released drag that matches nothing gets zero
+      feedback (no sound/shake), unlike GuessTheWord's `playMismatchSound`
+      on a wrong letter; category isn't deduped across the 3 grids in a
+      session, so the same theme can repeat back-to-back; the word-length
+      filter (`w.Length <= size - 1`) is stricter than necessary and
+      excludes words that would actually fit exactly along one edge.
+- [ ] **Sudoku** — puzzle generation runs synchronously on the UI thread and
+      genuinely freezes the tab; the "Generating…" message is static text
+      with no spinner/pulse, which risks reading as broken on a slow tablet.
+- [ ] **TowerDefense** — selecting an unaffordable tower gives no feedback
+      when tapping a cell (silent no-op); range preview is explicitly
+      mouse-only per its own header comment, so touch users can't preview
+      range before spending gold, a real gap in an otherwise touch-first app.
+- [ ] **DressUpGame** — the action menu has no click-outside-to-close;
+      "Save Picture" downloads a PNG with no in-app gallery to browse past
+      looks, despite being the most art-heavy game in the catalog.
+- [ ] **FishingGame** — hand-rolls setup/HUD markup instead of using
+      `Components/Shared/*`, and Letters/Numbers mode always runs the full
+      fixed-order 26/20-item sequence with no shorter tier, unlike
+      MemoryMatchGame's Easy/Medium/Hard pair-count options.
+- [ ] **MannersGarden** — the Achoo lesson's drop target is an invisible
+      `<div>` with no visual outline, so a kid dragging the elbow up has no
+      on-screen cue where to drop it beyond trial-and-error snap-back.
+- [ ] **TankDuel** — `TankDuelResult` doesn't carry the level reached, so
+      play history/any future high-score UI can't show campaign progress.
+- [ ] **PeekReveal** — Curtain and Present Box themes are the same
+      `SingleReveal` mechanic with zero distinguishing animation, effectively
+      3 mechanics wearing 4 labels; the crack-animation CSS stops at
+      `.crack-2` with no `.crack-3` even though `EggCracksNeeded = 3`.
+- [ ] **BabyPiano** — "Piano" and "Drums" themes only swap which sound
+      function fires; the key grid itself never changes, so "Drums" has no
+      visual identity, audio-only theming.
+- [ ] **MagicGarden** — the only Section 0 game with no theme/reskin choice,
+      inconsistent with its four siblings (PeekReveal, SoundButtons,
+      PopAndSparkle, BabyPiano all offer one) and a cheap missed
+      replay-variety win.
+- [ ] **ShapeSorter/ShadowMatch** — the six shape `clip-path` definitions
+      are copy-pasted verbatim between the two files' `.razor.css`; any
+      future outline tweak has to be made twice or the shapes will drift.
+
+### What's already solid (no action needed)
+
+Worth naming so it doesn't get re-litigated: SoundButtons, NumberSequence,
+and ShadowMatch had no real findings beyond the shared items above. Word
+Search's drag-select math (direction-locking, `dragRect` null-safety) and
+Minesweeper/Sudoku's core puzzle-generation logic were all traced carefully
+and are correct. TicTacToe/ConnectFour's use of `Services/GameAi` is
+correct and the three difficulty tiers are genuinely distinct in strength.
+RedLightGreenLight and CatchGame both have real, meaningfully-scaling
+difficulty curves worth using as the model for the balance fixes above.
