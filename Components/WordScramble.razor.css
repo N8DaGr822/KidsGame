@@ -37,15 +37,6 @@
     text-transform: uppercase;
 }
 
-.ws-difficulty-locked {
-    margin: 0;
-    padding: 0.6rem 0.9rem;
-    border-radius: var(--radius-sm);
-    border: 1px dashed var(--line);
-    color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.04);
-}
-
 .ws-difficulty-select {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));

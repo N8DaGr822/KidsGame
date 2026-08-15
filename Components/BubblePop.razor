@@ -35,7 +35,7 @@
             <h3 class="bp-section-title game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
             {
-                <p class="bp-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
             }
             else
             {
