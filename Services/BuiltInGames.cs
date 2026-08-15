@@ -45,6 +45,7 @@ public static class BuiltInGames
     public const string ShapeSorter = "shape-sorter";
     public const string ShadowMatch = "shadow-match";
     public const string GuessTheWord = "guess-the-word";
+    public const string WordSearch = "word-search";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -82,5 +83,6 @@ public static class BuiltInGames
         new BuiltInGame("Shape Sorter", "🔷", ShapeSorter, MinAge: 3, MaxAge: 7),
         new BuiltInGame("Shadow Match", "🌑", ShadowMatch, MinAge: 4, MaxAge: 8),
         new BuiltInGame("Guess the Word", "🚀", GuessTheWord, MinAge: 5, MaxAge: 10),
+        new BuiltInGame("Word Search", "🔍", WordSearch, MinAge: 6, MaxAge: 12),
     };
 }

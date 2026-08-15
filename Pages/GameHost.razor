@@ -158,6 +158,10 @@
             {
                 <GuessTheWord PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleGuessTheWordComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.WordSearch)
+            {
+                <WordSearch PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWordSearchComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -710,6 +714,21 @@
             Theme = result.Difficulty,
             Difficulty = $"Won {result.WordsWon}/{result.SessionSize}",
             Moves = result.WordsWon,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleWordSearchComplete(WordSearch.WordSearchResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Found {result.WordsFound}/{result.TotalWords}",
+            Moves = result.WordsFound,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }
