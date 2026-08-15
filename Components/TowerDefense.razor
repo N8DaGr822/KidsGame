@@ -726,8 +726,21 @@
         return $"transform:rotate({t.FacingDeg.ToString("0.#", inv)}deg);";
     }
 
+    // Tick isn't awaited by the Timer that invokes it, so nothing stops the
+    // next 100ms tick from starting while this one is still mid-flight
+    // (e.g. several towers each awaiting PlaySoundAsync's JS round-trip in
+    // the same tick can push its total runtime past TickMs). Without this
+    // guard, two ticks could interleave writes to the same enemies/towers/
+    // gold state. Missing an occasional tick under load is harmless; racing
+    // two of them against the same state is not.
+    private bool tickRunning;
+
     private void Tick(object? _) => InvokeAsync(async () =>
     {
+        if (tickRunning) return;
+        tickRunning = true;
+        try
+        {
         if (phase != Phase.Playing) return;
 
         // Auto-advance to the next wave after a short breather, unless the
@@ -906,6 +919,11 @@
         }
 
         StateHasChanged();
+        }
+        finally
+        {
+            tickRunning = false;
+        }
     });
 
     private async Task PlaySoundAsync(string function)
