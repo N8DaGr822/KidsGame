@@ -119,9 +119,13 @@
 
     private static DifficultyConfig ConfigFor(Difficulty d) => d switch
     {
+        // Both the min AND max shrink as difficulty rises, so "shorter
+        // waits" is actually true at every tier - Medium/Hard used to
+        // widen the max beyond Easy's, which meant the hardest tier could
+        // hand out the single longest wait in the whole game.
         Difficulty.Easy => new DifficultyConfig(3, 1500, 3000),
-        Difficulty.Medium => new DifficultyConfig(5, 1000, 3200),
-        _ => new DifficultyConfig(7, 700, 3600),
+        Difficulty.Medium => new DifficultyConfig(5, 1000, 2500),
+        _ => new DifficultyConfig(7, 600, 2000),
     };
 
     private Difficulty? LockedDifficulty =>

@@ -69,7 +69,10 @@
                         <button class="sp-tile @(IsAdjacentToBlank(pos) ? "movable" : "")"
                                 style="background-image:url('@PuzzleImage'); background-size:calc(var(--sp-size) * 100%) calc(var(--sp-size) * 100%); background-position:@(PercentFor(homeCol))% @(PercentFor(homeRow))%;"
                                 @onclick="() => TryMove(pos)">
-                            <span class="sp-tile-number">@(home.Value + 1)</span>
+                            @if (selectedDifficulty != Difficulty.Hard)
+                            {
+                                <span class="sp-tile-number">@(home.Value + 1)</span>
+                            }
                         </button>
                     }
                 }
@@ -314,7 +317,7 @@
     {
         Difficulty.Easy => "3x3 grid",
         Difficulty.Medium => "4x4 grid",
-        _ => "5x5 grid",
+        _ => "5x5 grid, no tile numbers",
     };
 
     public void Dispose() => StopTimer();

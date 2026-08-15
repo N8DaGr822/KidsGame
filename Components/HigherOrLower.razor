@@ -118,11 +118,16 @@
     private Difficulty? LockedDifficulty =>
         Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
 
+    // A narrower range makes ties (which never break a streak) more
+    // common, not less - so the narrowest range is the SAFEST, not the
+    // hardest. Easy gets the narrow range (lots of forgiving ties), Hard
+    // gets the wide one (fewest ties, closest to a real coin-flip every
+    // round) - the reverse of what these used to be.
     private static int MaxValueFor(Difficulty d) => d switch
     {
-        Difficulty.Easy => 20,
+        Difficulty.Easy => 8,
         Difficulty.Medium => 13,
-        _ => 8,
+        _ => 20,
     };
 
     private Phase phase = Phase.Setup;
@@ -266,9 +271,9 @@
 
     private static string DifficultyDetail(Difficulty d) => d switch
     {
-        Difficulty.Easy => "1-20, fewer close calls",
+        Difficulty.Easy => "1-8, lots of ties",
         Difficulty.Medium => "1-13, like a real deck",
-        _ => "1-8, lots of ties",
+        _ => "1-20, fewer close calls",
     };
 
     public async ValueTask DisposeAsync()

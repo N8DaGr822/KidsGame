@@ -119,7 +119,11 @@
     private static readonly ColorDef[] HardPalette = MediumPalette.Concat(new[]
     {
         new ColorDef("Maroon", "#7B241C"), new ColorDef("Navy", "#16324F"),
-        new ColorDef("Lime", "#B5E61D"), new ColorDef("Violet", "#6A0DAD"),
+        // Fuchsia (hue ~308°), not Violet (~272°) - Violet sat right next
+        // to Easy's Purple (~271°), close enough in hue (differing mainly
+        // in lightness) that a 5-option Hard round could show what read as
+        // "the same purple twice."
+        new ColorDef("Lime", "#B5E61D"), new ColorDef("Fuchsia", "#C724B1"),
     }).ToArray();
 
     private Difficulty? LockedDifficulty =>

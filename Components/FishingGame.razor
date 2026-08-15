@@ -174,7 +174,14 @@
     private const int FishCount = 7;
     private const int CatchAnimationMs = 450;
     private const int MissAnimationMs = 400;
-    private const int MaxStrikes = 3;
+
+    // A flat strike budget punished long modes far harder than short ones:
+    // 3 strikes across Colors' 18 required catches (~17% miss tolerance)
+    // felt fine, but the same 3 strikes across Letters' 78 or Numbers' 60
+    // required catches (~4-5% tolerance) was close to unwinnable. Scales
+    // with the mode's sequence length instead, keeping Colors' existing
+    // budget exactly (6/2 = 3) while giving longer modes a fair one.
+    private int MaxStrikes => Math.Max(3, selectedMode.Sequence.Count / 2);
 
     // ---- Mode model ------------------------------------------------------
 

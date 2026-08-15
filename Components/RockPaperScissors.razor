@@ -134,7 +134,12 @@
     private int streak;
     private int bestStreak;
     private bool matchWon;
-    private readonly Dictionary<Choice, int> playerHistory = new() { [Choice.Rock] = 0, [Choice.Paper] = 0, [Choice.Scissors] = 0 };
+    // Only the last RecentWindow throws, not the whole match's history -
+    // an all-time tally never forgets, so a kid could bait it by throwing
+    // one choice a few times early on, then switch, and the "adaptive" AI
+    // would keep countering the stale pattern for the rest of the match.
+    private const int RecentWindow = 6;
+    private readonly List<Choice> recentPlayerChoices = new();
     private readonly Random rng = new();
     private DateTime startedAtUtc;
     private IJSObjectReference? _module;
@@ -156,9 +161,7 @@
         streak = 0;
         bestStreak = 0;
         matchWon = false;
-        playerHistory[Choice.Rock] = 0;
-        playerHistory[Choice.Paper] = 0;
-        playerHistory[Choice.Scissors] = 0;
+        recentPlayerChoices.Clear();
         startedAtUtc = DateTime.UtcNow;
         phase = Phase.Playing;
     }
@@ -197,10 +200,15 @@
 
         await Task.Delay(450);
 
-        playerHistory[choice]++;
+        // Pick the computer's move before recording this round's choice -
+        // otherwise the "adaptive" AI would see (and could directly
+        // counter) the exact choice the player just made this round.
         var computer = PickComputerChoice();
         computerChoice = computer;
         revealed = true;
+
+        recentPlayerChoices.Add(choice);
+        if (recentPlayerChoices.Count > RecentWindow) recentPlayerChoices.RemoveAt(0);
 
         var result = Compare(choice, computer);
         if (result > 0)
@@ -246,10 +254,12 @@
         if (selectedDifficulty == Difficulty.Easy) return random;
 
         var favorsAdaptive = selectedDifficulty == Difficulty.Hard || rng.NextDouble() < 0.5;
-        if (!favorsAdaptive) return random;
+        if (!favorsAdaptive || recentPlayerChoices.Count == 0) return random;
 
-        var mostCommon = playerHistory.OrderByDescending(kv => kv.Value).First();
-        if (mostCommon.Value == 0) return random;
+        var mostCommon = recentPlayerChoices
+            .GroupBy(c => c)
+            .OrderByDescending(g => g.Count())
+            .First();
 
         return Counter(mostCommon.Key);
     }

@@ -105,12 +105,30 @@
 
     // (everyday item, visually-distinct odd item) - same broad category so
     // the odd tile still feels like a fair, spottable difference rather
-    // than a random unrelated emoji.
-    private static readonly (string Base, string Odd)[] Pairs =
+    // than a random unrelated emoji. Split by how obvious the odd one out
+    // reads at a glance - previously every difficulty drew from the same
+    // pool regardless of tier, only tile count scaled, so a "Hard" round
+    // could randomly draw an obvious pair while "Easy" drew a subtle one.
+    private static readonly (string Base, string Odd)[] ObviousPairs =
     {
-        ("🍎", "🍌"), ("🐶", "🐱"), ("🚗", "🚌"), ("⭐", "🌙"), ("🌞", "☁️"),
-        ("🐟", "🐙"), ("🍇", "🍓"), ("🦋", "🐝"), ("🎈", "🎁"), ("🐸", "🐢"),
-        ("🍪", "🍩"), ("🚀", "🛸"), ("🌸", "🌵"), ("🐔", "🦆"), ("🍉", "🍒"),
+        ("🍎", "🍌"), ("⭐", "🌙"), ("🌞", "☁️"), ("🍇", "🍓"), ("🎈", "🎁"), ("🌸", "🌵"),
+    };
+
+    private static readonly (string Base, string Odd)[] MediumPairs =
+    {
+        ("🐶", "🐱"), ("🚗", "🚌"), ("🐟", "🐙"), ("🍉", "🍒"),
+    };
+
+    private static readonly (string Base, string Odd)[] SubtlePairs =
+    {
+        ("🦋", "🐝"), ("🐸", "🐢"), ("🍪", "🍩"), ("🚀", "🛸"), ("🐔", "🦆"),
+    };
+
+    private static (string Base, string Odd)[] PairsFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => ObviousPairs,
+        Difficulty.Medium => ObviousPairs.Concat(MediumPairs).ToArray(),
+        _ => ObviousPairs.Concat(MediumPairs).Concat(SubtlePairs).ToArray(),
     };
 
     private Difficulty? LockedDifficulty =>
@@ -180,7 +198,8 @@
         locked = false;
 
         tileCount = TileCountFor(selectedDifficulty);
-        var pair = Pairs[rng.Next(Pairs.Length)];
+        var pairs = PairsFor(selectedDifficulty);
+        var pair = pairs[rng.Next(pairs.Length)];
         oddIndex = rng.Next(tileCount);
 
         tiles.Clear();

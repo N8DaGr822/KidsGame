@@ -168,7 +168,11 @@
     private const double ObstacleHalfWidth = 5;
     private const double CrateWidthPercent = 5;
     private const double CrateHeightPercent = CrateWidthPercent * 1.6;
-    private const int MaxCrates = 8;
+    // Was 8 (capping obstacle growth at level 7) - a skilled player hit
+    // both this cap and the CPU accuracy floor below by around level 9,
+    // with nothing left to escalate but obstacle position. Raised so the
+    // climb keeps mattering for longer.
+    private const int MaxCrates = 14;
 
     private record Obstacle(double X, int CrateCount)
     {
@@ -517,15 +521,17 @@
     // Aims for the player's tank using the standard level-ground range
     // formula, then deliberately misjudges it a bit so the CPU isn't
     // unbeatable - "very simple" difficulty, not perfect aim. The
-    // misjudgment shrinks with level (±30% at level 1 down to a ±6%
-    // floor) so the obstacle isn't the only thing that gets harder -
-    // the CPU's aim genuinely improves too, rather than only the terrain.
+    // misjudgment shrinks with level (±30% at level 1 down to a ±3%
+    // floor, reached around level 14 rather than the old ±6% floor
+    // reached by level 9) so the obstacle isn't the only thing that
+    // gets harder - the CPU's aim genuinely improves too, rather than
+    // only the terrain, and for longer before topping out.
     private (double AngleDeg, double Speed) ComputeEnemyShot()
     {
         var angleDeg = 40 + rng.NextDouble() * 20;
         var angleRad = angleDeg * Math.PI / 180;
         var trueRange = EnemyX - PlayerX;
-        var spread = Math.Max(0.06, 0.3 - (level - 1) * 0.03);
+        var spread = Math.Max(0.03, 0.3 - (level - 1) * 0.02);
         var accuracy = (1 - spread) + rng.NextDouble() * (2 * spread);
         var targetRange = trueRange * accuracy;
 

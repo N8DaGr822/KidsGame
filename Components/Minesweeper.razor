@@ -120,11 +120,16 @@
     private Difficulty? LockedDifficulty =>
         Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
 
+    // Mine density (mines / cells) used to barely move across tiers -
+    // 15.6% / 16% / 16.7% - so grid size did almost all the work and the
+    // tiers didn't feel genuinely different in risk. Spread widened to
+    // ~12.5% / 18% / 22.2%, closer to how classic Minesweeper's
+    // Beginner/Intermediate/Expert presets actually scale.
     private static (int Size, int Mines) ConfigFor(Difficulty d) => d switch
     {
-        Difficulty.Easy => (8, 10),
-        Difficulty.Medium => (10, 16),
-        _ => (12, 24),
+        Difficulty.Easy => (8, 8),
+        Difficulty.Medium => (10, 18),
+        _ => (12, 32),
     };
 
     private class Cell
@@ -345,9 +350,9 @@
 
     private static string DifficultyDetail(Difficulty d) => d switch
     {
-        Difficulty.Easy => "8x8, 10 mines",
-        Difficulty.Medium => "10x10, 16 mines",
-        _ => "12x12, 24 mines",
+        Difficulty.Easy => "8x8, 8 mines",
+        Difficulty.Medium => "10x10, 18 mines",
+        _ => "12x12, 32 mines",
     };
 
     public void Dispose() => StopTimer();
