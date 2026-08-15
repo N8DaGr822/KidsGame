@@ -563,6 +563,32 @@ h1[tabindex="-1"]:focus {
   gap: 0.6rem;
 }
 
+.pb-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  margin: 0 auto;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.pb-icon {
+  width: 1.2rem;
+  height: 1.2rem;
+  object-fit: contain;
+}
+
+.pb-badge.pb-new {
+  border-color: rgba(255, 209, 102, 0.7);
+  background: rgba(255, 209, 102, 0.14);
+  color: #ffd166;
+}
+
 /* ============================================================
    Carousel and cards
    ============================================================ */

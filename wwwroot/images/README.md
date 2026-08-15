@@ -39,6 +39,12 @@ do not leave blank UI.
   `enemy-tank-tough.png`, since removed) to `memory/animals/*.png` - reads
   friendlier for a kids' game and reuses art already in the project instead
   of adding more.
+- `medals/best.png` is `PNG/shaded_medal6.png` from
+  [Kenney](https://kenney.nl) ("Medals"), CC0 - the gold-and-blue ribbon
+  read best as a generic "personal best" icon among the pack's 9 color
+  variants. Used by `Components/Shared/PersonalBestBadge.razor`, the
+  shared per-profile/per-game record badge (`AppDataService.GetBestAsync`/
+  `TryRecordBestAsync`).
 
 ## Downloaded Kenney pack triage
 

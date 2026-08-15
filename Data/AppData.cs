@@ -37,4 +37,12 @@ public class AppData
     // this only ever narrows a kid's choice, never widens it, so it's
     // safe to leave unset by default.
     public Dictionary<string, Dictionary<string, string>> GameDifficultyOverrides { get; set; } = new();
+
+    // profileId -> gameId -> metricKey -> best value achieved so far, e.g.
+    // "time:Animals:Medium" -> 42 (seconds). Each game defines its own
+    // metric keys and whether lower or higher counts as "better" - see
+    // AppDataService.TryRecordBestAsync - this is just a flat value store,
+    // direction isn't persisted since it's a property of the metric, not
+    // the data.
+    public Dictionary<string, Dictionary<string, Dictionary<string, double>>> GameBests { get; set; } = new();
 }

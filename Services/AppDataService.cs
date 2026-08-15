@@ -86,6 +86,7 @@ public class AppDataService
         data.DailyUsageSeconds.Remove(profileId);
         data.GardenItems.Remove(profileId);
         data.GameDifficultyOverrides.Remove(profileId);
+        data.GameBests.Remove(profileId);
         await SaveAsync();
     }
 
@@ -283,6 +284,53 @@ public class AppDataService
 
         items.Add(item);
         await SaveAsync();
+    }
+
+    // ---- Personal bests (per profile, per game, per metric - each game
+    // picks its own metricKey strings and whether lower or higher is
+    // "better" for that metric; this service just stores/compares
+    // whatever it's given) --------------------------------------------------
+
+    public async Task<double?> GetBestAsync(string profileId, string gameId, string metricKey)
+    {
+        var data = await LoadAsync();
+        if (data.GameBests.TryGetValue(profileId, out var byGame) &&
+            byGame.TryGetValue(gameId, out var byMetric) &&
+            byMetric.TryGetValue(metricKey, out var value))
+        {
+            return value;
+        }
+        return null;
+    }
+
+    // Persists `value` as the new best and returns true if it beats (or
+    // there was no prior) recorded best for this profile/game/metric;
+    // returns false and leaves the stored value untouched otherwise.
+    public async Task<bool> TryRecordBestAsync(string profileId, string gameId, string metricKey, double value, bool lowerIsBetter)
+    {
+        var data = await LoadAsync();
+
+        if (!data.GameBests.TryGetValue(profileId, out var byGame))
+        {
+            byGame = new();
+            data.GameBests[profileId] = byGame;
+        }
+        if (!byGame.TryGetValue(gameId, out var byMetric))
+        {
+            byMetric = new();
+            byGame[gameId] = byMetric;
+        }
+
+        var isNewBest = !byMetric.TryGetValue(metricKey, out var existing) ||
+            (lowerIsBetter ? value < existing : value > existing);
+
+        if (isNewBest)
+        {
+            byMetric[metricKey] = value;
+            await SaveAsync();
+        }
+
+        return isNewBest;
     }
 
     // ---- Parent-locked game difficulty (Easy/Medium/Hard, per kid per

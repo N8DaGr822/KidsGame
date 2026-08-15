@@ -24,11 +24,11 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.MemoryMatch)
             {
-                <MemoryMatchGame PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMemoryMatchComplete" />
+                <MemoryMatchGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMemoryMatchComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Fishing)
             {
-                <FishingGame PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleFishingComplete" />
+                <FishingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" OnComplete="HandleFishingComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.DressUp)
             {
@@ -40,7 +40,7 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.TankDuel)
             {
-                <TankDuel PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleTankDuelComplete" />
+                <TankDuel PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" OnComplete="HandleTankDuelComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Uno)
             {
@@ -128,7 +128,7 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.TowerDefense)
             {
-                <TowerDefense PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTowerDefenseComplete" />
+                <TowerDefense PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTowerDefenseComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.OddOneOut)
             {
@@ -156,7 +156,7 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.GuessTheWord)
             {
-                <GuessTheWord PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleGuessTheWordComplete" />
+                <GuessTheWord PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleGuessTheWordComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.WordSearch)
             {
@@ -276,8 +276,8 @@
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
-            Theme = result.Won ? "Victory" : "Defeat",
-            Difficulty = $"{result.ShotsFired} shots",
+            Theme = $"Level {result.Level}",
+            Difficulty = result.Won ? "Victory" : "Defeat",
             Moves = result.ShotsFired,
             ElapsedSeconds = result.ElapsedSeconds,
         });

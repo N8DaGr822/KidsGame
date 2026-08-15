@@ -14,6 +14,8 @@
 *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
 
 <div class="gw-game">
 
@@ -98,6 +100,7 @@
                         <div><span class="game-stat-label">Words won</span><span class="game-stat-value">@wordsWon/@SessionSize</span></div>
                         <div><span class="game-stat-label">Best streak</span><span class="game-stat-value">@bestStreak</span></div>
                     </div>
+                    <PersonalBestBadge Value="@($"{allTimeBestStreak ?? bestStreak} streak")" IsNew="isNewStreakBest" />
                     <div class="game-result-actions">
                         <button class="game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
@@ -112,6 +115,13 @@
 @code {
     [Parameter] public string? PlayerName { get; set; }
     [Parameter] public EventCallback<GuessTheWordResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (longest streak, all-time) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? allTimeBestStreak;
+    private bool isNewStreakBest;
 
     /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
     /// from the admin panel; when set, the picker is replaced with a
@@ -198,6 +208,8 @@
         wordsWon = 0;
         streak = 0;
         bestStreak = 0;
+        allTimeBestStreak = null;
+        isNewStreakBest = false;
         startedAtUtc = DateTime.UtcNow;
         phase = Phase.Playing;
         LoadWord();
@@ -309,6 +321,14 @@
     private async Task FinishGame()
     {
         phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "best-streak";
+            allTimeBestStreak = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.GuessTheWord, key);
+            isNewStreakBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.GuessTheWord, key, bestStreak, lowerIsBetter: false);
+        }
+
         StateHasChanged();
 
         if (OnComplete.HasDelegate)

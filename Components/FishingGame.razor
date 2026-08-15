@@ -22,6 +22,8 @@
 *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
 
 <div class="fishing-game">
 
@@ -121,6 +123,7 @@
                         <div><span class="fg-stat-label game-stat-label">Attempts</span><span class="fg-stat-value game-stat-value">@attempts</span></div>
                         <div><span class="fg-stat-label game-stat-label">Time</span><span class="fg-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
                     </div>
+                    <PersonalBestBadge Value="@($"{bestAttempts ?? attempts} attempts")" IsNew="isNewAttemptsBest" />
                     <div class="fg-win-actions game-result-actions">
                         <button class="fg-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="fg-restart-btn game-secondary-action" @onclick="ResetToSetup">Change Game</button>
@@ -157,6 +160,13 @@
 
     /// <summary>Fired once when every letter/number in the mode has been caught.</summary>
     [Parameter] public EventCallback<FishingResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest attempts per mode) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestAttempts;
+    private bool isNewAttemptsBest;
 
     // ---- Tuning --------------------------------------------------------------
 
@@ -278,6 +288,8 @@
         attempts = 0;
         elapsedSeconds = 0;
         collectedTargets.Clear();
+        bestAttempts = null;
+        isNewAttemptsBest = false;
 
         target = selectedMode.Sequence[targetIndex];
         BuildPond();
@@ -417,6 +429,14 @@
     {
         StopTimer();
         gameWon = true;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"attempts:{selectedMode.Name}";
+            bestAttempts = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Fishing, key);
+            isNewAttemptsBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Fishing, key, attempts, lowerIsBetter: true);
+        }
+
         StateHasChanged();
 
         if (OnComplete.HasDelegate)

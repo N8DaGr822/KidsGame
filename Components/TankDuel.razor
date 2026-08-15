@@ -17,6 +17,8 @@
 *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
 
 <div class="tk-game">
 
@@ -115,6 +117,7 @@
                     <div><span class="tk-stat-label game-stat-label">Shots fired</span><span class="tk-stat-value game-stat-value">@shotsFired</span></div>
                     <div><span class="tk-stat-label game-stat-label">Time</span><span class="tk-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
                 </div>
+                <PersonalBestBadge Value="@($"Level {bestLevel ?? level}")" IsNew="isNewLevelBest" />
                 <div class="tk-win-actions game-result-actions">
                     <button class="tk-start-btn game-primary-action" @onclick="PlayAgain">@(playerWon ? $"Next Battle (Level {level + 1})" : "Try Again")</button>
                     <button class="tk-restart-btn game-secondary-action" @onclick="ExitToSetup">Change Game</button>
@@ -132,6 +135,13 @@
 
     [Parameter] public string? PlayerName { get; set; }
     [Parameter] public EventCallback<TankDuelResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (highest level reached) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestLevel;
+    private bool isNewLevelBest;
 
     // ---- Field layout (all in percent-of-field units - both the physics
     // and the rendering share this one coordinate space) -------------------
@@ -207,6 +217,8 @@
     private void StartNewCampaign()
     {
         level = 1;
+        bestLevel = null;
+        isNewLevelBest = false;
         StartGame();
     }
 
@@ -247,6 +259,7 @@
         {
             await OnComplete.InvokeAsync(new TankDuelResult(
                 Won: false,
+                Level: level,
                 ShotsFired: shotsFired,
                 ElapsedSeconds: elapsedSeconds));
         }
@@ -647,12 +660,21 @@
         StopClock();
         playerWon = didPlayerWin;
         phase = Phase.RoundEnd;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "best-level";
+            bestLevel = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.TankDuel, key);
+            isNewLevelBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.TankDuel, key, level, lowerIsBetter: false);
+        }
+
         StateHasChanged();
 
         if (OnComplete.HasDelegate)
         {
             await OnComplete.InvokeAsync(new TankDuelResult(
                 Won: didPlayerWin,
+                Level: level,
                 ShotsFired: shotsFired,
                 ElapsedSeconds: elapsedSeconds));
         }
@@ -698,5 +720,5 @@
 
     // ---- Result payload ------------------------------------------------------
 
-    public record TankDuelResult(bool Won, int ShotsFired, int ElapsedSeconds);
+    public record TankDuelResult(bool Won, int Level, int ShotsFired, int ElapsedSeconds);
 }

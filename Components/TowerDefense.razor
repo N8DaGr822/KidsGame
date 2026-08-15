@@ -46,6 +46,8 @@
 *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
 
 <div class="td-game">
 
@@ -214,6 +216,7 @@
                         <div><span class="game-stat-label">Waves cleared</span><span class="game-stat-value">@totalWavesCleared</span></div>
                         <div><span class="game-stat-label">Defeated</span><span class="game-stat-value">@kills</span></div>
                     </div>
+                    <PersonalBestBadge Value="@($"Level {bestLevel ?? levelNumber}")" IsNew="isNewLevelBest" />
                     <div class="td-win-actions game-result-actions">
                         <button class="td-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="td-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
@@ -251,6 +254,13 @@
 @code {
     [Parameter] public string? PlayerName { get; set; }
     [Parameter] public EventCallback<TowerDefenseResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (highest level reached) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestLevel;
+    private bool isNewLevelBest;
 
     /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
     /// from the admin panel; when set, the picker is replaced with a
@@ -493,6 +503,8 @@
         spawnCooldownMs = 0;
         nextWaveCountdownMs = 0;
         won = false;
+        bestLevel = null;
+        isNewLevelBest = false;
         startedAtUtc = DateTime.UtcNow;
         phase = Phase.Playing;
         StartTimer();
@@ -506,6 +518,11 @@
     {
         if (phase == Phase.Playing && OnComplete.HasDelegate)
         {
+            if (!string.IsNullOrEmpty(ProfileId))
+            {
+                await Data.TryRecordBestAsync(ProfileId, BuiltInGames.TowerDefense, "best-level", levelNumber, lowerIsBetter: false);
+            }
+
             await OnComplete.InvokeAsync(new TowerDefenseResult(
                 Difficulty: DifficultyName(selectedDifficulty),
                 Won: false,
@@ -953,6 +970,14 @@
         StopTimer();
         phase = Phase.Finished;
         this.won = won;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "best-level";
+            bestLevel = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.TowerDefense, key);
+            isNewLevelBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.TowerDefense, key, levelNumber, lowerIsBetter: false);
+        }
+
         StateHasChanged();
 
         if (OnComplete.HasDelegate)

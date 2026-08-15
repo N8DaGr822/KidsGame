@@ -1,0 +1,26 @@
+@* Personal-best badge - shows the current record ("🏅 Best: 0:42") when
+   placed on a setup screen, or a celebratory "New Best!" callout when
+   placed on a result overlay. Renders nothing if there's no record yet
+   and it's not a new one, so games can render it unconditionally without
+   an extra @if. *@
+
+@if (IsNew)
+{
+    <div class="pb-badge pb-new @Class">
+        <img class="pb-icon" src="images/medals/best.png" alt="" />
+        <span>New Best!</span>
+    </div>
+}
+else if (!string.IsNullOrEmpty(Value))
+{
+    <div class="pb-badge @Class">
+        <img class="pb-icon" src="images/medals/best.png" alt="" />
+        <span>Best: @Value</span>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public bool IsNew { get; set; }
+    [Parameter] public string? Class { get; set; }
+}
