@@ -186,6 +186,7 @@
     private (int Row, int Col) selStart;
     private (int Row, int Col) selEnd;
     private List<(int Row, int Col)> selectedPath = new();
+    private List<(int Row, int Col)> wrongPath = new();
 
     protected override void OnInitialized()
     {
@@ -306,6 +307,7 @@
     {
         if (placedWords.Any(w => w.Found && w.Cells.Contains((r, c)))) return "found";
         if (selecting && selectedPath.Contains((r, c))) return "selecting";
+        if (wrongPath.Contains((r, c))) return "wrong";
         return "";
     }
 
@@ -380,6 +382,19 @@
 
                 NextGrid();
             }
+        }
+        else if (attempt.Count > 1)
+        {
+            // A deliberate drag (more than a stray single-cell tap) that
+            // matched nothing used to get zero feedback - no sound, no
+            // visual - which read as unresponsive rather than "wrong,"
+            // especially on Hard's small cells where overshoot/undershoot
+            // from touch imprecision is common.
+            wrongPath = attempt;
+            await PlaySoundAsync("playMismatchSound");
+            StateHasChanged();
+            await Task.Delay(400);
+            wrongPath = new List<(int Row, int Col)>();
         }
 
         selectedPath = new List<(int Row, int Col)>();

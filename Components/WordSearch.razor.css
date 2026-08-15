@@ -77,6 +77,10 @@
     color: var(--accent-ink);
 }
 
+.wsr-cell.wrong {
+    background: rgba(255, 107, 107, 0.4);
+}
+
 .wsr-message {
     text-align: center;
     font-weight: 900;
