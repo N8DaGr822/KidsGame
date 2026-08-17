@@ -128,8 +128,14 @@ roadmap games:
 
 - `kenney_shooting-gallery.zip` - Bubble Pop, Reaction Timer, and other
   target-tap arcade variants.
-- `kenney_food-kit.zip` - Catch the Falling Objects, Fruit Slice, food
-  sorting, and Pet Care feeding interactions.
+- `kenney_food-kit.zip` - **correction, re-verified 2026-08-17: 3D FBX
+  only** (1018 entries, all under `Models/FBX format/` etc.; the only PNGs
+  in the pack are 3D texture colormaps, not usable 2D sprites). The
+  original note above suggesting this for Catch the Falling
+  Objects/Fruit Slice/Feed the Animal was wrong - don't reach for it.
+  Feed the Animal shipped using food *emoji* instead, paired with the
+  already-extracted `wwwroot/images/memory/animals/*.png` subset of
+  `kenney_animal-pack-remastered.zip` below - no new art needed.
 - `kenney_cube-pets_1.0.zip` - Pet Care Game.
 - `kenney_monster-builder-pack.zip` - Build-a-Monster.
 - `kenney_space-shooter-remastered.zip`, `kenney_space-shooter-extension.zip`,
@@ -180,6 +186,12 @@ this stack doesn't support:
 
 Do not bulk-import these packs. Pull only the sprites used by a landed game
 or shared UI reward, then document the copied subset in `wwwroot/images/README.md`.
+
+**Re-checked 2026-08-17**: no new files in Downloads or Downloads/Assets since
+the 2026-08-14 pass above (same file list, same timestamps) - nothing new to
+triage this round beyond the `kenney_food-kit.zip` correction above and
+`kenney_pirate-pack.zip`, added this session for Battleships' ship art (see
+`wwwroot/images/battleships/`, sourced from Kenney's Pirate Pack, CC0).
 
 ## 0. Toddler cause-and-effect games (~1 year old)
 
@@ -282,8 +294,17 @@ above without being its own theme.
 
 ### Food, music, and physical play
 
-- [ ] Feed the Animal — tap or drag food to an animal; banana to monkey,
-      carrot to bunny, etc.
+- [x] Feed the Animal — tap a food, then tap an animal to feed it. A
+      matching pair (banana/monkey, carrot/rabbit, honey/bear,
+      bamboo/panda, hay/cow, corn/pig) gets a big happy chomp with
+      sparkles; any other food still gets a gentle friendly reaction, not
+      a "wrong" buzzer - exploring the pairings, not scoring them, same
+      spirit as "Touch the Body Part" above. Tapping an animal before
+      picking a food gives a small curious look instead of doing nothing,
+      so there's no dead tap in the scene. Reuses the animal art already
+      in wwwroot/images/memory/animals (from Memory Match/Tower Defense)
+      instead of new assets. Logs play session via an "All done" button
+      like MagicGarden - no score, no fail state.
 - [x] Baby Piano — 4-8 enormous colorful keys with friendly sounds; no wrong
       notes and no objectives.
 - [x] Drum Pad — big drums, bells, rattles, and clapping sounds; controlled

@@ -1,0 +1,171 @@
+@*
+    FeedTheAnimal.razor
+    A toddler cause-and-effect toy (~1 year old target): tap a food from
+    the tray, then tap an animal to feed it. Every tap does something
+    pleasant - there's no fail state. A matching food (banana for the
+    monkey, carrot for the rabbit, etc.) gets a big happy chomp with
+    sparkles; any other food still gets a gentle, friendly reaction, never
+    a "wrong" buzzer - the point is exploring the pairings, not scoring
+    them, same as "Touch the Body Part" being "exploratory rather than a
+    correct-answer quiz" in GAMES_ROADMAP.md. Tapping an animal before
+    picking a food gives a small curious look rather than doing nothing,
+    so there's no dead tap anywhere in the scene. Reuses the animal art
+    already in wwwroot/images/memory/animals (from Memory Match/Tower
+    Defense) instead of new assets.
+
+    Animals can be fed again and again - there's no natural "round" here,
+    so like MagicGarden, the in-scene "All done" button is what logs the
+    play session (time + tap count) via OnComplete.
+
+    Usage:
+        <FeedTheAnimal OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="fta-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="fta-setup game-setup-panel">
+            <h2>🍽️ Feed the Animal</h2>
+            <p>Tap a food, then tap an animal to feed it something yummy!</p>
+            <button class="fta-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="fta-hud game-hud">
+            <span class="fta-title">Feed the Animal</span>
+            <button class="fta-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="fta-animals">
+            @foreach (var animal in animals)
+            {
+                <button class="fta-animal @animal.Reaction" @onclick="() => FeedAnimal(animal)">
+                    <img class="fta-animal-img" src="@animal.Def.ImagePath" alt="@animal.Def.Name" draggable="false" />
+                    @if (animal.Reaction == "happy")
+                    {
+                        <span class="fta-sparkle">✨</span>
+                    }
+                </button>
+            }
+        </div>
+
+        <div class="fta-tray">
+            @foreach (var animal in animals)
+            {
+                <button class="fta-food @(selectedFoodEmoji == animal.Def.FoodEmoji ? "selected" : "")" @onclick="() => SelectFood(animal.Def.FoodEmoji)">
+                    @animal.Def.FoodEmoji
+                </button>
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<FeedTheAnimalResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private record AnimalDef(string Name, string ImagePath, string FoodEmoji);
+
+    private class AnimalState
+    {
+        public required AnimalDef Def { get; init; }
+        public string Reaction = "";
+    }
+
+    private const string AnimalArt = "images/memory/animals/";
+
+    private static readonly AnimalDef[] AnimalDefs =
+    {
+        new("Monkey", AnimalArt + "monkey.png", "🍌"),
+        new("Rabbit", AnimalArt + "rabbit.png", "🥕"),
+        new("Bear", AnimalArt + "bear.png", "🍯"),
+        new("Panda", AnimalArt + "panda.png", "🎋"),
+        new("Cow", AnimalArt + "cow.png", "🌾"),
+        new("Pig", AnimalArt + "pig.png", "🌽"),
+    };
+
+    private Phase phase = Phase.Setup;
+    private List<AnimalState> animals = new();
+    private string? selectedFoodEmoji;
+    private int taps;
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    private void StartGame()
+    {
+        animals = AnimalDefs.Select(d => new AnimalState { Def = d }).ToList();
+        selectedFoodEmoji = null;
+        taps = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private void SelectFood(string emoji)
+    {
+        taps++;
+        selectedFoodEmoji = emoji;
+    }
+
+    private async Task FeedAnimal(AnimalState animal)
+    {
+        taps++;
+
+        if (selectedFoodEmoji is null)
+        {
+            // No food chosen yet - a curious look instead of a dead tap,
+            // so nothing in this scene ever does nothing.
+            animal.Reaction = "curious";
+            StateHasChanged();
+            await PlaySoundAsync("playCatchSound");
+            await Task.Delay(700);
+            animal.Reaction = "";
+            StateHasChanged();
+            return;
+        }
+
+        var isMatch = animal.Def.FoodEmoji == selectedFoodEmoji;
+        animal.Reaction = isMatch ? "happy" : "neutral";
+        StateHasChanged();
+        await PlaySoundAsync(isMatch ? "playMatchSound" : "playCatchSound");
+
+        await Task.Delay(1200);
+        animal.Reaction = "";
+        StateHasChanged();
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new FeedTheAnimalResult(
+                Taps: taps,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record FeedTheAnimalResult(int Taps, int ElapsedSeconds);
+}

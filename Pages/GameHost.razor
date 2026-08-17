@@ -126,6 +126,10 @@
             {
                 <MagicGarden PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleMagicGardenComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.FeedTheAnimal)
+            {
+                <FeedTheAnimal PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleFeedTheAnimalComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.TowerDefense)
             {
                 <TowerDefense PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTowerDefenseComplete" />
@@ -668,6 +672,21 @@
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
             Theme = "Magic Garden",
+            Difficulty = $"{result.Taps} taps",
+            Moves = result.Taps,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleFeedTheAnimalComplete(FeedTheAnimal.FeedTheAnimalResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = "Feed the Animal",
             Difficulty = $"{result.Taps} taps",
             Moves = result.Taps,
             ElapsedSeconds = result.ElapsedSeconds,

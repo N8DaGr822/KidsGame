@@ -37,6 +37,7 @@ public static class BuiltInGames
     public const string PopAndSparkle = "pop-and-sparkle";
     public const string BabyPiano = "baby-piano";
     public const string MagicGarden = "magic-garden";
+    public const string FeedTheAnimal = "feed-the-animal";
     public const string TowerDefense = "tower-defense";
     public const string OddOneOut = "odd-one-out";
     public const string PatternComplete = "pattern-complete";
@@ -94,6 +95,7 @@ public static class BuiltInGames
         new BuiltInGame("Pop & Sparkle", "✨", PopAndSparkle, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Baby Piano", "🎹", BabyPiano, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Magic Garden", "🦋", MagicGarden, MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Feed the Animal", "🍽️", FeedTheAnimal, "images/memory/animals/monkey.png", MinAge: 1, MaxAge: 3),
         new BuiltInGame("Tower Defense", "🏯", TowerDefense, "images/tower-defense/tower-cannon.png", MinAge: 8, MaxAge: 14),
         new BuiltInGame("Odd One Out", "🔎", OddOneOut, MinAge: 3, MaxAge: 7),
         new BuiltInGame("Pattern Complete", "🧩", PatternComplete, MinAge: 4, MaxAge: 8),
