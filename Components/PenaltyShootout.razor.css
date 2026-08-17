@@ -20,6 +20,73 @@
     font-weight: 900;
 }
 
+.ps-field {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, #dff3ff 0%, #b8e6c8 55%, #8fd19e 100%);
+}
+
+.ps-goal-frame {
+    position: absolute;
+    left: 12%;
+    right: 12%;
+    top: 8%;
+    height: 45%;
+    border: 5px solid #f5f5f5;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    overflow: hidden;
+}
+
+.ps-goal-net {
+    position: absolute;
+    inset: 0;
+    background:
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.6) 0, rgba(255, 255, 255, 0.6) 1px, transparent 1px, transparent 7%),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.6) 0, rgba(255, 255, 255, 0.6) 1px, transparent 1px, transparent 14%);
+}
+
+.ps-keeper-figure,
+.ps-ball-figure {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    font-size: clamp(1.4rem, 6vw, 2rem);
+    transition: left 0.55s cubic-bezier(0.2, 0.8, 0.3, 1), top 0.55s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+.ps-keeper-figure {
+    top: 30%;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.3));
+}
+
+.ps-ball-figure {
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.3));
+}
+
+.ps-ball-figure.goal {
+    animation: ps-goal-pulse 0.5s ease 0.55s;
+}
+
+.ps-ball-figure.saved {
+    animation: ps-saved-shake 0.4s ease 0.55s;
+}
+
+@keyframes ps-goal-pulse {
+    0% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.5); }
+    100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes ps-saved-shake {
+    0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+    25% { transform: translate(-50%, -50%) rotate(-18deg); }
+    75% { transform: translate(-50%, -50%) rotate(18deg); }
+}
+
 .ps-goal {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -66,29 +133,6 @@
     font-size: 0.95rem;
     font-weight: 900;
     color: var(--text-muted);
-}
-
-.ps-ball {
-    position: absolute;
-    font-size: 1.8rem;
-    animation: ps-ball-in 0.35s ease-out;
-}
-
-.ps-keeper {
-    position: absolute;
-    font-size: 2.1rem;
-    opacity: 0.9;
-    animation: ps-dive-in 0.35s ease-out;
-}
-
-@keyframes ps-ball-in {
-    from { transform: translateY(-40px) scale(0.6); opacity: 0; }
-    to { transform: translateY(0) scale(1); opacity: 1; }
-}
-
-@keyframes ps-dive-in {
-    from { transform: scale(0.5) rotate(-10deg); opacity: 0; }
-    to { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 
 .ps-message {

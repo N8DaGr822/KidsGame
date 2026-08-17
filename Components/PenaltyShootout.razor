@@ -56,26 +56,23 @@
             <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
+        <div class="ps-field">
+            <div class="ps-goal-frame">
+                <span class="ps-goal-net"></span>
+            </div>
+            <span class="ps-keeper-figure" style="left:@(KeeperDisplayX().ToString(Inv))%;">🧤</span>
+            <span class="ps-ball-figure @(revealed && ballZone == keeperZone ? "saved" : "") @(revealed && ballZone != keeperZone ? "goal" : "")"
+                  style="left:@(BallDisplayX().ToString(Inv))%; top:@(BallDisplayY().ToString(Inv))%;">⚽</span>
+        </div>
+
         <div class="ps-goal">
             @foreach (var zone in Zones)
             {
-                var isBall = revealed && ballZone == zone;
-                var isKeeper = revealed && keeperZone == zone;
-                <button class="ps-zone @(revealed && ballZone == keeperZone && isBall ? "saved" : "") @(revealed && ballZone != keeperZone && isBall ? "goal" : "")"
+                var isBallZone = revealed && ballZone == zone;
+                <button class="ps-zone @(isBallZone && ballZone == keeperZone ? "saved" : "") @(isBallZone && ballZone != keeperZone ? "goal" : "")"
                         disabled="@(locked || phase != Phase.Playing)"
                         @onclick="() => Shoot(zone)">
-                    @if (isKeeper)
-                    {
-                        <span class="ps-keeper">🧤</span>
-                    }
-                    @if (isBall)
-                    {
-                        <span class="ps-ball">⚽</span>
-                    }
-                    @if (!revealed)
-                    {
-                        <span class="ps-zone-label">@zone</span>
-                    }
+                    <span class="ps-zone-label">@zone</span>
                 </button>
             }
         </div>
@@ -104,6 +101,8 @@
 </div>
 
 @code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
     [Parameter] public string? PlayerName { get; set; }
     [Parameter] public EventCallback<PenaltyShootoutResult> OnComplete { get; set; }
 
@@ -231,6 +230,21 @@
             StateHasChanged();
         }
     }
+
+    // Field-position helpers driving the animated ball/keeper - CSS
+    // transitions on these inline styles do the actual "flight" and
+    // "dive" animation, since the position simply changes between
+    // renders (kicker spot / goal-center -> the chosen zone).
+    private static double ZoneX(string? zone) => zone switch
+    {
+        "Left" => 16,
+        "Right" => 84,
+        _ => 50,
+    };
+
+    private double BallDisplayX() => revealed ? ZoneX(ballZone) : 50;
+    private double BallDisplayY() => revealed ? 26 : 88;
+    private double KeeperDisplayX() => revealed ? ZoneX(keeperZone) : 50;
 
     // Predicts the player's most common recent zone (a rolling window,
     // not the whole match) some fraction of the time based on difficulty,
