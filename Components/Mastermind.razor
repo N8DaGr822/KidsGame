@@ -3,9 +3,14 @@
     Guess the hidden row of colored pegs. After each guess, feedback pegs
     show how close you got: a black peg for each right color in the right
     spot, a white peg for each right color in the wrong spot - never which
-    peg is which, so the deduction stays real. A fixed number of guesses
-    per difficulty; run out and the code is revealed. Colors can repeat in
-    the secret code. Personal best tracks fewest guesses to crack a code.
+    peg is which, so the deduction stays real (kept exactly this way on
+    Medium/Hard). On Easy, that abstract count was confusing on its own,
+    so each guessed peg also gets a checkmark (exact spot) or dot (right
+    color, wrong spot) badge directly on it - same underlying scoring,
+    just made concrete for players who haven't learned to deduce from
+    counts alone yet. A fixed number of guesses per difficulty; run out
+    and the code is revealed. Colors can repeat in the secret code.
+    Personal best tracks fewest guesses to crack a code.
 
     Usage:
         <Mastermind OnComplete="HandleGameComplete" />
@@ -21,7 +26,7 @@
     {
         <div class="mm-setup game-setup-panel">
             <h2>🎯 Mastermind</h2>
-            <p>Crack the secret code! Each guess tells you how many pegs are the right color in the right spot (⚫) or the right color in the wrong spot (⚪).</p>
+            <p>Crack the secret code! Each guess tells you how many pegs are the right color in the right spot (⚫) or the right color in the wrong spot (⚪). On Easy, correct pegs are also marked right on the board.</p>
 
             <h3 class="game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
@@ -57,9 +62,22 @@
             {
                 <div class="mm-row">
                     <div class="mm-pegs">
-                        @foreach (var c in g.Pegs)
+                        @for (var i = 0; i < g.Pegs.Count; i++)
                         {
-                            <span class="mm-peg" style="background:@ColorHex(c)"></span>
+                            var pegIdx = i;
+                            <span class="mm-peg" style="background:@ColorHex(g.Pegs[pegIdx])">
+                                @if (selectedDifficulty == Difficulty.Easy)
+                                {
+                                    @if (g.Hints[pegIdx] == PegHint.Exact)
+                                    {
+                                        <span class="mm-hint mm-hint-exact">✓</span>
+                                    }
+                                    else if (g.Hints[pegIdx] == PegHint.ColorElsewhere)
+                                    {
+                                        <span class="mm-hint mm-hint-elsewhere">●</span>
+                                    }
+                                }
+                            </span>
                         }
                     </div>
                     <div class="mm-feedback">
@@ -150,7 +168,9 @@
     private enum Phase { Setup, Playing, Finished }
     public enum Difficulty { Easy, Medium, Hard }
 
-    private record GuessRow(List<int> Pegs, int Black, int White);
+    private enum PegHint { None, Exact, ColorElsewhere }
+
+    private record GuessRow(List<int> Pegs, int Black, int White, PegHint[] Hints);
     private record ColorDef(string Name, string Hex);
 
     private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
@@ -260,8 +280,8 @@
         if (phase != Phase.Playing || currentGuess.Any(c => c is null)) return;
 
         var pegs = currentGuess.Select(c => c!.Value).ToList();
-        var (black, white) = ScoreGuess(pegs);
-        guesses.Add(new GuessRow(pegs, black, white));
+        var (black, white, hints) = ScoreGuess(pegs);
+        guesses.Add(new GuessRow(pegs, black, white, hints));
 
         currentGuess.Clear();
         currentGuess.AddRange(Enumerable.Repeat((int?)null, pegCount));
@@ -289,38 +309,44 @@
     // Standard Mastermind scoring: exact-position matches first (black),
     // then color-only matches (white) capped by how many of that color
     // remain in both the guess and the secret once exact matches are set
-    // aside - otherwise a repeated color could over-count.
-    private (int Black, int White) ScoreGuess(List<int> guess)
+    // aside - otherwise a repeated color could over-count. Also returns a
+    // per-slot hint array (same consumption order as the white-peg count,
+    // so the totals always agree) purely for Easy mode's on-peg badges -
+    // Medium/Hard never read it, keeping their deduction genuine.
+    private (int Black, int White, PegHint[] Hints) ScoreGuess(List<int> guess)
     {
         var black = 0;
+        var hints = new PegHint[pegCount];
         var secretRemaining = new List<int>();
-        var guessRemaining = new List<int>();
+        var guessRemainingIndexes = new List<int>();
 
         for (var i = 0; i < pegCount; i++)
         {
             if (guess[i] == secretCode[i])
             {
                 black++;
+                hints[i] = PegHint.Exact;
             }
             else
             {
                 secretRemaining.Add(secretCode[i]);
-                guessRemaining.Add(guess[i]);
+                guessRemainingIndexes.Add(i);
             }
         }
 
         var white = 0;
-        foreach (var color in guessRemaining)
+        foreach (var i in guessRemainingIndexes)
         {
-            var idx = secretRemaining.IndexOf(color);
+            var idx = secretRemaining.IndexOf(guess[i]);
             if (idx >= 0)
             {
                 white++;
                 secretRemaining.RemoveAt(idx);
+                hints[i] = PegHint.ColorElsewhere;
             }
         }
 
-        return (black, white);
+        return (black, white, hints);
     }
 
     private async Task PlaySoundAsync(string function)
@@ -361,7 +387,7 @@
 
     private static string DifficultyDetail(Difficulty d) => d switch
     {
-        Difficulty.Easy => "4 pegs, 5 colors, 10 guesses",
+        Difficulty.Easy => "4 pegs, 5 colors, 10 guesses, positions shown",
         Difficulty.Medium => "4 pegs, 6 colors, 10 guesses",
         _ => "5 pegs, 8 colors, 8 guesses",
     };

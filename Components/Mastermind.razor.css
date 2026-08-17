@@ -48,11 +48,37 @@
 }
 
 .mm-peg {
+    position: relative;
     width: 2rem;
     height: 2rem;
     border-radius: 50%;
     border: 2px solid rgba(255, 255, 255, 0.25);
     box-shadow: var(--shadow-sm);
+}
+
+.mm-hint {
+    position: absolute;
+    bottom: -0.3rem;
+    right: -0.3rem;
+    width: 1.05rem;
+    height: 1.05rem;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 0.65rem;
+    font-weight: 900;
+    line-height: 1;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.mm-hint-exact {
+    background: #2fae4e;
+    color: #fff;
+}
+
+.mm-hint-elsewhere {
+    background: #f5c542;
+    color: #3a2e00;
 }
 
 .mm-peg-slot {
