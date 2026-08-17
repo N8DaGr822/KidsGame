@@ -62,9 +62,11 @@
             <div class="bk-sky"></div>
             <div class="bk-ground"></div>
 
+            <div class="bk-hoop-pole" style="left:@((hoopX - 3).ToString(Inv))%; top:@(hoopY.ToString(Inv))%; height:@((GroundY - hoopY).ToString(Inv))%;"></div>
             <div class="bk-hoop" style="left:@(hoopX.ToString(Inv))%; top:@(hoopY.ToString(Inv))%;">
-                <span class="bk-backboard"></span>
+                <span class="bk-backboard"><span class="bk-backboard-target"></span></span>
                 <span class="bk-rim"></span>
+                <span class="bk-net"></span>
             </div>
 
             @if (previewPoints.Count > 0)
@@ -75,11 +77,16 @@
                 }
             }
 
-            <span class="bk-player">🧍</span>
+            @if (flyingBallPos is { } fb)
+            {
+                <span class="bk-flying-ball" style="left:@(fb.X.ToString(Inv))%; top:@(fb.Y.ToString(Inv))%; transform: translate(-50%, -50%) rotate(@(flyingBallSpin.ToString(Inv))deg);">🏀</span>
+            }
+
+            <span class="bk-player @(resolving ? "firing" : "") @(isDragging ? "aiming" : "")">🧍</span>
 
             @if (lastImpact is { } impact)
             {
-                <span class="bk-impact" style="left:@(impact.X.ToString(Inv))%; top:@(impact.Y.ToString(Inv))%;">@(impact.Made ? "🏀" : "💨")</span>
+                <span class="bk-impact" style="left:@(impact.X.ToString(Inv))%; top:@(impact.Y.ToString(Inv))%;">@(impact.Made ? "🎉" : "💨")</span>
             }
         </div>
 
@@ -135,6 +142,8 @@
     private const double MaxAngleDeg = 75;
     private const double MinDragDistance = 4;
     private const double MaxDragDistance = 42;
+    private const int FlightSteps = 18;
+    private const int FlightTotalMs = 550;
 
     private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
 
@@ -178,6 +187,8 @@
     private long? activeFieldPointerId;
     private readonly List<(double X, double Y)> previewPoints = new();
     private (bool Made, double X, double Y)? lastImpact;
+    private (double X, double Y)? flyingBallPos;
+    private double flyingBallSpin;
     private bool resolving;
 
     protected override void OnInitialized()
@@ -351,6 +362,9 @@
     private async Task FireAsync(double angleDeg, double speed)
     {
         resolving = true;
+        StateHasChanged();
+        await Task.Delay(150);
+
         var (vx, vy) = VelocityFromAngleSpeed(angleDeg, speed);
         var y0 = GroundY - LaunchYOffset;
 
@@ -358,9 +372,14 @@
         var impactX = impactTime > 0 ? PlayerX + vx * impactTime : PlayerX;
 
         bool made;
+        double landX, landY, flightDuration;
+
         if (impactX < hoopX)
         {
             made = false;
+            landX = Math.Min(impactX, 100);
+            landY = GroundY;
+            flightDuration = impactTime;
             roundMessage = "Fell short!";
         }
         else
@@ -368,8 +387,29 @@
             var tCross = (hoopX - PlayerX) / vx;
             var yCross = y0 + vy * tCross + 0.5 * Gravity * tCross * tCross;
             made = Math.Abs(yCross - hoopY) <= ToleranceFor(selectedDifficulty);
+            landX = hoopX;
+            landY = Math.Clamp(yCross, 5, GroundY);
+            flightDuration = tCross;
             roundMessage = made ? "Swish!" : "Just missed!";
         }
+
+        // Replays the same analytic curve the preview showed, frame by
+        // frame, instead of teleporting straight to the impact point.
+        if (flightDuration > 0)
+        {
+            var stepDelay = FlightTotalMs / FlightSteps;
+            for (var i = 1; i <= FlightSteps; i++)
+            {
+                var t = flightDuration * i / FlightSteps;
+                var x = PlayerX + vx * t;
+                var y = y0 + vy * t + 0.5 * Gravity * t * t;
+                flyingBallPos = (x, y);
+                flyingBallSpin += 55;
+                StateHasChanged();
+                await Task.Delay(stepDelay);
+            }
+        }
+        flyingBallPos = null;
 
         if (made)
         {
@@ -382,10 +422,10 @@
             streak = 0;
         }
 
-        lastImpact = (made, hoopX, hoopY);
+        lastImpact = (made, landX, landY);
         await PlaySoundAsync(made ? "playMatchSound" : "playMismatchSound");
         StateHasChanged();
-        await Task.Delay(1200);
+        await Task.Delay(1100);
 
         resolving = false;
 

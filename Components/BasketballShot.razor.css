@@ -43,22 +43,44 @@
     right: 0;
     bottom: 0;
     height: 22%;
-    background: #b06a3a;
+    background: repeating-linear-gradient(90deg, #b06a3a 0%, #b06a3a 7%, #a35f34 7%, #a35f34 14%);
+    border-top: 2px solid #8a4e28;
+}
+
+.bk-hoop-pole {
+    position: absolute;
+    width: 2.2%;
+    background: linear-gradient(90deg, #555, #888);
+    border-radius: 2px;
+    z-index: 0;
 }
 
 .bk-hoop {
     position: absolute;
     transform: translate(-50%, -50%);
+    z-index: 1;
 }
 
 .bk-backboard {
     position: absolute;
-    left: -2px;
-    top: -18px;
-    width: 4px;
-    height: 22px;
-    background: #eee;
+    left: -3px;
+    top: -26px;
+    width: 6px;
+    height: 30px;
+    background: linear-gradient(90deg, #f5f5f5, #dcdcdc);
+    border: 1px solid #b8b8b8;
     border-radius: 2px;
+    display: block;
+}
+
+.bk-backboard-target {
+    position: absolute;
+    left: 1px;
+    top: 8px;
+    width: 3px;
+    height: 8px;
+    border: 1px solid #e63946;
+    border-radius: 1px;
 }
 
 .bk-rim {
@@ -72,11 +94,40 @@
     transform: translate(-50%, -50%);
 }
 
+.bk-net {
+    position: absolute;
+    left: 0;
+    top: 2px;
+    width: 14px;
+    height: 10px;
+    transform: translate(-50%, 0);
+    background:
+        repeating-linear-gradient(55deg, rgba(255, 255, 255, 0.75) 0, rgba(255, 255, 255, 0.75) 1px, transparent 1px, transparent 4px),
+        repeating-linear-gradient(125deg, rgba(255, 255, 255, 0.75) 0, rgba(255, 255, 255, 0.75) 1px, transparent 1px, transparent 4px);
+    clip-path: polygon(6% 0%, 94% 0%, 78% 100%, 22% 100%);
+    opacity: 0.9;
+}
+
 .bk-player {
     position: absolute;
     left: 8%;
     bottom: 16%;
     font-size: clamp(1.6rem, 5vw, 2.2rem);
+    transition: transform 0.15s ease;
+}
+
+.bk-player.aiming {
+    transform: scale(0.92) rotate(-4deg);
+}
+
+.bk-player.firing {
+    animation: bk-jump 0.3s ease;
+}
+
+@keyframes bk-jump {
+    0% { transform: translateY(0); }
+    40% { transform: translateY(-10px); }
+    100% { transform: translateY(0); }
 }
 
 .bk-preview-dot {
@@ -88,10 +139,22 @@
     transform: translate(-50%, -50%);
 }
 
+.bk-flying-ball {
+    position: absolute;
+    font-size: clamp(1.1rem, 4vw, 1.6rem);
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.3));
+}
+
 .bk-impact {
     position: absolute;
     transform: translate(-50%, -50%);
     font-size: 1.6rem;
+    animation: bk-impact-pop 0.3s ease;
+}
+
+@keyframes bk-impact-pop {
+    0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0.4; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 }
 
 .bk-message {
