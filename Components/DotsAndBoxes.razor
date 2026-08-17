@@ -1,0 +1,437 @@
+@*
+    DotsAndBoxes.razor
+    Classic dots-and-boxes vs a CPU opponent. Tap a line between two dots
+    to claim it; completing the 4th side of a box claims that box (in
+    your color) and earns another turn - the real rule that makes this
+    game more strategic than it looks, not a simplification. Most boxes
+    when the grid is full wins.
+
+    Grid renders on a doubled coordinate system (a well-known technique
+    for this game): even/even cells are dots, even/odd are horizontal
+    edges, odd/even are vertical edges, odd/odd are box interiors - one
+    CSS grid, four cell kinds, laid out in row-major order to match
+    Blazor's natural @for emission order.
+
+    CPU heuristic scales with difficulty (not full chain/double-cross
+    theory, but a real step above naive at the top end): all three tiers
+    always take a free box on offer, but Easy is otherwise fully random
+    (exploitable - it'll happily open a box for you); Medium plays "safe"
+    moves that don't hand you a free box, but sacrifices randomly once
+    forced to; Hard also minimizes how many boxes it gives away when
+    forced to sacrifice.
+
+    Usage:
+        <DotsAndBoxes OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="db-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="db-setup game-setup-panel">
+            <h2>⬜ Dots and Boxes</h2>
+            <p>Tap a line to claim it. Complete the 4th side of a box to claim it (and go again)! Most boxes wins.</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="db-diff-name">@DifficultyName(diff)</span>
+                            <span class="db-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="db-title">Dots and Boxes</span>
+            <span class="game-stat">🟢 You @playerScore</span>
+            <span class="game-stat">🔴 CPU @cpuScore</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="db-board" style="grid-template-columns:@ColTemplate(); grid-template-rows:@RowTemplate();">
+            @for (var r = 0; r <= boxRows * 2; r++)
+            {
+                for (var c = 0; c <= boxCols * 2; c++)
+                {
+                    var row = r; var col = c;
+                    if (row % 2 == 0 && col % 2 == 0)
+                    {
+                        <span class="db-dot"></span>
+                    }
+                    else if (row % 2 == 0)
+                    {
+                        var hr = row / 2; var hc = (col - 1) / 2;
+                        <button class="db-edge db-edge-h @(hEdges[hr, hc] != 0 ? "claimed" : "")"
+                                style="background:@EdgeColor(hEdges[hr, hc])"
+                                disabled="@(hEdges[hr, hc] != 0 || turn != Turn.Player || phase != Phase.Playing)"
+                                @onclick="() => ClaimHEdge(hr, hc, Turn.Player)"></button>
+                    }
+                    else if (col % 2 == 0)
+                    {
+                        var vr = (row - 1) / 2; var vc = col / 2;
+                        <button class="db-edge db-edge-v @(vEdges[vr, vc] != 0 ? "claimed" : "")"
+                                style="background:@EdgeColor(vEdges[vr, vc])"
+                                disabled="@(vEdges[vr, vc] != 0 || turn != Turn.Player || phase != Phase.Playing)"
+                                @onclick="() => ClaimVEdge(vr, vc, Turn.Player)"></button>
+                    }
+                    else
+                    {
+                        var br = (row - 1) / 2; var bc = (col - 1) / 2;
+                        <span class="db-box" style="background:@BoxColor(boxOwner[br, bc])"></span>
+                    }
+                }
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="db-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(won ? "🎉 You Win!" : (playerScore == cpuScore ? "🤝 Tie Game" : "🤖 CPU Wins"))</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")final score: @playerScore to @cpuScore.</p>
+                    <PersonalBestBadge Value="@($"+{bestMargin ?? (playerScore - cpuScore)} margin")" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<DotsAndBoxesResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (biggest winning margin) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    private enum Turn { Player, Cpu }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int BoxGridFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 3,
+        Difficulty.Medium => 4,
+        _ => 5,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private Turn turn = Turn.Player;
+    private int boxRows = 3;
+    private int boxCols = 3;
+
+    // 0 = unclaimed, 1 = player, 2 = cpu.
+    private int[,] hEdges = new int[0, 0];
+    private int[,] vEdges = new int[0, 0];
+    private int[,] boxOwner = new int[0, 0];
+
+    private int playerScore;
+    private int cpuScore;
+    private bool won;
+    private string roundMessage = "";
+    private int? bestMargin;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private string ColTemplate() => string.Join(" ", Enumerable.Range(0, boxCols * 2 + 1).Select(i => i % 2 == 0 ? "10px" : "1fr"));
+    private string RowTemplate() => string.Join(" ", Enumerable.Range(0, boxRows * 2 + 1).Select(i => i % 2 == 0 ? "10px" : "1fr"));
+
+    private static string EdgeColor(int owner) => owner switch
+    {
+        1 => "rgba(78, 205, 196, 0.9)",
+        2 => "rgba(255, 107, 107, 0.9)",
+        _ => "rgba(255, 255, 255, 0.15)",
+    };
+
+    private static string BoxColor(int owner) => owner switch
+    {
+        1 => "rgba(78, 205, 196, 0.25)",
+        2 => "rgba(255, 107, 107, 0.25)",
+        _ => "transparent",
+    };
+
+    private void StartGame()
+    {
+        boxRows = BoxGridFor(selectedDifficulty);
+        boxCols = boxRows;
+        hEdges = new int[boxRows + 1, boxCols];
+        vEdges = new int[boxRows, boxCols + 1];
+        boxOwner = new int[boxRows, boxCols];
+        playerScore = 0;
+        cpuScore = 0;
+        won = false;
+        roundMessage = "";
+        turn = Turn.Player;
+        bestMargin = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new DotsAndBoxesResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                PlayerScore: playerScore,
+                CpuScore: cpuScore,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private int BoxEdgeCount(int br, int bc) =>
+        (hEdges[br, bc] != 0 ? 1 : 0) + (hEdges[br + 1, bc] != 0 ? 1 : 0) +
+        (vEdges[br, bc] != 0 ? 1 : 0) + (vEdges[br, bc + 1] != 0 ? 1 : 0);
+
+    private IEnumerable<(int R, int C)> BoxesTouchingHEdge(int hr, int hc)
+    {
+        if (hr - 1 >= 0) yield return (hr - 1, hc);
+        if (hr < boxRows) yield return (hr, hc);
+    }
+
+    private IEnumerable<(int R, int C)> BoxesTouchingVEdge(int vr, int vc)
+    {
+        if (vc - 1 >= 0) yield return (vr, vc - 1);
+        if (vc < boxCols) yield return (vr, vc);
+    }
+
+    private async Task ClaimHEdge(int hr, int hc, Turn by)
+    {
+        if (hEdges[hr, hc] != 0) return;
+        hEdges[hr, hc] = by == Turn.Player ? 1 : 2;
+        await ResolveClaim(BoxesTouchingHEdge(hr, hc), by);
+    }
+
+    private async Task ClaimVEdge(int vr, int vc, Turn by)
+    {
+        if (vEdges[vr, vc] != 0) return;
+        vEdges[vr, vc] = by == Turn.Player ? 1 : 2;
+        await ResolveClaim(BoxesTouchingVEdge(vr, vc), by);
+    }
+
+    private async Task ResolveClaim(IEnumerable<(int R, int C)> touchedBoxes, Turn by)
+    {
+        var claimed = 0;
+        foreach (var (br, bc) in touchedBoxes)
+        {
+            if (boxOwner[br, bc] == 0 && BoxEdgeCount(br, bc) == 4)
+            {
+                boxOwner[br, bc] = by == Turn.Player ? 1 : 2;
+                claimed++;
+                if (by == Turn.Player) playerScore++; else cpuScore++;
+            }
+        }
+
+        if (claimed > 0)
+        {
+            roundMessage = (by == Turn.Player ? "You" : "CPU") + $" claimed {claimed} box{(claimed > 1 ? "es" : "")} - go again!";
+            await PlaySoundAsync("playMatchSound");
+        }
+        else
+        {
+            roundMessage = "";
+            await PlaySoundAsync("playImpactSound");
+        }
+
+        if (playerScore + cpuScore == boxRows * boxCols)
+        {
+            won = playerScore > cpuScore;
+            await FinishGame();
+            return;
+        }
+
+        StateHasChanged();
+
+        if (claimed == 0)
+        {
+            turn = by == Turn.Player ? Turn.Cpu : Turn.Player;
+            StateHasChanged();
+
+            if (turn == Turn.Cpu)
+            {
+                await Task.Delay(500);
+                await CpuTurn();
+            }
+        }
+        else if (by == Turn.Player)
+        {
+            // Claimed a box - go again, still the player's turn.
+        }
+        else
+        {
+            await Task.Delay(400);
+            await CpuTurn();
+        }
+    }
+
+    private async Task CpuTurn()
+    {
+        if (phase != Phase.Playing) return;
+
+        var move = PickCpuMove();
+        if (move is null) return;
+
+        var (isHorizontal, r, c) = move.Value;
+        if (isHorizontal) await ClaimHEdge(r, c, Turn.Cpu);
+        else await ClaimVEdge(r, c, Turn.Cpu);
+    }
+
+    private (bool IsHorizontal, int R, int C)? PickCpuMove()
+    {
+        var allEdges = new List<(bool IsHorizontal, int R, int C)>();
+        for (var r = 0; r <= boxRows; r++)
+            for (var c = 0; c < boxCols; c++)
+                if (hEdges[r, c] == 0) allEdges.Add((true, r, c));
+        for (var r = 0; r < boxRows; r++)
+            for (var c = 0; c <= boxCols; c++)
+                if (vEdges[r, c] == 0) allEdges.Add((false, r, c));
+
+        if (allEdges.Count == 0) return null;
+
+        int BoxesCompletedBy((bool IsHorizontal, int R, int C) e) =>
+            (e.IsHorizontal ? BoxesTouchingHEdge(e.R, e.C) : BoxesTouchingVEdge(e.R, e.C))
+                .Count(b => BoxEdgeCount(b.R, b.C) == 3);
+
+        int BoxesReachingThreeBy((bool IsHorizontal, int R, int C) e) =>
+            (e.IsHorizontal ? BoxesTouchingHEdge(e.R, e.C) : BoxesTouchingVEdge(e.R, e.C))
+                .Count(b => BoxEdgeCount(b.R, b.C) == 2);
+
+        // Always take a free box when one's on offer - passing on that
+        // would just look broken, not "easy." Everything past that scales
+        // with difficulty.
+        var capturing = allEdges.Where(e => BoxesCompletedBy(e) > 0).ToList();
+        if (capturing.Count > 0)
+        {
+            return selectedDifficulty == Difficulty.Easy
+                ? capturing[rng.Next(capturing.Count)]
+                : capturing.OrderByDescending(BoxesCompletedBy).First();
+        }
+
+        if (selectedDifficulty == Difficulty.Easy)
+        {
+            return allEdges[rng.Next(allEdges.Count)];
+        }
+
+        // A "safe" move never leaves a box at 3 filled sides for the
+        // player to snap up next turn.
+        var safe = allEdges.Where(e => BoxesReachingThreeBy(e) == 0).ToList();
+        if (safe.Count > 0)
+        {
+            return safe[rng.Next(safe.Count)];
+        }
+
+        // Forced to sacrifice. Medium takes whatever's left at random;
+        // Hard hands away as little as possible by minimizing how many
+        // boxes reach 3 sides from this one move.
+        return selectedDifficulty == Difficulty.Hard
+            ? allEdges.OrderBy(BoxesReachingThreeBy).First()
+            : allEdges[rng.Next(allEdges.Count)];
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (won && !string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "biggest-margin";
+            var margin = playerScore - cpuScore;
+            bestMargin = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.DotsAndBoxes, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.DotsAndBoxes, key, margin, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new DotsAndBoxesResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: won,
+                PlayerScore: playerScore,
+                CpuScore: cpuScore,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3x3 boxes, CPU plays randomly",
+        Difficulty.Medium => "4x4 boxes, CPU plays safe",
+        _ => "5x5 boxes, CPU plays safe + smart",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record DotsAndBoxesResult(string Difficulty, bool Won, int PlayerScore, int CpuScore, int ElapsedSeconds);
+}

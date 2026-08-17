@@ -49,6 +49,7 @@ public static class BuiltInGames
     public const string Mastermind = "mastermind";
     public const string CodeBreaker = "code-breaker";
     public const string Battleships = "battleships";
+    public const string DotsAndBoxes = "dots-and-boxes";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -90,5 +91,6 @@ public static class BuiltInGames
         new BuiltInGame("Mastermind", "🎯", Mastermind, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Code Breaker", "🔐", CodeBreaker, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Battleships", "🚢", Battleships, MinAge: 8, MaxAge: 14),
+        new BuiltInGame("Dots and Boxes", "⬜", DotsAndBoxes, MinAge: 7, MaxAge: 13),
     };
 }
