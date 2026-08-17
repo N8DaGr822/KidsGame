@@ -60,6 +60,7 @@ public static class BuiltInGames
     public const string PenaltyShootout = "penalty-shootout";
     public const string LaserMaze = "laser-maze";
     public const string RhythmGame = "rhythm-game";
+    public const string WordLadder = "word-ladder";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -112,5 +113,6 @@ public static class BuiltInGames
         new BuiltInGame("Penalty Shootout", "⚽", PenaltyShootout, MinAge: 6, MaxAge: 12),
         new BuiltInGame("Laser Maze", "🔦", LaserMaze, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Rhythm Game", "🥁", RhythmGame, MinAge: 6, MaxAge: 13),
+        new BuiltInGame("Word Ladder", "🪜", WordLadder, MinAge: 8, MaxAge: 14),
     };
 }

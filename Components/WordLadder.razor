@@ -1,0 +1,332 @@
+@*
+    WordLadder.razor
+    Change one letter at a time to turn the start word into the target
+    word, where every step in between must also be a real word. Ladders
+    are hand-authored (like Cryptogram's phrase list) rather than
+    generated against a dictionary, since verifying that an arbitrary
+    one-letter-off string is a real English word needs a real dictionary
+    this app doesn't ship - a curated, known-good chain sidesteps that
+    entirely. After three wrong guesses on the same rung, one letter locks
+    into place as a hint so a stuck kid always has a path to finish.
+
+    Usage:
+        <WordLadder OnComplete="HandleGameComplete" />
+*@
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="wl-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="wl-setup game-setup-panel">
+            <h2>🪜 Word Ladder</h2>
+            <p>Change one letter at a time to climb from the start word to the target word.</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="wl-diff-name">@DifficultyName(diff)</span>
+                            <span class="wl-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="wl-title">Word Ladder</span>
+            <span class="game-stat">🪜 Rung @Math.Min(currentRungIndex, chain.Length - 1)/@(chain.Length - 1)</span>
+            <span class="game-stat">❌ Mistakes @totalMistakes</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <p class="wl-goal">Reach: <strong>@chain[^1]</strong></p>
+
+        <div class="wl-ladder">
+            @for (var i = 0; i < chain.Length; i++)
+            {
+                var idx = i;
+                @if (idx < currentRungIndex)
+                {
+                    <div class="wl-rung revealed @(idx == 0 ? "start" : "")">@chain[idx]</div>
+                }
+                else if (idx == currentRungIndex && phase == Phase.Playing)
+                {
+                    <div class="wl-rung active">
+                        @for (var s = 0; s < wordLen; s++)
+                        {
+                            var slot = s;
+                            <span class="wl-slot @(lockedMask[slot] ? "locked" : "")">@(guessSlots[slot]?.ToString() ?? "")</span>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="wl-rung hidden">@(new string('•', wordLen))</div>
+                }
+            }
+        </div>
+
+        @if (phase == Phase.Playing)
+        {
+            <div class="wl-keyboard">
+                @foreach (var letter in Alphabet)
+                {
+                    <button class="wl-key" @onclick="() => TypeLetter(letter)">@letter</button>
+                }
+            </div>
+            <div class="wl-actions">
+                <button class="game-secondary-action" @onclick="Backspace">⌫ Backspace</button>
+                <button class="game-primary-action" disabled="@(!IsGuessFull())" @onclick="Submit">Submit</button>
+            </div>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🪜 Ladder Climbed!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")you made it with @totalMistakes mistake@(totalMistakes == 1 ? "" : "s")!</p>
+                    <PersonalBestBadge Value="@($"{bestMistakes ?? totalMistakes} mistakes")" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">New Ladder</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<WordLadderResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest mistakes) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int MistakesBeforeHint = 3;
+    private static readonly char[] Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".ToCharArray();
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static readonly string[][] EasyLadders =
+    {
+        new[] { "CAT", "COT", "COG", "DOG" },
+        new[] { "HOT", "HOP", "HIP", "HIT" },
+        new[] { "PIG", "PIN", "PAN", "PAT" },
+        new[] { "CAN", "MAN", "MAP", "MAT" },
+        new[] { "BAT", "BAG", "BIG", "BIN" },
+    };
+
+    private static readonly string[][] MediumLadders =
+    {
+        new[] { "COLD", "CORD", "CARD", "WARD", "WARM" },
+        new[] { "LOVE", "LIVE", "LIME", "TIME", "TIDE" },
+        new[] { "HEAD", "HEAL", "HEAT", "MEAT", "MEAL" },
+        new[] { "RICE", "RACE", "RATE", "LATE", "LANE" },
+        new[] { "BOOK", "COOK", "COOL", "COAL", "COAT" },
+    };
+
+    private static readonly string[][] HardLadders =
+    {
+        new[] { "CRANE", "CRATE", "GRATE", "GRADE", "TRADE", "TRACE" },
+        new[] { "STONE", "STORE", "SCORE", "SCARE", "SHARE", "SHORE" },
+        new[] { "BLACK", "BLANK", "PLANK", "PLANT", "PLANE", "PLACE" },
+        new[] { "WATCH", "MATCH", "MARCH", "MARSH", "HARSH" },
+    };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static string[][] LaddersFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => EasyLadders,
+        Difficulty.Medium => MediumLadders,
+        _ => HardLadders,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private string[] chain = Array.Empty<string>();
+    private int wordLen;
+    private int currentRungIndex;
+    private char?[] guessSlots = Array.Empty<char?>();
+    private bool[] lockedMask = Array.Empty<bool>();
+    private int mistakesThisRung;
+    private int totalMistakes;
+    private int? bestMistakes;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        var pool = LaddersFor(selectedDifficulty);
+        chain = pool[rng.Next(pool.Length)];
+        wordLen = chain[0].Length;
+        currentRungIndex = 1;
+        totalMistakes = 0;
+        bestMistakes = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        ResetRungGuess();
+        phase = Phase.Playing;
+    }
+
+    private void ResetRungGuess()
+    {
+        guessSlots = new char?[wordLen];
+        lockedMask = new bool[wordLen];
+        mistakesThisRung = 0;
+    }
+
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new WordLadderResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Solved: false,
+                Mistakes: totalMistakes,
+                RungsClimbed: currentRungIndex - 1,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private bool IsGuessFull() => guessSlots.All(c => c is not null);
+
+    private void TypeLetter(char letter)
+    {
+        for (var i = 0; i < wordLen; i++)
+        {
+            if (!lockedMask[i] && guessSlots[i] is null)
+            {
+                guessSlots[i] = letter;
+                return;
+            }
+        }
+    }
+
+    private void Backspace()
+    {
+        for (var i = wordLen - 1; i >= 0; i--)
+        {
+            if (!lockedMask[i] && guessSlots[i] is not null)
+            {
+                guessSlots[i] = null;
+                return;
+            }
+        }
+    }
+
+    private async Task Submit()
+    {
+        if (!IsGuessFull()) return;
+
+        var guess = new string(guessSlots.Select(c => c!.Value).ToArray());
+        var target = chain[currentRungIndex];
+
+        if (string.Equals(guess, target, StringComparison.OrdinalIgnoreCase))
+        {
+            currentRungIndex++;
+            if (currentRungIndex == chain.Length)
+            {
+                await FinishGame();
+                return;
+            }
+            ResetRungGuess();
+            return;
+        }
+
+        mistakesThisRung++;
+        totalMistakes++;
+
+        if (mistakesThisRung >= MistakesBeforeHint)
+        {
+            for (var i = 0; i < wordLen; i++)
+            {
+                if (!lockedMask[i])
+                {
+                    lockedMask[i] = true;
+                    guessSlots[i] = char.ToUpperInvariant(target[i]);
+                    break;
+                }
+            }
+            mistakesThisRung = 0;
+        }
+
+        for (var i = 0; i < wordLen; i++)
+        {
+            if (!lockedMask[i]) guessSlots[i] = null;
+        }
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "fewest-mistakes";
+            bestMistakes = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.WordLadder, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.WordLadder, key, totalMistakes, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new WordLadderResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Solved: true,
+                Mistakes: totalMistakes,
+                RungsClimbed: chain.Length - 1,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3-letter words",
+        Difficulty.Medium => "4-letter words",
+        _ => "5-letter words",
+    };
+
+    public record WordLadderResult(string Difficulty, bool Solved, int Mistakes, int RungsClimbed, int ElapsedSeconds);
+}

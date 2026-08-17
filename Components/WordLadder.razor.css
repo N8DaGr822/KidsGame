@@ -1,0 +1,100 @@
+.wl-game {
+    width: min(480px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.75rem;
+}
+
+.wl-diff-name {
+    font-weight: 900;
+}
+
+.wl-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.wl-title {
+    font-weight: 900;
+}
+
+.wl-goal {
+    text-align: center;
+    font-weight: 800;
+    color: var(--text-muted);
+}
+
+.wl-ladder {
+    display: grid;
+    gap: 0.4rem;
+}
+
+.wl-rung {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    padding: 0.5rem;
+    border-radius: var(--radius-sm);
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    font-size: 1.1rem;
+}
+
+.wl-rung.revealed {
+    background: rgba(47, 174, 78, 0.18);
+    color: var(--text);
+}
+
+.wl-rung.start {
+    background: rgba(90, 140, 255, 0.2);
+}
+
+.wl-rung.hidden {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-muted);
+    letter-spacing: 0.3em;
+}
+
+.wl-rung.active {
+    background: rgba(255, 200, 60, 0.2);
+    border: 2px dashed rgba(200, 150, 0, 0.5);
+}
+
+.wl-slot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6rem;
+    height: 1.9rem;
+    border-bottom: 3px solid var(--line);
+}
+
+.wl-slot.locked {
+    color: #2fae4e;
+}
+
+.wl-keyboard {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.3rem;
+}
+
+.wl-key {
+    min-width: 2.1rem;
+    padding: 0.4rem 0;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.wl-actions {
+    display: flex;
+    justify-content: center;
+    gap: 0.6rem;
+}

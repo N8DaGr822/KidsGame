@@ -218,6 +218,10 @@
             {
                 <RhythmGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRhythmGameComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.WordLadder)
+            {
+                <WordLadder PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWordLadderComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -995,6 +999,21 @@
             Theme = result.Difficulty,
             Difficulty = $"Score {result.Score}, best combo {result.BestCombo}",
             Moves = result.Score,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleWordLadderComplete(WordLadder.WordLadderResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Solved ? $"Solved, {result.Mistakes} mistakes" : $"Abandoned at rung {result.RungsClimbed}",
+            Moves = result.Mistakes,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }
