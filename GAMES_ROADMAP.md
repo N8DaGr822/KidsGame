@@ -535,22 +535,37 @@ also wired up `Components/Shared/PersonalBestBadge.razor`: fewest guesses
 ### Mystery, escape, and code puzzles
 
 - [ ] Escape Room — a small interactive room with clues, codes, switches,
-      hidden objects, and puzzles.
+      hidden objects, and puzzles. Deferred - needs real authored
+      multi-puzzle room content (not just one generated mechanic), a
+      bigger content-design lift than this batch's games.
 - [ ] Detective Mystery — read clues, inspect suspects, identify
-      contradictions, and solve a fictional case.
+      contradictions, and solve a fictional case. Deferred - needs either
+      hand-authored cases or a template-based case generator; picking that
+      approach deserves its own pass rather than a rushed cut here.
 - [ ] Mystery Mansion — explore rooms, collect clues, unlock areas, and solve
-      a central mystery.
+      a central mystery. Deferred, same reasoning as Escape Room.
 - [ ] Treasure Map Puzzle — interpret riddles and map clues to locate hidden
-      treasure.
-- [ ] Cryptogram — decode substitution ciphers, symbols, or secret messages.
-- [ ] Morse Code Challenge — decode or transmit simple messages under
-      increasing difficulty.
-- [ ] Programming Puzzle Game — issue commands like Move, Turn, Jump, Repeat
-      to guide a robot through levels.
+      treasure. Deferred - needs an authored riddle bank to feel real
+      rather than arbitrary.
+- [x] Cryptogram — landed as `Components/Cryptogram.razor`. Substitution-
+      cipher phrase decoding; tap a coded letter, tap your guess, every
+      occurrence updates at once. No per-letter feedback, same as a real
+      cryptogram - only a fully-correct phrase counts as solved.
+- [x] Morse Code Challenge — landed as `Components/MorseCodeChallenge.razor`.
+      Decode a word shown only as Morse; Easy/Medium keep a reference
+      chart visible, Hard hides it.
+- [x] Programming Puzzle Game — landed as `Components/RobotCommands.razor`
+      (Move/Turn Left/Turn Right through a BFS-verified-solvable
+      procedural maze). Repeat/loop blocks intentionally deferred -
+      difficulty scales grid size, wall density, and max program length
+      instead.
 - [ ] Circuit Builder — connect batteries, switches, lights, motors, and logic
-      gates to complete objectives.
+      gates to complete objectives. Deferred - node-graph connection UI +
+      circuit simulation is a genuinely new interaction model, not a
+      reskin of anything already built here.
 - [ ] Factory Automation Puzzle — place conveyors, sorters, machines, and
-      switches to route items correctly.
+      switches to route items correctly. Deferred, same reasoning as
+      Circuit Builder - a real flow-simulation engine, not a quick slice.
 
 ### Physics, sports, and skill challenges
 
