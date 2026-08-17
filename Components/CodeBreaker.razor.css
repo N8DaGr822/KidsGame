@@ -1,0 +1,131 @@
+.cb-game {
+    width: min(480px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1rem;
+}
+
+.cb-diff-name {
+    font-weight: 900;
+}
+
+.cb-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.cb-title {
+    font-weight: 900;
+}
+
+.cb-board {
+    display: grid;
+    gap: 0.5rem;
+    max-height: 48vh;
+    overflow-y: auto;
+    padding: 0.25rem;
+}
+
+.cb-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.4rem;
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+}
+
+.cb-row-active {
+    border: 1px solid rgba(78, 205, 196, 0.6);
+}
+
+.cb-digits {
+    display: flex;
+    gap: 0.35rem;
+}
+
+.cb-digit {
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    display: grid;
+    place-items: center;
+    font-weight: 900;
+    font-size: 1.1rem;
+}
+
+.cb-digit-slot {
+    border: 2px dashed var(--line-strong);
+}
+
+.cb-digit-slot.selected {
+    border-color: rgba(78, 205, 196, 0.9);
+}
+
+.cb-feedback {
+    display: flex;
+    gap: 0.4rem;
+    font-weight: 900;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.cb-fb-spot {
+    color: #ffd166;
+}
+
+.cb-fb-digit {
+    color: var(--text-muted);
+}
+
+.cb-submit-btn {
+    min-height: 40px !important;
+    padding: 0.4rem 0.9rem !important;
+}
+
+.cb-keypad {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.4rem;
+}
+
+.cb-key {
+    min-height: 44px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    font-weight: 900;
+    font-size: 1.1rem;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.cb-key:hover:not(:disabled) {
+    transform: translateY(-1px);
+    background: var(--control-bg-hover);
+}
+
+.cb-key:disabled {
+    opacity: 0.35;
+}
+
+.cb-erase-key {
+    color: #ff6b6b;
+}
+
+.cb-reveal {
+    justify-content: center;
+    margin: 0.5rem 0;
+}
+
+.cb-message {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+}

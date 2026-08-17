@@ -47,6 +47,7 @@ public static class BuiltInGames
     public const string GuessTheWord = "guess-the-word";
     public const string WordSearch = "word-search";
     public const string Mastermind = "mastermind";
+    public const string CodeBreaker = "code-breaker";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -86,5 +87,6 @@ public static class BuiltInGames
         new BuiltInGame("Guess the Word", "🚀", GuessTheWord, MinAge: 5, MaxAge: 10),
         new BuiltInGame("Word Search", "🔍", WordSearch, MinAge: 6, MaxAge: 12),
         new BuiltInGame("Mastermind", "🎯", Mastermind, MinAge: 8, MaxAge: 14),
+        new BuiltInGame("Code Breaker", "🔐", CodeBreaker, MinAge: 8, MaxAge: 14),
     };
 }
