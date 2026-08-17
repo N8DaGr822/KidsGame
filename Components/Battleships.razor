@@ -1,8 +1,10 @@
 @*
     Battleships.razor
-    Classic Battleship vs a CPU opponent. Both fleets are placed randomly
-    (no manual placement in this vertical slice - the strategy here is in
-    firing/hunting, not layout). Strict alternating turns: tap a cell on
+    Classic Battleship vs a CPU opponent. The player places their own
+    fleet ship-by-ship at the start of each game (tap a cell to drop the
+    current ship there in the selected orientation, or randomize the
+    rest); the CPU's fleet is still placed randomly, since it never sees
+    the board anyway. Strict alternating turns: tap a cell on
     "Enemy Waters" to fire, then the CPU fires back. Sink every ship in a
     fleet to win. CPU gets smarter with difficulty: Easy fires randomly;
     Medium hunts adjacent cells after a hit; Hard hunts AND uses a
@@ -25,7 +27,7 @@
     {
         <div class="bs-setup game-setup-panel">
             <h2>🚢 Battleships</h2>
-            <p>Sink the enemy fleet before they sink yours! Tap a cell on Enemy Waters to fire.</p>
+            <p>Place your fleet, then sink the enemy fleet before they sink yours!</p>
 
             <h3 class="game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
@@ -47,6 +49,34 @@
 
             <button class="game-primary-action" @onclick="StartGame">Start Game</button>
         </div>
+    }
+    else if (phase == Phase.Placing)
+    {
+        <div class="game-hud">
+            <span class="bs-title">Battleships</span>
+            <span class="game-stat">🚢 Ship @(placingShipIndex + 1)/@playerShipLengths.Length (length @CurrentPlacingLength)</span>
+            <button class="game-secondary-action" @onclick="RotateOrientation">🔄 @(placingHorizontal ? "Horizontal" : "Vertical")</button>
+            <button class="game-secondary-action" @onclick="RandomizeRemaining">🎲 Randomize Rest</button>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <h3 class="bs-board-title">Place Your Fleet</h3>
+        <div class="bs-grid bs-grid-placing" style="--bs-size:@gridSize;">
+            @for (var r = 0; r < gridSize; r++)
+            {
+                for (var c = 0; c < gridSize; c++)
+                {
+                    var row = r; var col = c;
+                    var cell = playerBoard[row, col];
+                    <button class="bs-cell bs-place-cell @(cell.HasShip ? "ship" : "")" @onclick="() => PlaceShipManually(row, col)"></button>
+                }
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="bs-message">@roundMessage</p>
+        }
     }
     else
     {
@@ -124,7 +154,7 @@
     /// locked note and that difficulty is used.</summary>
     [Parameter] public string? ForcedDifficulty { get; set; }
 
-    private enum Phase { Setup, Playing, Finished }
+    private enum Phase { Setup, Placing, Playing, Finished }
     private enum Turn { Player, Cpu }
     public enum Difficulty { Easy, Medium, Hard }
 
@@ -173,6 +203,12 @@
     private DateTime startedAtUtc;
     private IJSObjectReference? _module;
 
+    // Manual fleet-placement state (player only - the CPU never sees the
+    // board, so its fleet is still placed randomly).
+    private int placingShipIndex;
+    private bool placingHorizontal = true;
+    private int CurrentPlacingLength => placingShipIndex < playerShipLengths.Length ? playerShipLengths[placingShipIndex] : 0;
+
     // CPU targeting state.
     private readonly List<(int Row, int Col)> cpuHuntQueue = new();
     private readonly HashSet<(int Row, int Col)> cpuTried = new();
@@ -187,7 +223,8 @@
         gridSize = GridSizeFor(selectedDifficulty);
         var ships = ShipsFor(selectedDifficulty);
 
-        (playerBoard, playerShipLengths) = BuildFleet(ships);
+        playerBoard = BuildEmptyBoard();
+        playerShipLengths = ships;
         (enemyBoard, enemyShipLengths) = BuildFleet(ships);
         playerHitsPerShip = new int[playerShipLengths.Length];
         enemyHitsPerShip = new int[enemyShipLengths.Length];
@@ -200,23 +237,89 @@
         isNewBest = false;
         cpuHuntQueue.Clear();
         cpuTried.Clear();
+        placingShipIndex = 0;
+        placingHorizontal = true;
         startedAtUtc = DateTime.UtcNow;
-        phase = Phase.Playing;
+        phase = Phase.Placing;
     }
 
-    private (Cell[,] Board, int[] Lengths) BuildFleet(int[] shipLengths)
+    private Cell[,] BuildEmptyBoard()
     {
         var board = new Cell[gridSize, gridSize];
         for (var r = 0; r < gridSize; r++)
             for (var c = 0; c < gridSize; c++)
                 board[r, c] = new Cell();
+        return board;
+    }
 
+    private (Cell[,] Board, int[] Lengths) BuildFleet(int[] shipLengths)
+    {
+        var board = BuildEmptyBoard();
         for (var i = 0; i < shipLengths.Length; i++)
         {
             PlaceShip(board, shipLengths[i], i);
         }
 
         return (board, shipLengths);
+    }
+
+    private bool TryComputeShipCells(int row, int col, int length, bool horizontal, out List<(int Row, int Col)> cells)
+    {
+        cells = new List<(int Row, int Col)>();
+        for (var i = 0; i < length; i++)
+        {
+            var r = horizontal ? row : row + i;
+            var c = horizontal ? col + i : col;
+            if (r < 0 || r >= gridSize || c < 0 || c >= gridSize) return false;
+            cells.Add((r, c));
+        }
+        return !cells.Any(p => playerBoard[p.Row, p.Col].HasShip);
+    }
+
+    private void RotateOrientation()
+    {
+        if (phase != Phase.Placing) return;
+        placingHorizontal = !placingHorizontal;
+    }
+
+    private void PlaceShipManually(int row, int col)
+    {
+        if (phase != Phase.Placing || placingShipIndex >= playerShipLengths.Length) return;
+
+        var length = playerShipLengths[placingShipIndex];
+        if (!TryComputeShipCells(row, col, length, placingHorizontal, out var cells))
+        {
+            roundMessage = "Can't place there - try another spot.";
+            return;
+        }
+
+        foreach (var (r, c) in cells)
+        {
+            playerBoard[r, c].HasShip = true;
+            playerBoard[r, c].ShipIndex = placingShipIndex;
+        }
+
+        placingShipIndex++;
+        roundMessage = "";
+
+        if (placingShipIndex >= playerShipLengths.Length)
+        {
+            phase = Phase.Playing;
+        }
+    }
+
+    private void RandomizeRemaining()
+    {
+        if (phase != Phase.Placing) return;
+
+        for (var i = placingShipIndex; i < playerShipLengths.Length; i++)
+        {
+            PlaceShip(playerBoard, playerShipLengths[i], i);
+        }
+
+        placingShipIndex = playerShipLengths.Length;
+        roundMessage = "";
+        phase = Phase.Playing;
     }
 
     private void PlaceShip(Cell[,] board, int length, int shipIndex)
@@ -252,7 +355,7 @@
     // so far) rather than silently vanishing.
     private async Task ExitToSetup()
     {
-        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        if ((phase == Phase.Playing || phase == Phase.Placing) && OnComplete.HasDelegate)
         {
             await OnComplete.InvokeAsync(new BattleshipsResult(
                 Difficulty: DifficultyName(selectedDifficulty),
