@@ -1,0 +1,356 @@
+@*
+    MorseCodeChallenge.razor
+    A word is shown only as its Morse code (dots and dashes, grouped per
+    letter) - tap the A-Z keyboard to spell out what it decodes to. A
+    wrong guess never ends anything: it shakes, then clears back to an
+    empty word to try again, same forgiving philosophy as WordScramble.
+    Easy/Medium keep a reference chart on screen the whole time; Hard
+    hides it, so decoding has to come from memory or cross-round pattern
+    recognition instead of a lookup table. A fixed 5-word session (same
+    size as WordScramble) ends with a result overlay. Personal best
+    tracks fastest total time.
+
+    Usage:
+        <MorseCodeChallenge OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="mc-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="mc-setup game-setup-panel">
+            <h2>📡 Morse Code Challenge</h2>
+            <p>Decode the word from its Morse code! Tap letters to spell out your answer.</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="mc-diff-name">@DifficultyName(diff)</span>
+                            <span class="mc-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="mc-title">Morse Code</span>
+            <span class="game-stat">Word @Math.Min(wordIndex + 1, SessionSize)/@SessionSize</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="mc-code-row">
+            @foreach (var letter in currentWord)
+            {
+                <div class="mc-code-letter">
+                    @foreach (var symbol in MorseMap[letter])
+                    {
+                        <span class="mc-symbol">@(symbol == '.' ? "•" : "–")</span>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="mc-answer-row @(wrongShake ? "shake" : "")">
+            @for (var i = 0; i < currentWord.Length; i++)
+            {
+                var idx = i;
+                <span class="mc-blank @(answer[idx] is not null ? "filled" : "")">@(answer[idx]?.ToString() ?? "")</span>
+            }
+        </div>
+
+        <div class="mc-keyboard">
+            @foreach (var letter in Alphabet)
+            {
+                <button class="mc-key" disabled="@checking" @onclick="() => TapLetter(letter)">@letter</button>
+            }
+            <button class="mc-key mc-clear-key" disabled="@checking" @onclick="ClearAnswer">✖</button>
+        </div>
+
+        @if (showChart)
+        {
+            <div class="mc-chart">
+                @foreach (var letter in Alphabet)
+                {
+                    <div class="mc-chart-entry">
+                        <span class="mc-chart-letter">@letter</span>
+                        <span class="mc-chart-code">@string.Join("", MorseMap[letter].Select(s => s == '.' ? "•" : "–"))</span>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>📡 All Done!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great decoding" : PlayerName + ", great decoding") - @SessionSize words in @FormatTime(elapsedSeconds)!</p>
+                    <PersonalBestBadge Value="@FormatTime(bestSeconds ?? elapsedSeconds)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<MorseCodeChallengeResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fastest total time) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int SessionSize = 5;
+    private const string Alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static readonly Dictionary<char, string> MorseMap = new()
+    {
+        ['A'] = ".-", ['B'] = "-...", ['C'] = "-.-.", ['D'] = "-..", ['E'] = ".",
+        ['F'] = "..-.", ['G'] = "--.", ['H'] = "....", ['I'] = "..", ['J'] = ".---",
+        ['K'] = "-.-", ['L'] = ".-..", ['M'] = "--", ['N'] = "-.", ['O'] = "---",
+        ['P'] = ".--.", ['Q'] = "--.-", ['R'] = ".-.", ['S'] = "...", ['T'] = "-",
+        ['U'] = "..-", ['V'] = "...-", ['W'] = ".--", ['X'] = "-..-", ['Y'] = "-.--", ['Z'] = "--..",
+    };
+
+    private static readonly string[] ShortWords = { "CAT", "DOG", "SUN", "OWL", "BEE", "FOX", "PIG", "RAT", "COW", "BAT" };
+    private static readonly string[] MediumWords = { "STAR", "MOON", "TREE", "FISH", "BIRD", "FROG", "LION", "BEAR", "WOLF", "DEER" };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static string[] WordsFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => ShortWords,
+        _ => MediumWords,
+    };
+
+    private static bool ShowChartFor(Difficulty d) => d != Difficulty.Hard;
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private List<string> sessionWords = new();
+    private int wordIndex;
+    private string currentWord = "";
+    private char?[] answer = Array.Empty<char?>();
+    private bool showChart;
+    private bool wrongShake;
+    private bool checking;
+    private int elapsedSeconds;
+    private int? bestSeconds;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private System.Threading.Timer? timer;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        sessionWords = WordsFor(selectedDifficulty).OrderBy(_ => rng.Next()).Take(SessionSize).ToList();
+        wordIndex = 0;
+        elapsedSeconds = 0;
+        bestSeconds = null;
+        isNewBest = false;
+        showChart = ShowChartFor(selectedDifficulty);
+        LoadWord();
+        phase = Phase.Playing;
+        StartTimer();
+    }
+
+    private void LoadWord()
+    {
+        currentWord = sessionWords[wordIndex];
+        answer = new char?[currentWord.Length];
+        wrongShake = false;
+        checking = false;
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MorseCodeChallengeResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                WordsSolved: wordIndex,
+                SessionSize: SessionSize,
+                ElapsedSeconds: elapsedSeconds));
+        }
+        StopTimer();
+        phase = Phase.Setup;
+    }
+
+    private async Task TapLetter(char letter)
+    {
+        if (phase != Phase.Playing || checking) return;
+
+        var emptySlot = Array.IndexOf(answer, null);
+        if (emptySlot < 0) return;
+
+        answer[emptySlot] = letter;
+
+        if (!answer.Contains(null))
+        {
+            await CheckAnswerAsync();
+        }
+    }
+
+    private void ClearAnswer()
+    {
+        if (phase != Phase.Playing || checking) return;
+        answer = new char?[currentWord.Length];
+    }
+
+    private async Task CheckAnswerAsync()
+    {
+        checking = true;
+        var attempt = new string(answer.Select(c => c!.Value).ToArray());
+
+        if (attempt == currentWord)
+        {
+            await PlaySoundAsync("playMatchSound");
+            StateHasChanged();
+            await Task.Delay(900);
+            await AdvanceAsync();
+        }
+        else
+        {
+            wrongShake = true;
+            await PlaySoundAsync("playMismatchSound");
+            StateHasChanged();
+            await Task.Delay(700);
+            answer = new char?[currentWord.Length];
+            wrongShake = false;
+            checking = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task AdvanceAsync()
+    {
+        if (wordIndex + 1 >= sessionWords.Count)
+        {
+            await FinishGame();
+        }
+        else
+        {
+            wordIndex++;
+            LoadWord();
+            StateHasChanged();
+        }
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        StopTimer();
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "fastest-time";
+            bestSeconds = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.MorseCodeChallenge, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.MorseCodeChallenge, key, elapsedSeconds, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MorseCodeChallengeResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                WordsSolved: sessionWords.Count,
+                SessionSize: SessionSize,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var span = TimeSpan.FromSeconds(totalSeconds);
+        return span.Minutes > 0 ? $"{span.Minutes}:{span.Seconds:00}" : $"0:{span.Seconds:00}";
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3-letter words, chart shown",
+        Difficulty.Medium => "4-letter words, chart shown",
+        _ => "4-letter words, no chart",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        StopTimer();
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record MorseCodeChallengeResult(string Difficulty, int WordsSolved, int SessionSize, int ElapsedSeconds);
+}

@@ -53,6 +53,7 @@ public static class BuiltInGames
     public const string Puzzle2048 = "puzzle-2048";
     public const string Reversi = "reversi";
     public const string Cryptogram = "cryptogram";
+    public const string MorseCodeChallenge = "morse-code-challenge";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -98,5 +99,6 @@ public static class BuiltInGames
         new BuiltInGame("2048", "🔢", Puzzle2048, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Reversi", "⚫", Reversi, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Cryptogram", "🕵️", Cryptogram, MinAge: 9, MaxAge: 14),
+        new BuiltInGame("Morse Code Challenge", "📡", MorseCodeChallenge, MinAge: 8, MaxAge: 14),
     };
 }

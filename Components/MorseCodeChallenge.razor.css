@@ -1,0 +1,124 @@
+.mc-game {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.9rem;
+}
+
+.mc-diff-name {
+    font-weight: 900;
+}
+
+.mc-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.mc-title {
+    font-weight: 900;
+}
+
+.mc-code-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.9rem;
+}
+
+.mc-code-letter {
+    display: flex;
+    gap: 0.2rem;
+    align-items: center;
+}
+
+.mc-symbol {
+    font-size: 1.4rem;
+    font-weight: 900;
+    color: var(--accent);
+}
+
+.mc-answer-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.mc-answer-row.shake {
+    animation: mc-shake 0.4s ease;
+}
+
+.mc-blank {
+    width: 2rem;
+    height: 2.4rem;
+    border-bottom: 3px solid var(--line-strong);
+    display: grid;
+    place-items: center;
+    font-weight: 900;
+    font-size: 1.3rem;
+}
+
+.mc-blank.filled {
+    border-color: rgba(78, 205, 196, 0.85);
+}
+
+.mc-keyboard {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.35rem;
+    width: min(480px, 100%);
+    margin: 0 auto;
+}
+
+.mc-key {
+    min-height: 40px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    font-weight: 900;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.mc-key:hover:not(:disabled) {
+    transform: translateY(-1px);
+    background: var(--control-bg-hover);
+}
+
+.mc-clear-key {
+    color: #ff6b6b;
+}
+
+.mc-chart {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+    gap: 0.3rem;
+    padding: 0.6rem;
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    border: 1px solid var(--line);
+}
+
+.mc-chart-entry {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+}
+
+.mc-chart-letter {
+    font-weight: 900;
+}
+
+.mc-chart-code {
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+}
+
+@keyframes mc-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+}
