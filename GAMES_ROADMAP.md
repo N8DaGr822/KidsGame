@@ -569,24 +569,44 @@ also wired up `Components/Shared/PersonalBestBadge.razor`: fewest guesses
 
 ### Physics, sports, and skill challenges
 
-- [ ] Bridge Builder — build a structure with limited pieces and test whether
-      vehicles can cross it.
-- [ ] Physics Puzzle — place ramps, blocks, springs, fans, or magnets to get
-      an object to a target.
-- [ ] Marble Run — build tracks and obstacles that guide a marble to the
-      finish.
-- [ ] Mini Golf — angle, power, and obstacles with strong level-design
-      potential.
-- [ ] Pool / Billiards Lite — physics, angles, and trick-shot challenges.
-- [ ] Archery Challenge — changing distance, wind, moving targets, and scoring
-      rings.
-- [ ] Basketball Shot Game — angle and power control with moving hoops and
-      harder shots.
-- [ ] Penalty Shootout — choose direction and power while an AI goalkeeper
-      reacts.
-- [ ] Air Hockey — fast local multiplayer or player-vs-AI.
-- [ ] Dodgeball Arena — move around an arena, dodge projectiles, and throw
-      them back.
+- [x] Archery Challenge — drag-to-aim slingshot mechanic reusing TankDuel's
+      analytic trajectory solve (`SolveImpactTime`, exact quadratic solve
+      rather than a stepped simulation). Adds per-shot random wind that
+      shifts the arc, and a 5-ring scoring system (10/8/6/4/2/miss) based on
+      distance from ring center at the moment the arrow crosses the target
+      plane.
+- [x] Basketball Shot Game — same drag-to-aim/trajectory-solve approach as
+      Archery, but binary make/miss through a hoop tolerance window instead
+      of graded rings, and the hoop itself moves per shot on Hard. Personal
+      best tracks longest make streak rather than points, specifically so it
+      reads differently from Archery's ring-total best.
+- [x] Penalty Shootout — simultaneous zone-choice game (tap Left/Center/Right
+      while the CPU keeper independently picks a dive zone) rather than a
+      power/timing minigame — no physics engine needed. Keeper AI reuses the
+      recency-weighted prediction approach fixed for Rock Paper Scissors
+      earlier in this pass, reading a rolling window of recent shots instead
+      of full match history, so Hard can't be baited by an old pattern.
+- [ ] Bridge Builder — deferred. Needs a real structural/rigid-body physics
+      engine (load-bearing joints, stress, collapse) that nothing in this
+      codebase currently provides; not a reskin of an existing system.
+- [ ] Physics Puzzle — deferred, same reasoning as Bridge Builder: continuous
+      physics simulation (ramps, springs, fans, magnets acting on a moving
+      object) is a new engine, not an extension of the analytic
+      trajectory-solve approach used for Archery/Basketball/TankDuel.
+- [ ] Marble Run — deferred, same reasoning: real-time physics simulation
+      rather than a solvable analytic shot.
+- [ ] Mini Golf — deferred. Closer to feasible than the above (could reuse
+      the drag-to-aim input), but needs continuous collision/bounce physics
+      off walls and slopes that the analytic single-parabola solve doesn't
+      cover.
+- [ ] Pool / Billiards Lite — deferred, same reasoning as Mini Golf: multi-ball
+      collision physics is a different problem than a single solved arc.
+- [ ] Air Hockey — deferred. Real-time continuous collision physics for a
+      fast-moving puck against paddles/walls; not analytically solvable like
+      a single projectile arc.
+- [ ] Dodgeball Arena — deferred. Needs real-time multi-projectile collision
+      and arena movement, not a fit for the turn-based/analytic-shot pattern
+      used elsewhere in this subsection.
 
 ### Arcade, racing, and platforming
 
