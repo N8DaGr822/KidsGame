@@ -186,6 +186,10 @@
             {
                 <Reversi PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleReversiComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.Cryptogram)
+            {
+                <Cryptogram PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCryptogramComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -843,6 +847,21 @@
             Theme = result.Difficulty,
             Difficulty = $"{result.PlayerCount}-{result.CpuCount}",
             Moves = result.PlayerCount,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleCryptogramComplete(Cryptogram.CryptogramResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Solved {result.PhrasesSolved}/{result.SessionSize}",
+            Moves = result.PhrasesSolved,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

@@ -52,6 +52,7 @@ public static class BuiltInGames
     public const string DotsAndBoxes = "dots-and-boxes";
     public const string Puzzle2048 = "puzzle-2048";
     public const string Reversi = "reversi";
+    public const string Cryptogram = "cryptogram";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -96,5 +97,6 @@ public static class BuiltInGames
         new BuiltInGame("Dots and Boxes", "⬜", DotsAndBoxes, MinAge: 7, MaxAge: 13),
         new BuiltInGame("2048", "🔢", Puzzle2048, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Reversi", "⚫", Reversi, MinAge: 8, MaxAge: 14),
+        new BuiltInGame("Cryptogram", "🕵️", Cryptogram, MinAge: 9, MaxAge: 14),
     };
 }

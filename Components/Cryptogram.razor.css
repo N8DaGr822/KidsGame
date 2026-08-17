@@ -1,0 +1,99 @@
+.cg-game {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1rem;
+}
+
+.cg-diff-name {
+    font-weight: 900;
+}
+
+.cg-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.cg-title {
+    font-weight: 900;
+}
+
+.cg-puzzle {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.3rem;
+    line-height: 1;
+}
+
+.cg-space {
+    width: 0.9rem;
+}
+
+.cg-letter-tile {
+    display: grid;
+    gap: 0.15rem;
+    width: 2rem;
+    padding: 0.3rem 0;
+    border: none;
+    border-bottom: 2px solid var(--line-strong);
+    background: transparent;
+    color: var(--text);
+}
+
+.cg-letter-tile.selected {
+    border-color: rgba(78, 205, 196, 0.9);
+    background: rgba(78, 205, 196, 0.12);
+}
+
+.cg-letter-tile.locked {
+    border-color: rgba(255, 209, 102, 0.6);
+}
+
+.cg-guess {
+    font-weight: 900;
+    font-size: 1.05rem;
+    min-height: 1.2rem;
+}
+
+.cg-cipher {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 800;
+}
+
+.cg-keyboard {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.35rem;
+    width: min(480px, 100%);
+    margin: 0 auto;
+}
+
+.cg-key {
+    min-height: 40px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    font-weight: 900;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.cg-key:hover:not(:disabled) {
+    transform: translateY(-1px);
+    background: var(--control-bg-hover);
+}
+
+.cg-key:disabled {
+    opacity: 0.45;
+}
+
+.cg-message {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+}
