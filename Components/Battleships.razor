@@ -13,6 +13,13 @@
     cuts the CPU's average shots-to-find substantially). Personal best
     tracks fewest shots to win.
 
+    Ships render as a real hull sprite (Kenney's CC0 Pirate Pack,
+    wwwroot/images/battleships) stretched across each ship's full bounding
+    box and drawn once per ship rather than tiled per cell, so it reads as
+    one boat instead of a repeating texture - a pre-rotated horizontal
+    variant of the same source image avoids needing a CSS rotate-and-
+    reposition transform for horizontal ships.
+
     Usage:
         <Battleships OnComplete="HandleGameComplete" />
 *@
@@ -61,16 +68,24 @@
         </div>
 
         <h3 class="bs-board-title">Place Your Fleet</h3>
-        <div class="bs-grid bs-grid-placing" style="--bs-size:@gridSize;">
-            @for (var r = 0; r < gridSize; r++)
-            {
-                for (var c = 0; c < gridSize; c++)
+        <div class="bs-board-wrap">
+            <div class="bs-ship-layer">
+                @foreach (var ship in GetShipPlacements(playerBoard))
                 {
-                    var row = r; var col = c;
-                    var cell = playerBoard[row, col];
-                    <button class="bs-cell bs-place-cell @(cell.HasShip ? "ship" : "")" @onclick="() => PlaceShipManually(row, col)"></button>
+                    <img class="bs-ship-img" src="@(ship.Horizontal ? "images/battleships/ship-hull-h.png" : "images/battleships/ship-hull.png")"
+                         style="left:@((ship.Col * 100.0 / gridSize).ToString(Inv))%; top:@((ship.Row * 100.0 / gridSize).ToString(Inv))%; width:@((ship.Horizontal ? ship.Length * 100.0 / gridSize : 100.0 / gridSize).ToString(Inv))%; height:@((ship.Horizontal ? 100.0 / gridSize : ship.Length * 100.0 / gridSize).ToString(Inv))%;" />
                 }
-            }
+            </div>
+            <div class="bs-grid bs-grid-placing" style="--bs-size:@gridSize;">
+                @for (var r = 0; r < gridSize; r++)
+                {
+                    for (var c = 0; c < gridSize; c++)
+                    {
+                        var row = r; var col = c;
+                        <button class="bs-cell bs-place-cell" @onclick="() => PlaceShipManually(row, col)"></button>
+                    }
+                }
+            </div>
         </div>
 
         @if (!string.IsNullOrEmpty(roundMessage))
@@ -105,17 +120,26 @@
         </div>
 
         <h3 class="bs-board-title">Your Fleet</h3>
-        <div class="bs-grid bs-grid-own" style="--bs-size:@gridSize;">
-            @for (var r = 0; r < gridSize; r++)
-            {
-                for (var c = 0; c < gridSize; c++)
+        <div class="bs-board-wrap bs-board-wrap-own">
+            <div class="bs-ship-layer">
+                @foreach (var ship in GetShipPlacements(playerBoard))
                 {
-                    var cell = playerBoard[r, c];
-                    <span class="bs-cell bs-own-cell @(cell.HasShip ? "ship" : "") @(cell.Shot ? (cell.HasShip ? "hit" : "miss") : "")">
-                        @(cell.Shot ? (cell.HasShip ? "🔥" : "💧") : "")
-                    </span>
+                    <img class="bs-ship-img" src="@(ship.Horizontal ? "images/battleships/ship-hull-h.png" : "images/battleships/ship-hull.png")"
+                         style="left:@((ship.Col * 100.0 / gridSize).ToString(Inv))%; top:@((ship.Row * 100.0 / gridSize).ToString(Inv))%; width:@((ship.Horizontal ? ship.Length * 100.0 / gridSize : 100.0 / gridSize).ToString(Inv))%; height:@((ship.Horizontal ? 100.0 / gridSize : ship.Length * 100.0 / gridSize).ToString(Inv))%;" />
                 }
-            }
+            </div>
+            <div class="bs-grid bs-grid-own" style="--bs-size:@gridSize;">
+                @for (var r = 0; r < gridSize; r++)
+                {
+                    for (var c = 0; c < gridSize; c++)
+                    {
+                        var cell = playerBoard[r, c];
+                        <span class="bs-cell bs-own-cell @(cell.Shot ? (cell.HasShip ? "hit" : "miss") : "")">
+                            @(cell.Shot ? (cell.HasShip ? "🔥" : "💧") : "")
+                        </span>
+                    }
+                }
+            </div>
         </div>
 
         @if (!string.IsNullOrEmpty(roundMessage))
@@ -142,6 +166,8 @@
 </div>
 
 @code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
     [Parameter] public string? PlayerName { get; set; }
     [Parameter] public EventCallback<BattleshipsResult> OnComplete { get; set; }
 
@@ -293,6 +319,34 @@
             cells.Add((r, c));
         }
         return !cells.Any(p => playerBoard[p.Row, p.Col].HasShip);
+    }
+
+    // Groups a board's cells by ShipIndex into one bounding box per ship,
+    // so the ship art can be drawn once per ship (stretched across its
+    // full length) instead of tiling a small image per cell, which would
+    // just repeat the same bow/stern shape over and over instead of
+    // reading as one boat.
+    private record ShipPlacement(int Row, int Col, int Length, bool Horizontal);
+
+    private List<ShipPlacement> GetShipPlacements(Cell[,] board)
+    {
+        var placements = new List<ShipPlacement>();
+        for (var shipIdx = 0; shipIdx < playerShipLengths.Length; shipIdx++)
+        {
+            var cells = new List<(int Row, int Col)>();
+            for (var r = 0; r < gridSize; r++)
+                for (var c = 0; c < gridSize; c++)
+                    if (board[r, c].HasShip && board[r, c].ShipIndex == shipIdx)
+                        cells.Add((r, c));
+
+            if (cells.Count == 0) continue;
+
+            var minRow = cells.Min(p => p.Row);
+            var minCol = cells.Min(p => p.Col);
+            var horizontal = cells.All(p => p.Row == minRow);
+            placements.Add(new ShipPlacement(minRow, minCol, cells.Count, horizontal));
+        }
+        return placements;
     }
 
     private void RotateOrientation()
