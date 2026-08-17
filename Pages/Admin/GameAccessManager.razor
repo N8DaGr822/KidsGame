@@ -27,13 +27,24 @@
 
             @if (_allGames.Count > 0)
             {
-                <label class="access-sort">
-                    <span class="muted">Sort by</span>
-                    <select value="@_sortKey" @onchange="e => SetSortKey((string)e.Value!)">
-                        <option value="@nameof(GameSortKey.Name)">Name</option>
-                        <option value="@nameof(GameSortKey.Age)">Age</option>
-                    </select>
-                </label>
+                <div class="access-controls">
+                    <label class="access-search">
+                        <span class="muted">Search</span>
+                        <input type="search" placeholder="Search games…" value="@_searchText" @oninput="e => _searchText = (string)e.Value!" />
+                    </label>
+                    <label class="access-sort">
+                        <span class="muted">Sort by</span>
+                        <select value="@_sortKey" @onchange="e => SetSortKey((string)e.Value!)">
+                            <option value="@nameof(GameSortKey.Name)">Name</option>
+                            <option value="@nameof(GameSortKey.Age)">Age</option>
+                            <option value="@nameof(GameSortKey.Enabled)">Enabled first</option>
+                        </select>
+                    </label>
+                    <div class="access-bulk-actions">
+                        <button type="button" class="btn-secondary" @onclick="SelectAllFilteredAsync">Select all@(_searchText.Length > 0 ? " (filtered)" : "")</button>
+                        <button type="button" class="btn-secondary" @onclick="ClearAllFilteredAsync">Clear all@(_searchText.Length > 0 ? " (filtered)" : "")</button>
+                    </div>
+                </div>
             }
 
             @if (_allGames.Count == 0)
@@ -42,42 +53,50 @@
             }
             else
             {
-                <div class="access-list">
-                    @foreach (var game in SortedGames())
-                    {
-                        <div class="access-row">
-                            <input type="checkbox"
-                                   checked="@_allowedIds.Contains(game.Id)"
-                                   @onchange="e => ToggleAccessAsync(game.Id, (bool)e.Value!)" />
-                            <AssetGlyph Class="access-row-thumb" Src="@game.ThumbnailImagePath" Fallback="@game.ThumbnailEmoji" Alt="@game.Title" />
-                            <span class="access-row-title">@game.Title</span>
-                            <div class="access-row-meta">
-                                @if (game.MinAge is not null || game.MaxAge is not null)
-                                {
-                                    <span class="access-row-age">Ages @AgeRangeLabel(game)</span>
-                                }
-                                @if (!game.IsCatalogEnabled)
-                                {
-                                    <span class="access-row-hidden">Hidden from catalog</span>
-                                }
-                                @if (SupportsDifficultyLock(game))
-                                {
-                                    <label class="access-row-difficulty">
-                                        <span class="muted">Difficulty</span>
-                                        <select value="@(_difficultyOverrides.GetValueOrDefault(game.Id, ""))"
-                                                @onchange="e => SetDifficultyOverrideAsync(game.Id, (string)e.Value!)">
-                                            <option value="">Let @_profile.Name choose</option>
-                                            <option value="Easy">Easy</option>
-                                            <option value="Medium">Medium</option>
-                                            <option value="Hard">Hard</option>
-                                        </select>
-                                    </label>
-                                }
+                var filteredGames = SortedGames().ToList();
+                @if (filteredGames.Count == 0)
+                {
+                    <p class="muted">No games match "@_searchText".</p>
+                }
+                else
+                {
+                    <div class="access-list">
+                        @foreach (var game in filteredGames)
+                        {
+                            <div class="access-row">
+                                <input type="checkbox"
+                                       checked="@_allowedIds.Contains(game.Id)"
+                                       @onchange="e => ToggleAccessAsync(game.Id, (bool)e.Value!)" />
+                                <AssetGlyph Class="access-row-thumb" Src="@game.ThumbnailImagePath" Fallback="@game.ThumbnailEmoji" Alt="@game.Title" />
+                                <span class="access-row-title">@game.Title</span>
+                                <div class="access-row-meta">
+                                    @if (game.MinAge is not null || game.MaxAge is not null)
+                                    {
+                                        <span class="access-row-age">Ages @AgeRangeLabel(game)</span>
+                                    }
+                                    @if (!game.IsCatalogEnabled)
+                                    {
+                                        <span class="access-row-hidden">Hidden from catalog</span>
+                                    }
+                                    @if (SupportsDifficultyLock(game))
+                                    {
+                                        <label class="access-row-difficulty">
+                                            <span class="muted">Difficulty</span>
+                                            <select value="@(_difficultyOverrides.GetValueOrDefault(game.Id, ""))"
+                                                    @onchange="e => SetDifficultyOverrideAsync(game.Id, (string)e.Value!)">
+                                                <option value="">Let @_profile.Name choose</option>
+                                                <option value="Easy">Easy</option>
+                                                <option value="Medium">Medium</option>
+                                                <option value="Hard">Hard</option>
+                                            </select>
+                                        </label>
+                                    }
+                                </div>
+                                <button type="button" class="btn-secondary" @onclick="() => StartEditGame(game)">Edit</button>
                             </div>
-                            <button type="button" class="btn-secondary" @onclick="() => StartEditGame(game)">Edit</button>
-                        </div>
-                    }
-                </div>
+                        }
+                    </div>
+                }
             }
         </section>
 
@@ -240,11 +259,12 @@
     // Extend with more cases (e.g. play count, difficulty) as new sortable
     // fields get added to Game - the dropdown and SortedGames() below are
     // the only two places a new key needs wiring.
-    private enum GameSortKey { Name, Age }
+    private enum GameSortKey { Name, Age, Enabled }
 
     private Profile? _profile;
     private List<Game>? _allGames;
     private GameSortKey _sortKey = GameSortKey.Name;
+    private string _searchText = "";
     private List<string> _allowedIds = new();
     private Dictionary<string, string> _difficultyOverrides = new();
     private bool _showAddGame;
@@ -295,12 +315,18 @@
         _sortKey = Enum.TryParse<GameSortKey>(value, out var key) ? key : GameSortKey.Name;
     }
 
+    private IEnumerable<Game> FilteredGames() =>
+        string.IsNullOrWhiteSpace(_searchText)
+            ? _allGames!
+            : _allGames!.Where(g => g.Title.Contains(_searchText, StringComparison.OrdinalIgnoreCase));
+
     // Games without an age set sort after ones that have it, regardless of
     // sort direction, so unrated catalog entries don't scatter to the top.
     private IEnumerable<Game> SortedGames() => _sortKey switch
     {
-        GameSortKey.Age => _allGames!.OrderBy(g => g.MinAge is null).ThenBy(g => g.MinAge).ThenBy(g => g.Title),
-        _ => _allGames!.OrderBy(g => g.Title),
+        GameSortKey.Age => FilteredGames().OrderBy(g => g.MinAge is null).ThenBy(g => g.MinAge).ThenBy(g => g.Title),
+        GameSortKey.Enabled => FilteredGames().OrderByDescending(g => _allowedIds.Contains(g.Id)).ThenBy(g => g.Title),
+        _ => FilteredGames().OrderBy(g => g.Title),
     };
 
     private static string AgeRangeLabel(Game game) => (game.MinAge, game.MaxAge) switch
@@ -327,6 +353,21 @@
     private async Task ToggleAccessAsync(string gameId, bool allowed)
     {
         await Data.SetGameAccessAsync(ProfileId, gameId, allowed);
+        _allowedIds = await Data.GetAccessListAsync(ProfileId);
+    }
+
+    // Both act on SortedGames() - the currently searched/sorted list - not
+    // the whole catalog, so a parent can search "puzzle" and grant just
+    // that group without touching everything else.
+    private async Task SelectAllFilteredAsync()
+    {
+        await Data.SetGameAccessBulkAsync(ProfileId, SortedGames().Select(g => g.Id).ToList(), allowed: true);
+        _allowedIds = await Data.GetAccessListAsync(ProfileId);
+    }
+
+    private async Task ClearAllFilteredAsync()
+    {
+        await Data.SetGameAccessBulkAsync(ProfileId, SortedGames().Select(g => g.Id).ToList(), allowed: false);
         _allowedIds = await Data.GetAccessListAsync(ProfileId);
     }
 

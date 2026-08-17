@@ -34,12 +34,15 @@ public class AppDataService
         if (string.IsNullOrWhiteSpace(json))
         {
             _cache = SeedDefaultData();
+            EnsureBuiltInCatalogEntries(_cache);
             await SaveAsync();
             return _cache;
         }
 
         _cache = JsonSerializer.Deserialize<AppData>(json) ?? SeedDefaultData();
-        if (ApplyBuiltInCatalogArt(_cache))
+        var changed = ApplyBuiltInCatalogArt(_cache);
+        changed |= EnsureBuiltInCatalogEntries(_cache);
+        if (changed)
         {
             await SaveAsync();
         }
@@ -170,6 +173,29 @@ public class AppDataService
         await SaveAsync();
     }
 
+    // Same as SetGameAccessAsync but for many games in one localStorage
+    // round trip - used by "Select all" / "Clear all" on a filtered list,
+    // so granting a search result group doesn't take one write per game.
+    public async Task SetGameAccessBulkAsync(string profileId, IReadOnlyCollection<string> gameIds, bool allowed)
+    {
+        var data = await LoadAsync();
+        if (!data.ProfileGameAccess.TryGetValue(profileId, out var ids))
+        {
+            ids = new List<string>();
+            data.ProfileGameAccess[profileId] = ids;
+        }
+
+        foreach (var gameId in gameIds)
+        {
+            if (allowed && !ids.Contains(gameId))
+                ids.Add(gameId);
+            else if (!allowed)
+                ids.Remove(gameId);
+        }
+
+        await SaveAsync();
+    }
+
     // ---- Play history ----
 
     public async Task AddPlayHistoryAsync(PlayHistoryEntry entry)
@@ -245,6 +271,39 @@ public class AppDataService
     }
 
     private static string TodayKey() => DateTime.Now.ToString("yyyy-MM-dd");
+
+    // Adds a catalog entry for every built-in game that isn't in the
+    // catalog yet (matched by LaunchTarget), so a parent never has to
+    // manually "Add game to catalog" just to make a shipped game show up
+    // as an option - new entries aren't granted to any profile, they just
+    // become visible to check on/off. Runs on every load (not just first
+    // install) so a game added to BuiltInGames.All after a parent's data
+    // already existed still shows up automatically next time they open
+    // the catalog, instead of only benefiting fresh installs.
+    private static bool EnsureBuiltInCatalogEntries(AppData data)
+    {
+        var existingTargets = data.Games.Select(g => g.LaunchTarget).ToHashSet();
+        var changed = false;
+
+        foreach (var builtIn in BuiltInGames.All)
+        {
+            if (existingTargets.Contains(builtIn.LaunchTarget)) continue;
+
+            data.Games.Add(new Game
+            {
+                Title = builtIn.Title,
+                ThumbnailImagePath = builtIn.ThumbnailImagePath,
+                ThumbnailEmoji = builtIn.ThumbnailEmoji,
+                LaunchTarget = builtIn.LaunchTarget,
+                LaunchMode = GameLaunchMode.InternalRoute,
+                MinAge = builtIn.MinAge,
+                MaxAge = builtIn.MaxAge
+            });
+            changed = true;
+        }
+
+        return changed;
+    }
 
     private static bool ApplyBuiltInCatalogArt(AppData data)
     {

@@ -1022,20 +1022,39 @@ h1[tabindex="-1"]:focus {
   white-space: nowrap;
 }
 
+.access-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.access-search,
 .access-sort {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin-bottom: 0.75rem;
   font-size: 0.85rem;
 }
 
+.access-search input,
 .access-sort select {
   padding: 0.3rem 0.5rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.08);
   color: var(--text);
+}
+
+.access-search input {
+  min-width: 12rem;
+}
+
+.access-bulk-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
 }
 
 .age-range-fields {
