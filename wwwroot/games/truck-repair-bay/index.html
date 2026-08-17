@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>Truck Repair Bay Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;min-height:100%;background:#0f0f1b;}
+  body{display:flex;align-items:center;justify-content:center;padding:16px;}
+  .trg{font-family:'Press Start 2P',monospace;background:#1a1c2c;border-radius:12px;padding:16px;color:#f4f4f4;image-rendering:pixelated;width:100%;max-width:640px}
+  .trg *{box-sizing:border-box}
+  .trg .hud{display:flex;gap:16px;justify-content:space-between;flex-wrap:wrap;font-size:11px;margin-bottom:12px}
+  .trg .bay{background:#29366f;border:3px solid #3b5dc9;border-radius:4px;min-height:110px;padding:8px;cursor:pointer;position:relative;transition:border-color .15s}
+  .trg .bay.empty{border-style:dashed;border-color:#556}
+  .trg .bay.empty.hot{border-color:#41a6f6}
+  .trg .bay.done{border-color:#38b764}
+  .trg .qtruck{cursor:pointer;background:#333c57;border:3px solid #333c57;border-radius:4px;padding:6px;transition:border-color .15s}
+  .trg .qtruck.sel{border-color:#ffcd75}
+  .trg .pbar{height:8px;background:#0f0f1b;border:1px solid #000;margin-top:6px}
+  .trg .pfill{height:100%;background:#38b764}
+  .trg .tag{font-size:11px;line-height:1.5}
+  .trg button{font-family:'Press Start 2P',monospace;font-size:11px;background:#38b764;color:#0f0f1b;border:3px solid #0f0f1b;border-radius:0;padding:10px 16px;cursor:pointer}
+  .trg button:hover{background:#a7f070}
+</style>
+</head>
+<body>
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">An 8-bit style game where you assign broken trucks from a queue to repair bays, collect payments, and keep customers from losing patience.</h2>
+<div class="trg" id="trg">
+  <div class="hud">
+    <span>💰 <span id="money">$0</span></span>
+    <span>DAY <span id="day">1</span></span>
+    <span>REP <span id="rep">♥♥♥</span></span>
+  </div>
+  <div style="font-size:11px;color:#94b0c2;margin-bottom:8px;line-height:1.6" id="hint">Click a truck in the queue, then click an open bay</div>
+  <div style="font-size:11px;color:#ffcd75;margin-bottom:6px">WAITING</div>
+  <div id="queue" style="display:flex;gap:8px;min-height:96px;margin-bottom:14px;flex-wrap:wrap"></div>
+  <div style="font-size:11px;color:#ffcd75;margin-bottom:6px">BAYS</div>
+  <div id="bays" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px"></div>
+  <div id="over" style="display:none;text-align:center;padding:24px 0">
+    <div style="font-size:16px;color:#ef7d57;margin-bottom:12px">GAME OVER</div>
+    <div style="font-size:11px;margin-bottom:16px;line-height:1.8" id="finalScore"></div>
+    <button id="restart">PLAY AGAIN</button>
+  </div>
+</div>
+<script>
+(function(){
+const JOBS=[
+ {n:'OIL',t:8,pay:40,c:'#ffcd75'},
+ {n:'TIRES',t:11,pay:65,c:'#41a6f6'},
+ {n:'BRAKES',t:15,pay:95,c:'#ef7d57'},
+ {n:'ENGINE',t:21,pay:160,c:'#b13e53'}
+];
+const CABS=['#b13e53','#3b5dc9','#38b764','#ef7d57','#a7f070','#41a6f6'];
+let money,rep,day,dayT,queue,bays,sel,nextId,spawnT,spawnEvery,timer;
+const $=id=>document.getElementById(id);
+
+function truckSVG(cab,jobC){
+ return '<svg width="88" height="40" viewBox="0 0 44 20" style="image-rendering:pixelated;display:block">'
+ +'<rect x="2" y="4" width="26" height="10" fill="'+jobC+'"/>'
+ +'<rect x="2" y="4" width="26" height="3" fill="rgba(0,0,0,.25)"/>'
+ +'<rect x="29" y="6" width="10" height="8" fill="'+cab+'"/>'
+ +'<rect x="35" y="7" width="3" height="3" fill="#cfe9ff"/>'
+ +'<rect x="29" y="14" width="12" height="2" fill="#333c57"/>'
+ +'<rect x="6" y="14" width="4" height="4" fill="#0f0f1b"/><rect x="7" y="15" width="2" height="2" fill="#94b0c2"/>'
+ +'<rect x="12" y="14" width="4" height="4" fill="#0f0f1b"/><rect x="13" y="15" width="2" height="2" fill="#94b0c2"/>'
+ +'<rect x="32" y="14" width="4" height="4" fill="#0f0f1b"/><rect x="33" y="15" width="2" height="2" fill="#94b0c2"/>'
+ +'</svg>';
+}
+function newTruck(){
+ const j=JOBS[Math.floor(Math.random()*JOBS.length)];
+ return {id:nextId++,job:j,cab:CABS[Math.floor(Math.random()*CABS.length)],patience:24,maxP:24};
+}
+function reset(){
+ money=0;rep=3;day=1;dayT=0;queue=[];sel=null;nextId=1;spawnT=2;spawnEvery=7;
+ bays=[{truck:null,prog:0},{truck:null,prog:0},{truck:null,prog:0},{truck:null,prog:0}];
+ $('over').style.display='none';
+ if(timer)clearInterval(timer);
+ timer=setInterval(tick,200);
+ render();
+}
+function tick(){
+ dayT+=.2;
+ if(dayT>=30){dayT=0;day++;spawnEvery=Math.max(3.2,spawnEvery-0.6);}
+ spawnT-=.2;
+ if(spawnT<=0){spawnT=spawnEvery;if(queue.length<6)queue.push(newTruck());}
+ queue.forEach(t=>t.patience-=.2);
+ const left=queue.filter(t=>t.patience<=0);
+ if(left.length){
+  queue=queue.filter(t=>t.patience>0);
+  rep-=left.length;
+  if(sel&&left.some(t=>t.id===sel))sel=null;
+ }
+ bays.forEach(b=>{if(b.truck&&b.prog<b.truck.job.t)b.prog=Math.min(b.truck.job.t,b.prog+.2);});
+ if(rep<=0){gameOver();return;}
+ render();
+}
+function gameOver(){
+ clearInterval(timer);timer=null;
+ $('finalScore').textContent='YOU EARNED $'+money+' AND SURVIVED '+day+' DAY'+(day>1?'S':'');
+ $('over').style.display='block';
+ $('queue').innerHTML='';$('bays').innerHTML='';
+ $('hint').textContent='All customers gave up on the shop';
+ $('money').textContent='$'+money;$('day').textContent=day;$('rep').textContent='---';
+}
+function render(){
+ $('money').textContent='$'+money;
+ $('day').textContent=day;
+ $('rep').textContent='♥♥♥'.slice(0,rep)+'···'.slice(0,3-rep);
+ const q=$('queue');q.innerHTML='';
+ queue.forEach(t=>{
+  const d=document.createElement('div');
+  d.className='qtruck'+(sel===t.id?' sel':'');
+  const pct=Math.max(0,t.patience/t.maxP*100);
+  d.innerHTML=truckSVG(t.cab,t.job.c)
+   +'<div class="tag" style="color:'+t.job.c+'">'+t.job.n+' $'+t.job.pay+'</div>'
+   +'<div class="pbar"><div class="pfill" style="width:'+pct.toFixed(0)+'%;background:'+(pct<35?'#b13e53':pct<65?'#ffcd75':'#38b764')+'"></div></div>';
+  d.onclick=()=>{sel=(sel===t.id?null:t.id);render();};
+  q.appendChild(d);
+ });
+ if(!queue.length){q.innerHTML='<div style="font-size:11px;color:#556;align-self:center;line-height:1.6">Road is quiet...</div>';}
+ const bd=$('bays');bd.innerHTML='';
+ bays.forEach((b,i)=>{
+  const d=document.createElement('div');
+  if(!b.truck){
+   d.className='bay empty'+(sel?' hot':'');
+   d.innerHTML='<div style="font-size:11px;color:#94b0c2;line-height:1.6;margin-top:30px;text-align:center">BAY '+(i+1)+'<br>'+(sel?'ASSIGN HERE':'OPEN')+'</div>';
+   d.onclick=()=>{
+    if(sel==null)return;
+    const idx=queue.findIndex(t=>t.id===sel);
+    if(idx<0)return;
+    b.truck=queue.splice(idx,1)[0];b.prog=0;sel=null;render();
+   };
+  }else{
+   const done=b.prog>=b.truck.job.t;
+   d.className='bay'+(done?' done':'');
+   const pct=(b.prog/b.truck.job.t*100).toFixed(0);
+   d.innerHTML=truckSVG(b.truck.cab,b.truck.job.c)
+    +'<div class="tag" style="color:'+(done?'#a7f070':'#94b0c2')+'">'+(done?'DONE! COLLECT $'+b.truck.job.pay:b.truck.job.n+' '+pct+'%')+'</div>'
+    +'<div class="pbar"><div class="pfill" style="width:'+pct+'%"></div></div>';
+   d.onclick=()=>{
+    if(b.prog>=b.truck.job.t){money+=b.truck.job.pay;b.truck=null;b.prog=0;render();}
+   };
+  }
+  bd.appendChild(d);
+ });
+ $('hint').textContent=sel?'Now click an open bay':'Click a truck in the queue, then click an open bay';
+}
+$('restart').onclick=reset;
+reset();
+})();
+</script>
+</body>
+</html>

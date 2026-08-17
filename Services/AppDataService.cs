@@ -35,6 +35,7 @@ public class AppDataService
         {
             _cache = SeedDefaultData();
             EnsureBuiltInCatalogEntries(_cache);
+            EnsureExternalCatalogEntries(_cache);
             await SaveAsync();
             return _cache;
         }
@@ -42,6 +43,7 @@ public class AppDataService
         _cache = JsonSerializer.Deserialize<AppData>(json) ?? SeedDefaultData();
         var changed = ApplyBuiltInCatalogArt(_cache);
         changed |= EnsureBuiltInCatalogEntries(_cache);
+        changed |= EnsureExternalCatalogEntries(_cache);
         if (changed)
         {
             await SaveAsync();
@@ -298,6 +300,52 @@ public class AppDataService
                 LaunchMode = GameLaunchMode.InternalRoute,
                 MinAge = builtIn.MinAge,
                 MaxAge = builtIn.MaxAge
+            });
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private record ExternalGameDef(string Title, string ThumbnailImagePath, string ThumbnailEmoji, string LaunchTarget, int? MinAge, int? MaxAge);
+
+    // Iframe-hosted games (self-contained HTML, not routed Razor
+    // components) - not in BuiltInGames.All, so they don't benefit from
+    // EnsureBuiltInCatalogEntries above. Small enough to list directly
+    // here rather than a separate file. None are auto-granted to any
+    // profile - same reasoning as Crown & Banner in SeedDefaultData: a
+    // parent decides per-kid via the admin panel.
+    private static readonly ExternalGameDef[] ExternalGames =
+    {
+        new("Crown & Banner", "games/crown-and-banner/assets/units/griffin.png", "👑", "games/crown-and-banner/index.html", 7, 13),
+        new("Inland Hauler", "", "🚚", "games/inland-hauler/index.html", 8, 14),
+        new("Truck Repair Bay", "", "🔧", "games/truck-repair-bay/index.html", 7, 13),
+    };
+
+    // Same reasoning as EnsureBuiltInCatalogEntries, for the iframe-hosted
+    // games instead of routed components - runs on every load so a game
+    // added here after a parent's data already existed still shows up
+    // automatically. Checks by LaunchTarget, so this is a no-op for
+    // Crown & Banner on a fresh install (SeedDefaultData already added it)
+    // and only backfills it for pre-existing installs.
+    private static bool EnsureExternalCatalogEntries(AppData data)
+    {
+        var existingTargets = data.Games.Select(g => g.LaunchTarget).ToHashSet();
+        var changed = false;
+
+        foreach (var ext in ExternalGames)
+        {
+            if (existingTargets.Contains(ext.LaunchTarget)) continue;
+
+            data.Games.Add(new Game
+            {
+                Title = ext.Title,
+                ThumbnailImagePath = ext.ThumbnailImagePath,
+                ThumbnailEmoji = ext.ThumbnailEmoji,
+                LaunchTarget = ext.LaunchTarget,
+                LaunchMode = GameLaunchMode.ExternalIframe,
+                MinAge = ext.MinAge,
+                MaxAge = ext.MaxAge
             });
             changed = true;
         }

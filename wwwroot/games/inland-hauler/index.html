@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>INLAND HAULER — ITP 8-bit Semi Shifting</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --night:#16181f; --asphalt:#4a4e57; --cab:#b01e2e; --amber:#ffb52e;
+    --grass:#3e8948; --sky1:#8ecae6; --cream:#f4ecd8; --danger:#e63946;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    background:var(--night);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-family:'Press Start 2P',monospace;color:var(--cream);
+    gap:10px;padding:10px;min-height:100vh;
+    background-image:
+      radial-gradient(circle at 20% 15%, rgba(142,202,230,.06) 0 2px, transparent 3px),
+      radial-gradient(circle at 70% 30%, rgba(142,202,230,.05) 0 2px, transparent 3px),
+      radial-gradient(circle at 45% 70%, rgba(142,202,230,.04) 0 2px, transparent 3px);
+  }
+  #frame{
+    position:relative;width:100%;max-width:960px;
+    border:4px solid #0e0f1a;border-radius:6px;
+    box-shadow:0 0 0 4px #6e1420, 0 14px 40px rgba(0,0,0,.65);
+    background:#000;overflow:hidden;
+  }
+  canvas{
+    display:block;width:100%;height:auto;
+    image-rendering:pixelated;image-rendering:crisp-edges;
+  }
+  /* faint CRT scanlines */
+  #frame::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px);
+    mix-blend-mode:multiply;
+  }
+  #controls{
+    display:flex;gap:8px;width:100%;max-width:960px;justify-content:center;
+    user-select:none;-webkit-user-select:none;touch-action:manipulation;
+  }
+  .btn{
+    flex:1;max-width:180px;padding:16px 6px;text-align:center;
+    background:#2b2f4a;border:3px solid #0e0f1a;border-radius:6px;
+    box-shadow:0 4px 0 #0e0f1a;font-family:inherit;font-size:11px;color:var(--cream);
+    cursor:pointer;
+  }
+  .btn:active,.btn.held{transform:translateY(3px);box-shadow:0 1px 0 #0e0f1a;background:#3a3f63;}
+  .btn.gas{color:#7ee787;} .btn.brake{color:#ff8a8a;} .btn.gear{color:var(--amber);}
+  #hint{font-size:9px;color:#aab0c8;text-align:center;line-height:2;max-width:960px;}
+  #hint b{color:var(--amber);}
+</style>
+</head>
+<body>
+<div id="frame"><canvas id="game" width="480" height="270"></canvas></div>
+<div id="controls">
+  <div class="btn gear"  id="bDown">◄ GEAR</div>
+  <div class="btn brake" id="bBrake">BRAKE</div>
+  <div class="btn gas"   id="bGas">GAS</div>
+  <div class="btn gear"  id="bUp">GEAR ►</div>
+</div>
+<div id="hint">
+  <b>▲/W</b> gas &nbsp; <b>▼/S</b> brake &nbsp; <b>►/X</b> upshift &nbsp; <b>◄/Z</b> downshift &nbsp; <b>M</b> mute<br>
+  pull into the <b>ITP shop</b> to buy upgrades (1/2/3) · keep the tach out of the red · stay under the sign
+</div>
+
+<script>
+(()=>{
+"use strict";
+const cv = document.getElementById('game');
+const cx = cv.getContext('2d');
+const W = 480, H = 270;
+cx.imageSmoothingEnabled = false;
+
+/* ---------------- palette ---------------- */
+const P = {
+  skyTop:'#5aa9d6', skyBot:'#bfe3f2', sun:'#ffe08a', sunCore:'#fff3c4',
+  mtnFar:'#7fb4c9', mtnNear:'#5f93a8',
+  grass:'#3e8948', grassDark:'#2e6b38', dirt:'#8a5a3b',
+  road:'#4a4e57', roadDark:'#3a3d45', line:'#ffd23e', shoulder:'#c9c9c9',
+  cab:'#b01e2e', cabDark:'#6e1420', trailer:'#e6e8ec', trailerDark:'#aab0bc',
+  glass:'#aee6ff', tire:'#20222b', hub:'#9aa0ad', chrome:'#e8eef5',
+  text:'#f4ecd8', amber:'#ffb52e', green:'#7ee787', red:'#e63946', itp:'#b01e2e',
+  hudBg:'rgba(14,15,26,0.82)', smoke:'#6b6f7a'
+};
+
+/* ---------------- engine / gears ---------------- */
+const REDLINE = 2100, OVERREV = 2300, IDLE = 600;
+const TOPSPD = [10,17,26,38,54,75,98,126,160];    // mph at redline per gear (9 max, engine upgrades unlock 7-9)
+const RATIO  = TOPSPD.map(s => REDLINE/s);
+const BASE_GEARS = 6;                             // gears available with stock engine
+const KPOW   = 0.031;                             // accel scaler
+const GGRAV  = 22;                                // mph/s per unit grade
+const DRAG   = 0.000145, ROLL = 0.18;
+const BRAKE  = 4.2, JAKE = 0.013;
+
+/* ---------------- shop / upgrades ---------------- */
+const PRICES = { tires:[35,70,130], engine:[45,90,160], trans:[40,80,140] };
+const BB_GAP = 1450, SHOP_MOD = 3, SHOP_BASE = 700, SHOP_EVERY = 5;
+const SHOP_FIRST = SHOP_MOD*BB_GAP + SHOP_BASE;    // world-x of first shop
+const SHOP_GAP   = SHOP_EVERY*BB_GAP;              // world-x between shops
+const GREG_LINES = [
+  "NOTHIN', HUH?", "THOSE TIRES WON'T LAST.",
+  "DON'T COME CRYIN' TO ME.", "CHEAPSKATE.",
+  "SUIT YOURSELF, ROOKIE.", "ALRIGHT. YOUR FUNERAL.",
+];
+
+function torqueFrac(rpm){
+  if (rpm < 450) return 0;
+  if (rpm < 1000) return 0.35 + 0.65*(rpm-450)/550;   // lug zone → build
+  if (rpm < 1650) return 1.0;                          // sweet spot
+  if (rpm < REDLINE) return 1.0 - 0.75*(rpm-1650)/(REDLINE-1650);
+  return 0;                                            // governor
+}
+
+/* ---------------- terrain ---------------- */
+function terrainY(x){
+  return 196
+    - 42*Math.sin(x/610)
+    - 16*Math.sin(x/233 + 1.7)
+    - 6*Math.sin(x/97 + 0.5);
+}
+function slopeAt(x){ // dy/dx (screen coords, y down). uphill = negative dy/dx
+  return (terrainY(x+4)-terrainY(x-4))/8;
+}
+
+/* ---------------- speed zones ---------------- */
+const LIMITS = [35,45,55,65];
+let zones = [];
+function buildZones(){
+  zones = [{start:-9999, limit:45}];
+  let x = 1500, li = 1;
+  for(let i=0;i<400;i++){
+    li = Math.max(0, Math.min(LIMITS.length-1, li + (Math.random()<0.5?-1:1)*(Math.random()<0.75?1:2)));
+    zones.push({start:x, limit:LIMITS[li]});
+    x += 1900 + Math.random()*1800;
+  }
+}
+function zoneAt(x){
+  let z = zones[0];
+  for(const zn of zones){ if (zn.start <= x) z = zn; else break; }
+  return z;
+}
+
+/* ---------------- state ---------------- */
+const S = { TITLE:0, PLAY:1, OVER:2, SHOP:3, GREG:4 };
+let st, msgQ, parts, keys = {};
+
+function reset(){
+  buildZones();
+  st = {
+    mode:S.TITLE, t:0,
+    x:0, v:0, gear:1, rpm:IDLE,
+    shiftT:0, throttle:0, braking:false,
+    speedT:0, tickets:0, revT:0,
+    score:0, dist:0, pace:false,
+    flash:0, flashTxt:'', flashCol:P.amber,
+    ticketAnim:0, overReason:'',
+    cash:0, upg:{tires:0, engine:0, trans:0},
+    lastShopIdx:-1, shopBoughtAny:false,
+    gregT:0, gregLine:''
+  };
+  msgQ = []; parts = [];
+}
+reset();
+
+function flash(txt,col){ st.flash = 1.4; st.flashTxt = txt; st.flashCol = col||P.amber; }
+
+/* ---------------- audio ---------------- */
+let AC=null, engOsc=null, engGain=null, subOsc=null, muted=false;
+function audioInit(){
+  if (AC) return;
+  try{
+    AC = new (window.AudioContext||window.webkitAudioContext)();
+    engOsc = AC.createOscillator(); engOsc.type='sawtooth';
+    const sub = AC.createOscillator(); sub.type='square';
+    engGain = AC.createGain(); engGain.gain.value = 0;
+    const subG = AC.createGain(); subG.gain.value = 0.35;
+    const lp = AC.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=320;
+    engOsc.connect(engGain); sub.connect(subG); subG.connect(engGain);
+    engGain.connect(lp); lp.connect(AC.destination);
+    engOsc.frequency.value = 42; sub.frequency.value = 21;
+    engOsc.start(); sub.start();
+    subOsc = sub;
+  }catch(e){ AC=null; }
+}
+function beep(f,dur,type,vol){
+  if(!AC||muted) return;
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.type=type||'square'; o.frequency.value=f;
+  g.gain.setValueAtTime(vol||0.12, AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime+dur);
+  o.connect(g); g.connect(AC.destination);
+  o.start(); o.stop(AC.currentTime+dur);
+}
+function updateEngineSound(){
+  if(!AC||!engOsc) return;
+  const f = 34 + (st.rpm/REDLINE)*74;
+  engOsc.frequency.setTargetAtTime(f, AC.currentTime, 0.04);
+  if(subOsc) subOsc.frequency.setTargetAtTime(f/2, AC.currentTime, 0.04);
+  const g = muted||st.mode!==S.PLAY ? 0 : 0.05 + st.throttle*0.075 + (st.rpm/REDLINE)*0.02;
+  engGain.gain.setTargetAtTime(g, AC.currentTime, 0.06);
+}
+
+/* ---------------- input ---------------- */
+function effStats(){
+  const eng=st.upg.engine, tir=st.upg.tires, tra=st.upg.trans;
+  return {
+    KPOW:   KPOW * (1 + 0.20*eng),
+    OVERREV: OVERREV + 70*eng,
+    BRAKE:  BRAKE * (1 + 0.22*tir),
+    ROLL:   ROLL * (1 - 0.10*tir),
+    DRAG:   DRAG * (1 - 0.05*tir),
+    SHIFT:  Math.max(0.14, 0.35 - 0.06*tra),
+  };
+}
+function openShop(){
+  st.mode = S.SHOP; st.v = 0; st.shiftT = 0;
+  st.throttle = 0; st.braking = false; st.speedT = 0; st.revT = 0;
+  st.shopBoughtAny = false;
+  beep(440,0.08); beep(660,0.08);
+}
+function buyUpgrade(key){
+  if (st.mode!==S.SHOP) return;
+  const lvl = st.upg[key];
+  if (lvl>=3){ beep(140,0.12,'square',0.1); return; }
+  const price = PRICES[key][lvl];
+  if (st.cash < price){ beep(140,0.12,'square',0.1); flash("CAN'T AFFORD THAT",'#ff8a8a'); return; }
+  st.cash -= price; st.upg[key] = lvl+1; st.shopBoughtAny = true;
+  beep(520,0.06); beep(780,0.09);
+  const msg = key==='engine' ? 'GEAR '+maxGear()+' UNLOCKED!' :
+    {tires:'NEW TIRES!',trans:'TRANS REBUILT!'}[key];
+  flash(msg, P.green);
+}
+function leaveShop(){
+  if (st.mode!==S.SHOP) return;
+  if (st.shopBoughtAny){
+    st.mode = S.PLAY; flash('THANKS! SAFE TRAVELS', P.green);
+  } else {
+    st.mode = S.GREG; st.gregT = 2.3;
+    st.gregLine = GREG_LINES[(Math.random()*GREG_LINES.length)|0];
+  }
+}
+function maxGear(){ return Math.min(TOPSPD.length, BASE_GEARS + st.upg.engine); }
+function shiftUp(){
+  if (st.mode!==S.PLAY || st.shiftT>0 || st.gear>=maxGear()) return;
+  st.gear++; st.shiftT=effStats().SHIFT; beep(220,0.07); beep(330,0.06);
+  if (st.v*RATIO[st.gear-1] < 480 && st.v>3) flash('LUGGING!','#ff8a8a');
+}
+function shiftDown(){
+  if (st.mode!==S.PLAY || st.shiftT>0 || st.gear<=1) return;
+  const nr = st.v*RATIO[st.gear-2];
+  if (nr > effStats().OVERREV-40){ flash('GRIND! TOO FAST','#ff8a8a'); beep(90,0.25,'sawtooth',0.2); return; }
+  st.gear--; st.shiftT=effStats().SHIFT; beep(330,0.07); beep(220,0.06);
+}
+function startOrRestart(){
+  audioInit();
+  if (st.mode===S.TITLE){ st.mode=S.PLAY; }
+  else if (st.mode===S.OVER){ reset(); st.mode=S.PLAY; }
+}
+addEventListener('keydown',e=>{
+  const k = e.key.toLowerCase();
+  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase()===' '?' ':k)) e.preventDefault();
+  if (k==='m'){ muted=!muted; flash(muted?'MUTED':'SOUND ON'); return; }
+  if (st.mode===S.TITLE || st.mode===S.OVER){
+    if(k==='enter'||k===' '||k==='arrowup'||k==='w') startOrRestart();
+    return;
+  }
+  if (st.mode===S.SHOP){
+    if (k==='1') buyUpgrade('tires');
+    if (k==='2') buyUpgrade('engine');
+    if (k==='3') buyUpgrade('trans');
+    if (k==='enter'||k===' '||k==='arrowup'||k==='w') leaveShop();
+    return;
+  }
+  if (st.mode===S.GREG){ st.gregT = 0; return; }
+  keys[k]=true;
+  if (k==='arrowright'||k==='x') shiftUp();
+  if (k==='arrowleft' ||k==='z') shiftDown();
+},{passive:false});
+addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
+
+function bindButton(id, playOn, playOff, shopAction){
+  const el=document.getElementById(id);
+  const dn=e=>{
+    e.preventDefault(); el.classList.add('held'); audioInit();
+    if (st.mode===S.SHOP){ if(shopAction) shopAction(); return; }
+    if (st.mode===S.GREG){ st.gregT = 0; return; }
+    if (st.mode!==S.PLAY){ startOrRestart(); return; }
+    if (playOn) playOn();
+  };
+  const up=e=>{ el.classList.remove('held'); if(playOff) playOff(); };
+  el.addEventListener('pointerdown',dn); el.addEventListener('pointerup',up);
+  el.addEventListener('pointerleave',up); el.addEventListener('pointercancel',up);
+}
+bindButton('bGas',  ()=>keys['w']=true, ()=>keys['w']=false, ()=>leaveShop());
+bindButton('bBrake',()=>keys['s']=true, ()=>keys['s']=false, ()=>buyUpgrade('tires'));
+bindButton('bUp',   ()=>shiftUp(),      null,                ()=>buyUpgrade('engine'));
+bindButton('bDown', ()=>shiftDown(),    null,                ()=>buyUpgrade('trans'));
+cv.addEventListener('pointerdown',()=>{
+  audioInit();
+  if (st.mode===S.GREG){ st.gregT = 0; return; }
+  if (st.mode===S.TITLE || st.mode===S.OVER) startOrRestart();
+});
+
+function updateControlLabels(){
+  const bG=document.getElementById('bGas'), bB=document.getElementById('bBrake'),
+        bU=document.getElementById('bUp'),  bD=document.getElementById('bDown');
+  if (st.mode===S.SHOP){
+    bG.textContent = 'DRIVE ON';
+    bB.textContent = upgLabel('tires','TIRES');
+    bU.textContent = upgLabel('engine','ENGINE');
+    bD.textContent = upgLabel('trans','TRANS');
+  } else {
+    bG.textContent='GAS'; bB.textContent='BRAKE'; bU.textContent='GEAR ►'; bD.textContent='◄ GEAR';
+  }
+}
+function upgLabel(key,name){
+  const lvl = st.upg[key];
+  return lvl>=3 ? name+' MAX' : name+' $'+PRICES[key][lvl];
+}
+
+/* ---------------- update ---------------- */
+function update(dt){
+  st.t += dt;
+  if (st.flash>0) st.flash-=dt;
+  if (st.ticketAnim>0) st.ticketAnim-=dt;
+
+  if (st.mode===S.GREG){
+    st.gregT -= dt;
+    if (st.gregT<=0) st.mode = S.PLAY;
+    updateEngineSound();
+    return;
+  }
+  if (st.mode===S.SHOP){ updateEngineSound(); return; }
+  if (st.mode!==S.PLAY){ updateEngineSound(); return; }
+
+  // shop trigger — check before physics so the truck parks right at the bay
+  const shopK = Math.floor((st.x - SHOP_FIRST)/SHOP_GAP);
+  if (shopK>=0){
+    const shopX = SHOP_FIRST + shopK*SHOP_GAP;
+    if (st.x >= shopX-30 && st.lastShopIdx !== shopK){
+      st.lastShopIdx = shopK;
+      openShop();
+      return;
+    }
+  }
+
+  st.throttle = (keys['w']||keys['arrowup']||keys[' ']) ? 1 : 0;
+  st.braking  = !!(keys['s']||keys['arrowdown']);
+  if (st.shiftT>0){ st.shiftT-=dt; }
+
+  const eff = effStats();
+  const ratio = RATIO[st.gear-1];
+  st.rpm = Math.max(IDLE, st.v*ratio);
+
+  // forces (mph/s)
+  let a = 0;
+  const inClutch = st.shiftT>0;
+  if (!inClutch) a += st.throttle * torqueFrac(st.rpm) * eff.KPOW * ratio;
+  if (!inClutch && st.throttle===0 && st.v>1) a -= JAKE * ratio * (st.rpm/REDLINE); // jake brake
+  if (st.braking) a -= eff.BRAKE;
+  const grade = -slopeAt(st.x);            // + = uphill
+  a -= GGRAV * grade;
+  a -= eff.DRAG*st.v*st.v + (st.v>0.2?eff.ROLL:0);
+
+  st.v = Math.max(0, st.v + a*dt);
+  st.x += st.v*3*dt;                        // 3 px per mph·s
+  st.dist += st.v*dt/3600;                  // miles
+  st.rpm = Math.max(IDLE, st.v*RATIO[st.gear-1]);
+
+  // over-rev (downhill in too low a gear)
+  if (st.rpm > eff.OVERREV){
+    st.revT += dt;
+    if ((st.t*6|0)%2===0) flashNow('OVER-REV! UPSHIFT OR BRAKE', P.red);
+    if (st.revT > 3){ gameOver('ENGINE BLOWN'); return; }
+  } else if (st.revT>0) st.revT = Math.max(0, st.revT - dt*0.5);
+
+  // speed enforcement
+  const zone = zoneAt(st.x);
+  const over = st.v - zone.limit;
+  if (over > 5){
+    st.speedT += dt;
+    if (st.speedT > 3){
+      st.tickets++; st.speedT = 0; st.ticketAnim = 2;
+      beep(880,0.1); beep(660,0.1); beep(880,0.25,'square',0.15);
+      flash('SPEEDING TICKET #'+st.tickets, P.red);
+      if (st.tickets >= 3){ gameOver('LICENSE REVOKED'); return; }
+    }
+  } else st.speedT = Math.max(0, st.speedT - dt*1.5);
+
+  // scoring + cash
+  st.pace = st.v >= zone.limit-8 && st.v <= zone.limit;
+  if (st.v <= zone.limit){
+    st.score += st.v * dt * (st.pace?0.22:0.1);
+    st.cash  += st.v * dt * (st.pace?0.09:0.045);
+  }
+
+  // exhaust smoke
+  if (st.throttle>0 && Math.random() < 0.6){
+    parts.push({x:st.x-2, yo:-30, vx:-14-Math.random()*10, vy:-22-Math.random()*14,
+                life:0.9+Math.random()*0.5, s:2+(Math.random()*2|0),
+                heavy: st.rpm<1000 && st.v>2});
+  }
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i]; p.life-=dt; p.x+=p.vx*dt; p.yo+=p.vy*dt; p.vy*=0.96;
+    if(p.life<=0) parts.splice(i,1);
+  }
+  updateEngineSound();
+}
+function flashNow(t,c){ st.flashTxt=t; st.flashCol=c; st.flash=Math.max(st.flash,0.18); }
+function gameOver(reason){
+  st.mode=S.OVER; st.overReason=reason;
+  beep(160,0.4,'sawtooth',0.2); beep(110,0.7,'sawtooth',0.2);
+}
+
+/* ---------------- drawing helpers ---------------- */
+function px(x,y,w,h,c){ cx.fillStyle=c; cx.fillRect(x|0,y|0,w,h); }
+function text(s,x,y,size,col,align){
+  cx.font = size+'px "Press Start 2P", monospace';
+  cx.textAlign = align||'left'; cx.textBaseline='top';
+  cx.fillStyle = col||P.text; cx.fillText(s,x,y);
+}
+function outlineText(s,x,y,size,col,align){
+  cx.font=size+'px "Press Start 2P", monospace'; cx.textAlign=align||'left'; cx.textBaseline='top';
+  cx.fillStyle='#0e0f1a';
+  for(const[dx,dy] of [[-1,0],[1,0],[0,-1],[0,1]]) cx.fillText(s,x+dx,y+dy);
+  cx.fillStyle=col||P.text; cx.fillText(s,x,y);
+}
+
+/* ---------------- scene ---------------- */
+const TRUCK_SX = 130;              // truck screen x (rear axle anchor)
+function camX(){ return st.x - TRUCK_SX; }
+
+function drawSky(){
+  const g = cx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,P.skyTop); g.addColorStop(0.75,P.skyBot);
+  cx.fillStyle=g; cx.fillRect(0,0,W,H);
+  // sun
+  px(392,30,20,20,P.sun); px(396,34,12,12,P.sunCore);
+  // clouds (parallax slow)
+  const co = -(st.x*0.06)%560;
+  for(let i=0;i<4;i++){
+    const cxp = ((co + i*150)%560+560)%560 - 40;
+    const cy = 26 + (i*23)%40;
+    px(cxp,cy,34,8,'#ffffff'); px(cxp+6,cy-5,20,5,'#ffffff'); px(cxp+10,cy+8,18,4,'#eaf6fb');
+  }
+  // far mountains
+  const mo = -(st.x*0.15);
+  cx.fillStyle=P.mtnFar;
+  for(let x=0;x<W;x++){
+    const wx = x - mo;
+    const y = 150 - 34*Math.abs(Math.sin(wx/140)) - 10*Math.sin(wx/57);
+    cx.fillRect(x, y|0, 1, H-y);
+  }
+  cx.fillStyle=P.mtnNear;
+  const mo2 = -(st.x*0.32);
+  for(let x=0;x<W;x++){
+    const wx = x - mo2;
+    const y = 172 - 26*Math.abs(Math.sin(wx/95+2)) - 8*Math.sin(wx/41);
+    cx.fillRect(x, y|0, 1, H-y);
+  }
+}
+
+function drawGround(){
+  const c = camX();
+  for(let x=0;x<W;x++){
+    const wx = c+x;
+    const y = terrainY(wx)|0;
+    // road surface band
+    cx.fillStyle = P.road;  cx.fillRect(x, y, 1, 9);
+    cx.fillStyle = P.roadDark; cx.fillRect(x, y+7, 1, 2);
+    // shoulder + lane line
+    cx.fillStyle = P.shoulder; cx.fillRect(x, y, 1, 1);
+    if (((wx/26)|0)%2===0){ cx.fillStyle=P.line; cx.fillRect(x, y+4, 1, 1); }
+    // dirt + grass below
+    cx.fillStyle = P.dirt; cx.fillRect(x, y+9, 1, 3);
+    cx.fillStyle = ((wx/7|0)%5===0)?P.grassDark:P.grass;
+    cx.fillRect(x, y+12, 1, H-(y+12));
+  }
+}
+
+function drawSign(wx, limit, ahead){
+  const sx = wx - camX();
+  if (sx < -30 || sx > W+30) return;
+  const gy = terrainY(wx);
+  const baseY = gy - 2;
+  px(sx, baseY-34, 2, 34, '#777');                       // pole
+  if (ahead){
+    px(sx-11, baseY-52, 24, 18, '#f7c948'); px(sx-10, baseY-51, 22, 16, '#111');
+    px(sx-9,  baseY-50, 20, 14, '#f7c948');
+    text('SPD', sx+1, baseY-49, 5, '#111','center');
+    text('ZONE',sx+1, baseY-42, 5, '#111','center');
+  } else {
+    px(sx-11, baseY-58, 24, 26, '#fff'); px(sx-10, baseY-57, 22, 24, '#111');
+    px(sx-9,  baseY-56, 20, 22, '#fff');
+    text('LIMIT', sx+1, baseY-54, 5, '#111','center');
+    text(''+limit, sx+1, baseY-47, 8, '#111','center');
+  }
+}
+
+function drawSigns(){
+  const c = camX();
+  for (const z of zones){
+    if (z.start < c-100) continue;
+    if (z.start > c+W+400) break;
+    drawSign(z.start, z.limit, false);
+    drawSign(z.start-260, z.limit, true);   // advance warning
+  }
+}
+
+/* ---------------- ITP roadside flavor ---------------- */
+const BILLBOARDS = [
+  ['INLAND','TRUCK PARTS'],
+  ['KEEP \'EM','ROLLING'],
+  ['EMPLOYEE','OWNED'],
+  ['ALL MAKES','ALL MODELS'],
+  ['EST.','1944'],
+  ['PARTS ·','SERVICE'],
+];
+function drawBillboards(){
+  const c = camX();
+  const gap = 1450;
+  const first = Math.floor((c-80)/gap);
+  for (let i=first; i<first+3; i++){
+    const wx = i*gap + 700;
+    if ((i%5+5)%5 === 3){ drawShop(wx); continue; }   // every 5th spot is the shop
+    const sx = wx - c;
+    if (sx < -70 || sx > W+70) continue;
+    const gy = terrainY(wx)|0;
+    const msg = BILLBOARDS[((i%BILLBOARDS.length)+BILLBOARDS.length)%BILLBOARDS.length];
+    px(sx-14, gy-30, 2, 30, '#6b5540'); px(sx+12, gy-30, 2, 30, '#6b5540');
+    px(sx-24, gy-56, 48, 28, '#f7f8fa');
+    px(sx-24, gy-56, 48, 3,  P.itp);
+    px(sx-24, gy-31, 48, 3,  P.itp);
+    px(sx-23, gy-55, 46, 26, '#fff');
+    px(sx-23, gy-55, 46, 2,  P.itp);
+    px(sx-23, gy-30, 46, 2,  P.itp);
+    text(msg[0], sx, gy-50, 5, P.itp,'center');
+    text(msg[1], sx, gy-42, 5, '#333','center');
+  }
+}
+function drawShop(wx){
+  const sx = wx - camX();
+  if (sx < -90 || sx > W+90) return;
+  const gy = terrainY(wx)|0;
+  // building
+  px(sx-34, gy-34, 68, 34, '#c9ccd4');       // walls
+  px(sx-34, gy-34, 68, 2,  '#e6e8ec');
+  px(sx-36, gy-40, 72, 7,  P.itp);           // red fascia
+  px(sx-36, gy-40, 72, 1,  '#d64556');
+  text('ITP SERVICE', sx, gy-39, 5, '#fff','center');
+  // bay doors
+  px(sx-26, gy-24, 16, 24, '#7d828e'); px(sx-24, gy-22, 12, 20, '#9aa0ad');
+  px(sx+10, gy-24, 16, 24, '#7d828e'); px(sx+12, gy-22, 12, 20, '#9aa0ad');
+  for(let d=0; d<4; d++){ px(sx-24, gy-20+d*5, 12, 1, '#7d828e'); px(sx+12, gy-20+d*5, 12, 1, '#7d828e'); }
+  // door + window
+  px(sx-6, gy-20, 10, 20, '#5b5f6b'); px(sx-4, gy-18, 6, 8, P.glass);
+  // little pole sign
+  px(sx+42, gy-46, 2, 46, '#777');
+  px(sx+34, gy-58, 18, 12, P.itp); px(sx+35, gy-57, 16, 10, '#8f1826');
+  text('ITP', sx+43, gy-55, 5, '#fff','center');
+}
+
+function drawTruck(){
+  const wx = st.x;
+  const y0 = terrainY(wx);
+  const sl = slopeAt(wx);
+  const ang = Math.atan(sl);
+  const bounce = st.v>1 ? Math.sin(st.t*22)*0.6 : 0;
+
+  cx.save();
+  cx.translate(TRUCK_SX, y0 + bounce);
+  cx.rotate(ang);
+
+  // shadow
+  cx.fillStyle='rgba(0,0,0,0.25)'; cx.fillRect(-52,0,66,3);
+
+  // ----- trailer (INLAND livery) -----
+  px(-52,-26, 40, 18, P.trailer);
+  px(-52,-26, 40, 3,  '#f7f8fa');
+  px(-52,-13, 40, 2,  P.itp);              // red beltline stripe
+  px(-52,-10, 40, 2,  P.trailerDark);
+  text('INLAND', -33, -22, 5, P.itp,'center');
+  text('TRUCK PARTS',-33, -16, 4, '#4a4d57','center');
+  // trailer wheels
+  for(const twx of [-46,-38]){
+    px(twx,-8,7,7,P.tire); px(twx+2,-6,3,3,P.hub);
+  }
+
+  // ----- cab -----
+  px(-12,-24, 22, 16, P.cab);              // hood+cab block
+  px(-12,-24, 22, 2,  '#d64556');
+  px(4, -24, 6, 8, P.cab);                 // nose
+  px(-12,-9, 24, 2, P.cabDark);            // skirt
+  px(-4,-22, 7, 7, P.glass);               // windshield
+  px(-4,-16, 7, 1, '#7fc4e0');
+  px(8,-17, 3, 2, P.amber);                // headlight
+  px(6,-11, 5, 2, P.chrome);               // bumper
+  // exhaust stack
+  px(-14,-34, 3, 12, P.chrome); px(-14,-35, 3, 2, '#9aa0ad');
+  // drive wheels
+  px(-10,-8, 8, 8, P.tire); px(-8,-6, 4, 4, P.hub);
+  px(2,-8, 8, 8, P.tire);   px(4,-6, 4, 4, P.hub);
+  // hub spin sparkle
+  if (st.v>2 && (st.t*10|0)%2===0){ px(-7,-5,1,1,'#fff'); px(5,-5,1,1,'#fff'); }
+
+  cx.restore();
+
+  // smoke (world space)
+  for(const p of parts){
+    const sx = p.x - camX() - 12;
+    const sy = terrainY(p.x) + p.yo;
+    cx.globalAlpha = Math.min(0.7, p.life);
+    px(sx, sy, p.s, p.s, p.heavy ? '#3a3d45' : P.smoke);
+    cx.globalAlpha = 1;
+  }
+}
+
+/* ---------------- HUD ---------------- */
+function drawHUD(){
+  const zone = zoneAt(st.x);
+
+  // top bar
+  cx.fillStyle = P.hudBg; cx.fillRect(0,0,W,46);
+  px(0,46,W,2,'#0e0f1a');
+
+  // speed
+  const spd = Math.round(st.v);
+  const overNow = st.v > zone.limit+5;
+  const spdCol = overNow ? ((st.t*6|0)%2? P.red : '#fff') : (st.pace ? P.green : P.text);
+  outlineText(String(spd).padStart(2,'0'), 10, 8, 16, spdCol);
+  text('MPH', 12, 28, 6, '#8a8fb5');
+
+  // limit sign
+  px(62,5,30,34,'#fff'); px(63,6,28,32,'#111'); px(64,7,26,30,'#fff');
+  text('LIMIT',77,10,5,'#111','center');
+  text(''+zone.limit,77,18,10,'#111','center');
+
+  // gear box
+  px(102,5,34,34,'#2b2f4a'); px(104,7,30,30,'#161828');
+  text('GEAR',119,7,5,'#c9ccd8','center');
+  outlineText(st.shiftT>0?'-':''+st.gear,119,13,11, st.shiftT>0?'#8a8fb5':P.amber,'center');
+  text('OF '+maxGear(),119,29,5,'#8a8fb5','center');
+
+  // tachometer bar
+  const eff = effStats();
+  const tx=146, tw=140;
+  text('RPM',tx,8,5,'#8a8fb5');
+  px(tx,16,tw,12,'#161828'); px(tx,16,tw,1,'#2b2f4a');
+  // bands: green 1000-1650, yellow to redline, red beyond
+  const frac = r=>Math.max(0,Math.min(1,(r-IDLE)/(eff.OVERREV-IDLE)));
+  px(tx+tw*frac(1000),17, tw*(frac(1650)-frac(1000)),10,'rgba(126,231,135,0.18)');
+  px(tx+tw*frac(1650),17, tw*(frac(REDLINE)-frac(1650)),10,'rgba(255,181,46,0.18)');
+  px(tx+tw*frac(REDLINE),17, tw*(1-frac(REDLINE)),10,'rgba(230,57,70,0.3)');
+  const rf = frac(st.rpm);
+  const rcol = st.rpm>REDLINE?P.red: st.rpm>1650?P.amber: st.rpm<950?'#8ecae6':P.green;
+  px(tx,17, tw*rf, 10, rcol);
+  px(tx+tw*rf-1,15,2,14,'#fff');
+  text(Math.round(st.rpm/10)*10+'',tx+tw,8,5,'#8a8fb5'); cx.textAlign='left';
+  text('RED '+REDLINE, tx, 32, 5, '#a9adc4');
+
+  // grade indicator
+  const grade = Math.round(-slopeAt(st.x)*100);
+  const gTxt = grade>1 ? '▲'+grade+'%' : grade<-1 ? '▼'+(-grade)+'%' : '● flat';
+  text('GRADE', 296, 8, 5, '#8a8fb5');
+  outlineText(gTxt, 296, 16, 8, grade>1?'#ff8a8a':grade<-1?'#8ecae6':P.text);
+
+  // score / cash / tickets / distance
+  text('SCORE', 372, 8, 5, '#8a8fb5');
+  outlineText(String(Math.floor(st.score)).padStart(6,'0'), 372, 16, 8, P.text);
+  text(st.dist.toFixed(1)+' MI', 372, 30, 5, '#8a8fb5');
+  text('$'+Math.floor(st.cash), 372, 38, 5, P.amber);
+  for(let i=0;i<3;i++){
+    const got = i<st.tickets;
+    px(430+i*15, 32, 11, 7, got?P.red:'#2b2f4a');
+    px(431+i*15, 33, 9, 5, got?'#fff':'#161828');
+    if(got) px(433+i*15,35,5,1,P.red);
+  }
+
+  // pace bonus tag
+  if (st.pace && st.mode===S.PLAY && (st.t*3|0)%2===0)
+    outlineText('PERFECT PACE x2', 240, 52, 6, P.green,'center');
+
+  // speeding meter
+  if (st.speedT>0.05){
+    const w2 = 120;
+    px(W/2-w2/2, 62, w2, 8, '#161828');
+    px(W/2-w2/2, 62, w2*(st.speedT/3), 8, P.red);
+    outlineText('RADAR LOCKING...', 240, 74, 6, P.red,'center');
+  }
+
+  // flash message
+  if (st.flash>0 && st.flashTxt)
+    outlineText(st.flashTxt, 240, 96, 8, st.flashCol,'center');
+
+  // ticket paper animation
+  if (st.ticketAnim>0){
+    const yy = 110 - Math.max(0,(st.ticketAnim-1.6))*120;
+    px(W/2-42, yy, 84, 40, '#fff'); px(W/2-42, yy, 84, 8, P.red);
+    text('CITATION', 240, yy+2, 5, '#fff','center');
+    text('EXCESSIVE', 240, yy+13, 5, '#333','center');
+    text('SPEED', 240, yy+21, 5, '#333','center');
+    text('-1 STRIKE', 240, yy+30, 5, P.red,'center');
+  }
+}
+
+function drawTitle(){
+  cx.fillStyle='rgba(14,15,26,0.88)'; cx.fillRect(0,0,W,H);
+  // ITP badge
+  px(W/2-64, 30, 128, 14, P.itp); px(W/2-64, 30, 128, 2, '#d64556');
+  text('INLAND TRUCK PARTS & SERVICE', 240, 34, 5, '#fff','center');
+  outlineText('INLAND HAULER', 240, 54, 18, P.amber,'center');
+  outlineText('EST. 1944 · EMPLOYEE OWNED · 8-BIT EDITION', 240, 82, 5, '#c9ccd4','center');
+  const lines = [
+    ['GAS  ........ ▲ / W',P.green],
+    ['BRAKE ....... ▼ / S','#ff8a8a'],
+    ['UPSHIFT ..... ► / X',P.amber],
+    ['DOWNSHIFT ... ◄ / Z',P.amber],
+  ];
+  lines.forEach((l,i)=>outlineText(l[0], 240, 106+i*13, 7, l[1],'center'));
+  outlineText('STAY UNDER THE SPEED LIMIT.', 240, 168, 6, P.text,'center');
+  outlineText('KEEP THE TACH OUT OF THE RED.', 240, 180, 6, P.text,'center');
+  outlineText('PULL INTO THE SHOP TO BUY UPGRADES.', 240, 192, 6, P.amber,'center');
+  outlineText('3 TICKETS AND YOU\'RE DONE.', 240, 204, 6, '#c9ccd4','center');
+  if ((st.t*2|0)%2===0) outlineText('PRESS GAS TO ROLL OUT', 240, 226, 8, P.green,'center');
+}
+
+function drawOver(){
+  cx.fillStyle='rgba(14,15,26,0.9)'; cx.fillRect(0,0,W,H);
+  outlineText(st.overReason, 240, 62, 14, P.red,'center');
+  if (st.overReason==='ENGINE BLOWN')
+    outlineText('BETTER TOW IT TO INLAND. IN-HOUSE REMAN.', 240, 88, 5, '#c9ccd4','center');
+  else
+    outlineText('EVEN INLAND CAN\'T FIX YOUR DRIVING RECORD.', 240, 88, 5, '#c9ccd4','center');
+  outlineText('FINAL SCORE', 240, 108, 7, '#c9ccd4','center');
+  outlineText(String(Math.floor(st.score)).padStart(6,'0'), 240, 122, 16, P.amber,'center');
+  outlineText(st.dist.toFixed(1)+' MILES HAULED', 240, 150, 7, P.text,'center');
+  if ((st.t*2|0)%2===0) outlineText('PRESS GAS TO RUN IT BACK', 240, 190, 8, P.green,'center');
+}
+
+function drawShopMenu(){
+  cx.fillStyle='rgba(14,15,26,0.86)'; cx.fillRect(0,0,W,H);
+  px(W/2-110,20,220,16,P.itp); px(W/2-110,20,220,2,'#d64556');
+  text('INLAND SERVICE BAY', 240,24,6,'#fff','center');
+  outlineText('CASH: $'+Math.floor(st.cash), 240,44,8,P.amber,'center');
+
+  const rows = [
+    {key:'tires', name:'TIRES',  desc:'braking & rolling grip', hint:'1 / BRAKE BTN'},
+    {key:'engine',name:'ENGINE', desc:'more power + unlocks a gear', hint:'2 / GEAR ► BTN'},
+    {key:'trans', name:'TRANS',  desc:'faster, smoother shifts',hint:'3 / ◄ GEAR BTN'},
+  ];
+  rows.forEach((r,i)=>{
+    const y = 66 + i*40;
+    px(46, y, 388, 32, '#20222f'); px(46,y,388,2,'#2b2f4a');
+    const lvl = st.upg[r.key];
+    text(r.name, 58, y+5, 8, P.text);
+    text(r.desc, 58, y+18, 5, '#aeb2c8');
+    for(let d=0; d<3; d++) px(196+d*11, y+8, 7,7, d<lvl?P.green:'#3a3f55');
+    const maxed = lvl>=3;
+    const afford = !maxed && st.cash>=PRICES[r.key][lvl];
+    const priceTxt = maxed ? 'MAXED' : '$'+PRICES[r.key][lvl];
+    outlineText(priceTxt, 260, y+5, 7, maxed?'#8a8fb5':(afford?P.green:'#ff8a8a'));
+    text(r.hint, 260, y+20, 5, '#8a8fb5');
+  });
+  if ((st.t*2|0)%2===0) outlineText('GAS BTN = DRIVE ON', 240, 196, 8, P.green,'center');
+  text('OR PRESS 1 / 2 / 3 TO BUY', 240, 212, 5, '#8a8fb5','center');
+}
+
+function drawGreg(){
+  cx.fillStyle='rgba(14,15,26,0.4)'; cx.fillRect(0,0,W,H);
+  const gx=360, gy=214;
+  const wag = Math.sin(st.t*10)*20;
+  // legs + boots
+  px(gx-8,gy-18,7,18,'#2b4a6b'); px(gx+1,gy-18,7,18,'#2b4a6b');
+  px(gx-8,gy-2,7,3,'#1a1a1a'); px(gx+1,gy-2,7,3,'#1a1a1a');
+  // torso (ITP shirt)
+  px(gx-9,gy-38,18,20,P.itp); px(gx-9,gy-38,18,3,'#8f1826');
+  text('ITP', gx, gy-34, 4, '#fff','center');
+  // head + cap + mustache
+  px(gx-6,gy-50,12,12,'#e8b98a');
+  px(gx-7,gy-52,14,5,P.itp);
+  px(gx-3,gy-44,6,2,'#5b3a24');
+  // static arm
+  px(gx-13,gy-34,5,14,'#e8b98a');
+  // wagging arm+finger
+  cx.save();
+  cx.translate(gx+9, gy-32);
+  cx.rotate(wag*Math.PI/180);
+  px(0,-2,12,5,'#e8b98a'); px(10,-3,3,3,'#e8b98a');
+  cx.restore();
+  // speech bubble
+  const bw=132, bx=gx-bw+18, by=gy-96;
+  px(bx-4, by, bw, 32, '#fff'); px(bx-3, by+1, bw-2, 30, '#111');
+  px(bx-2, by+2, bw-4, 28, '#fff');
+  px(gx-2, by+30, 7,7,'#fff');
+  text(st.gregLine||'', bx+4, by+11, 5, '#111');
+
+  outlineText('GREG DISAPPROVES', 240, 40, 8, P.amber,'center');
+  if ((st.t*4|0)%2===0) outlineText('PRESS ANYTHING TO CONTINUE', 240, H-28, 6, '#8a8fb5','center');
+}
+
+/* ---------------- loop ---------------- */
+let last = performance.now();
+function loop(now){
+  const dt = Math.min(0.05, (now-last)/1000); last = now;
+  update(dt);
+  drawSky(); drawGround(); drawBillboards(); drawSigns(); drawTruck(); drawHUD();
+  if (st.mode===S.TITLE) drawTitle();
+  if (st.mode===S.OVER)  drawOver();
+  if (st.mode===S.SHOP)  drawShopMenu();
+  if (st.mode===S.GREG)  drawGreg();
+  updateControlLabels();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
