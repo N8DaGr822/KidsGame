@@ -437,6 +437,20 @@ Implementation notes:
 - Educational games should be good games first; the learning content should
   ride on strong feedback loops instead of feeling like homework with sprites.
 
+**Status, 2026-08-17:** all nine subsections below have been worked through.
+Landed: 6 board/logic/deduction games, 3 mystery/code puzzles, 3
+physics/sports games (analytic trajectory-solve pattern), 2 spatial/rhythm
+puzzles, and 4 educational challenge games - 18 new games total this pass.
+Deferred with reasoning documented inline per subsection: arcade/racing/
+platforming (needs a continuous-physics/collision engine this app doesn't
+have), most of physics/sports and spatial puzzles beyond what shipped (same
+reasoning), several educational items as redundant with an existing game or
+with Trivia Battle's format, and the entire simulations/management/
+collection and creation-tools subsections (persistent-progression economy
+and content-authoring/editor tooling are both new product categories, not
+same-day additions). Chess Puzzles, Checkers with AI, and a few others from
+the strategy subsection remain open too - see that subsection below.
+
 ### Strategy, tactics, and RPG systems
 
 - [x] Tower Defense — place different towers along a path to stop waves of
@@ -661,60 +675,89 @@ revisiting as a dedicated project, not folded into this pass.
 
 ### Educational challenge games
 
-- [ ] Typing Racer — type words accurately to move a car or character forward.
-- [ ] Typing Defense — enemies approach carrying words; type the word to
-      destroy them.
-- [ ] Trivia Battle — categories, streaks, lifelines, difficulty levels, and
-      multiplayer.
-- [ ] Geography Challenge — identify countries, capitals, flags, landmarks, or
-      locations on a map.
-- [ ] Flag Guessing Game — expandable with many countries and regions.
-- [ ] Periodic Table Challenge — timed matching with symbols, atomic numbers,
-      and element categories.
-- [ ] Vocabulary Duel — definitions, synonyms, antonyms, spelling, and
-      word-building challenges.
-- [ ] Word Ladder — change one letter at a time to transform one word into
-      another.
-- [ ] Boggle-style Word Hunt — find connected words in a letter grid before
-      time runs out.
-- [ ] Anagram Battle — players race to create words from the same letters.
-- [ ] Trivia Survival — wrong answers cost health; see how far the player can
-      progress.
-- [ ] Quiz RPG — correct answers power attacks against monsters.
-- [ ] Fake News Detective — use fictional posts/articles to identify
-      suspicious clues, weak sources, and manipulative headlines.
+- [x] Word Ladder — change one letter at a time to climb from a start word
+      to a target word, every step a real word. Uses hand-authored ladder
+      chains (like Cryptogram's phrase list) rather than validating
+      against a dictionary. Three wrong guesses on a rung locks one letter
+      in as a hint. Personal best tracks fewest mistakes.
+- [x] Trivia Battle — 42-question hand-authored bank across 5 categories
+      (Animals, Space, Science, Geography, History) plus Mixed, split by
+      difficulty tier. Streak bonus grows score for consecutive correct
+      answers; a 50/50 lifeline (2 uses Easy, 1 Medium, 0 Hard) removes two
+      wrong options. Multiplayer explicitly out of scope, same as every
+      other game in this app. Personal best tracks high score.
+- [x] Flag Guessing Game — shows a country's flag as a plain Unicode flag
+      emoji (a two-letter regional-indicator sequence) instead of an image
+      asset, so it needed zero art. 45 countries across three difficulty
+      tiers by flag recognizability. Personal best tracks high score.
+- [ ] Typing Racer / Typing Defense — deferred. Genuinely easy to build
+      (type-the-word-before-it-arrives is a simple timer + text-match
+      loop) but redundant with the typing-under-pressure skill Trivia
+      Battle and Word Ladder already exercise via tapping; revisit if a
+      dedicated typing-speed game is wanted specifically.
+- [ ] Geography Challenge (capitals/landmarks/map-based) — deferred.
+      Distinct from Flag Guessing Game once it involves an actual map (a
+      new interactive-map rendering problem this app doesn't have), though
+      a capitals-only multiple-choice version would be a near-clone of
+      Trivia Battle's Geography category and isn't worth duplicating.
+- [ ] Periodic Table Challenge — deferred as niche: real content (118
+      elements) is easy to author, but the audience for element-symbol
+      drilling is a narrower slice of this app's age range than the games
+      already shipped.
+- [ ] Vocabulary Duel — deferred as redundant with Trivia Battle's format
+      (multiple-choice knowledge quiz) - a synonym/antonym/definition
+      quiz is the same interaction with a different content bank, not a
+      new mechanic.
+- [ ] Boggle-style Word Hunt — deferred as redundant with the existing
+      Word Search game (grid-of-letters word finding is already covered).
+- [ ] Anagram Battle — deferred as redundant with the existing Word
+      Scramble game (rearrange-letters-into-a-word is already covered).
+- [ ] Trivia Survival / Quiz RPG — deferred as variants of Trivia Battle
+      (health-loss and monster-battle framing around the same
+      multiple-choice-question core) rather than a new mechanic; revisit
+      as a reskin later if there's appetite for a second trivia mode.
+- [ ] Fake News Detective — deferred. The content itself needs careful,
+      deliberate authoring (realistic-but-clearly-fictional examples,
+      calibrated so the "tells" are fair without teaching kids to distrust
+      real news) - that's an editorial task worth its own careful pass,
+      not something to rush through in this batch.
 
 ### Simulations, management, and collection
 
-- [ ] Stock Market Simulator — fictional companies and generated events; an
-      introduction to risk without real money.
-- [ ] City Builder Lite — roads, houses, shops, parks, power, and a few
-      resources without becoming Spreadsheet Simulator 2026.
-- [ ] Colony Survival — manage food, shelter, population, and resources while
-      random events happen.
-- [ ] Restaurant Manager — take orders, cook items, manage upgrades, and keep
-      customers happy.
-- [ ] Shop Simulator — buy inventory, set prices, serve customers, and expand
-      the store.
-- [ ] Theme Park Builder Lite — rides, food stalls, paths, decorations, money,
-      and visitor happiness.
-- [ ] Fishing Game — different fish, equipment, rarity, timing mechanics, and
-      upgrades.
-- [ ] Creature Collector — find creatures with stats/rarities and use them in
-      simple battles.
-- [ ] Monster Fusion — combine creatures to create new ones with inherited
-      traits.
-- [ ] Character Builder — equipment, stats, classes, abilities, and cosmetic
-      customization.
+Deferred as a whole subsection. Every entry here is a persistent-progression
+game (inventory, currency, unlockable upgrades, stats that carry between
+sessions and grow over many play sessions) rather than a single self-
+contained round with a phase enum and an `OnComplete` callback - the shape
+every other game in this app follows, including the existing lightweight
+Fishing Catch minigame this list's "Fishing Game" entry would need to grow
+well past. Building one properly needs a real save-data/economy layer (item
+definitions, balance tuning, persistence beyond a personal-best number) -
+a scoped feature project in its own right, not a same-day addition.
+
+- [ ] Stock Market Simulator
+- [ ] City Builder Lite
+- [ ] Colony Survival
+- [ ] Restaurant Manager
+- [ ] Shop Simulator
+- [ ] Theme Park Builder Lite
+- [ ] Fishing Game (equipment/rarity/upgrades version)
+- [ ] Creature Collector
+- [ ] Monster Fusion
+- [ ] Character Builder
 
 ### Creation tools
 
-- [ ] Pixel Art Challenge — prompts or templates with a limited palette.
-- [ ] Level Creator — create a maze, platformer, or puzzle level and play it.
-- [ ] Music Sequencer — place beats, drums, melodies, and effects on a
-      timeline.
-- [ ] Animation Studio — place characters, move them frame-by-frame, and
-      create short animations.
+Deferred as a whole subsection. These are authoring/editor tools (draw
+pixel art, build a playable level, sequence music, animate frames), a
+different product category from "play a round of a game" - each needs its
+own editing UI plus a way to save and revisit created content, neither of
+which this app currently has anywhere. Worth its own design pass, not a
+same-day slot-in next to the games above.
+
+- [ ] Pixel Art Challenge
+- [ ] Level Creator
+- [ ] Music Sequencer
+- [ ] Animation Studio
 
 ## 10. Existing-game improvement backlog
 
