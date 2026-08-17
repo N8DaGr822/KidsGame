@@ -10,6 +10,13 @@
     needed the way RobotCommands' maze needed a BFS check, because the
     puzzle IS the solution in disguise.
 
+    Wall blockers (scaling with difficulty) are then dropped on cells the
+    solution path never touches, so they can't make the puzzle
+    unsolvable. They're not just decoration: if a wrong mirror guess sends
+    the beam into one, the beam visibly dead-ends there instead of
+    continuing through empty space, so routing around them is a real part
+    of reading the board.
+
     Usage:
         <LaserMaze OnComplete="HandleGameComplete" />
 *@
@@ -66,7 +73,8 @@
                         var isSource = pos == sourceCell;
                         var isTarget = pos == targetCell;
                         var hasMirror = mirrorOrientation.TryGetValue(pos, out var orientation);
-                        <div class="lm-cell @(isTarget && solved ? "solved" : "")">
+                        var isBlocker = blockers.Contains(pos);
+                        <div class="lm-cell @(isTarget && solved ? "solved" : "") @(isBlocker ? "wall" : "")">
                             @if (isSource)
                             {
                                 <span class="lm-source">@SourceArrow()</span>
@@ -74,6 +82,10 @@
                             else if (isTarget)
                             {
                                 <span class="lm-target">🎯</span>
+                            }
+                            else if (isBlocker)
+                            {
+                                <span class="lm-wall">🧱</span>
                             }
                             else if (hasMirror)
                             {
@@ -152,6 +164,13 @@
         _ => (4, 6),
     };
 
+    private static (int min, int max) BlockerCountFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => (1, 2),
+        Difficulty.Medium => (2, 4),
+        _ => (4, 6),
+    };
+
     private Phase phase = Phase.Setup;
     private Difficulty selectedDifficulty = Difficulty.Easy;
     private int size;
@@ -159,6 +178,7 @@
     private int sourceDir;
     private (int, int) targetCell;
     private readonly Dictionary<(int, int), int> mirrorOrientation = new();
+    private readonly HashSet<(int, int)> blockers = new();
     private List<(int Row, int Col)> litPath = new();
     private bool solved;
     private (int, int)? justFlipped;
@@ -210,7 +230,7 @@
 
         for (var attempt = 0; attempt < 60; attempt++)
         {
-            if (TryBuildPath(targetTurns, out var solution, out var src, out var dir, out var tgt))
+            if (TryBuildPath(targetTurns, out var solution, out var src, out var dir, out var tgt, out var pathCells))
             {
                 sourceCell = src;
                 sourceDir = dir;
@@ -230,6 +250,7 @@
                     mirrorOrientation[flipPos] = 1 - mirrorOrientation[flipPos];
                 }
 
+                PlaceBlockers(pathCells);
                 Simulate();
                 return;
             }
@@ -242,10 +263,33 @@
         sourceDir = 1;
         targetCell = (size / 2, size - 1);
         mirrorOrientation.Clear();
+        blockers.Clear();
         Simulate();
     }
 
-    private bool TryBuildPath(int targetTurns, out Dictionary<(int, int), int> solution, out (int, int) src, out int dir, out (int, int) tgt)
+    // Blockers only ever land on cells the solution path never touches, so
+    // they can narrow the board and force real routing decisions without
+    // ever making the puzzle unsolvable.
+    private void PlaceBlockers(HashSet<(int, int)> pathCells)
+    {
+        blockers.Clear();
+        var candidates = AllCells().Where(p => !pathCells.Contains(p)).OrderBy(_ => rng.Next()).ToList();
+        var (min, max) = BlockerCountFor(selectedDifficulty);
+        var count = Math.Min(rng.Next(min, max + 1), candidates.Count);
+        foreach (var pos in candidates.Take(count))
+        {
+            blockers.Add(pos);
+        }
+    }
+
+    private IEnumerable<(int, int)> AllCells()
+    {
+        for (var r = 0; r < size; r++)
+            for (var c = 0; c < size; c++)
+                yield return (r, c);
+    }
+
+    private bool TryBuildPath(int targetTurns, out Dictionary<(int, int), int> solution, out (int, int) src, out int dir, out (int, int) tgt, out HashSet<(int, int)> pathCells)
     {
         solution = new Dictionary<(int, int), int>();
         var edge = rng.Next(4);
@@ -259,6 +303,7 @@
         dir = edge switch { 0 => 1, 1 => 2, 2 => 3, _ => 0 };
 
         var visited = new HashSet<(int, int)> { src };
+        pathCells = visited;
         var pos = src;
         var curDir = dir;
         var turnsPlaced = 0;
@@ -362,6 +407,7 @@
             pos = next;
             path.Add(pos);
             if (pos == targetCell) { reachedTarget = true; break; }
+            if (blockers.Contains(pos)) break; // beam dead-ends into a wall
             if (mirrorOrientation.TryGetValue(pos, out var orientation))
             {
                 dir = orientation == 0 ? Slash[dir] : Backslash[dir];
@@ -412,9 +458,9 @@
 
     private static string DifficultyDetail(Difficulty d) => d switch
     {
-        Difficulty.Easy => "5x5 grid, fewer turns",
-        Difficulty.Medium => "6x6 grid",
-        _ => "7x7 grid, more turns",
+        Difficulty.Easy => "5x5 grid, fewer turns, a wall or two",
+        Difficulty.Medium => "6x6 grid, a few walls",
+        _ => "7x7 grid, more turns, more walls",
     };
 
     public async ValueTask DisposeAsync()
