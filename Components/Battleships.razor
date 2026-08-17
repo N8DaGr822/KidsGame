@@ -55,7 +55,7 @@
         <div class="game-hud">
             <span class="bs-title">Battleships</span>
             <span class="game-stat">🚢 Ship @(placingShipIndex + 1)/@playerShipLengths.Length (length @CurrentPlacingLength)</span>
-            <button class="game-secondary-action" @onclick="RotateOrientation">🔄 @(placingHorizontal ? "Horizontal" : "Vertical")</button>
+            <button class="game-secondary-action" @onclick="RotateOrientation">🔄 Orientation: @(placingHorizontal ? "Horizontal" : "Vertical")</button>
             <button class="game-secondary-action" @onclick="RandomizeRemaining">🎲 Randomize Rest</button>
             <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
@@ -263,13 +263,32 @@
         return (board, shipLengths);
     }
 
+    // Tries the tapped cell at every possible position within the ship's
+    // span (not just as its start), so a kid can tap anywhere along where
+    // they want the ship instead of only its top/left end. Without this,
+    // vertical ships would silently fail to place any time the tapped
+    // cell was too close to the bottom edge to extend downward from -
+    // which looked like "vertical doesn't work" even though the toggle
+    // itself was fine.
     private bool TryComputeShipCells(int row, int col, int length, bool horizontal, out List<(int Row, int Col)> cells)
+    {
+        for (var offset = 0; offset < length; offset++)
+        {
+            var startRow = horizontal ? row : row - offset;
+            var startCol = horizontal ? col - offset : col;
+            if (TryPlaceFrom(startRow, startCol, length, horizontal, out cells)) return true;
+        }
+        cells = new List<(int Row, int Col)>();
+        return false;
+    }
+
+    private bool TryPlaceFrom(int startRow, int startCol, int length, bool horizontal, out List<(int Row, int Col)> cells)
     {
         cells = new List<(int Row, int Col)>();
         for (var i = 0; i < length; i++)
         {
-            var r = horizontal ? row : row + i;
-            var c = horizontal ? col + i : col;
+            var r = horizontal ? startRow : startRow + i;
+            var c = horizontal ? startCol + i : startCol;
             if (r < 0 || r >= gridSize || c < 0 || c >= gridSize) return false;
             cells.Add((r, c));
         }
