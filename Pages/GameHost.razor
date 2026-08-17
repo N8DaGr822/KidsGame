@@ -202,6 +202,10 @@
             {
                 <ArcheryChallenge PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleArcheryChallengeComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.BasketballShot)
+            {
+                <BasketballShot PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleBasketballShotComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -919,6 +923,21 @@
             Theme = result.Difficulty,
             Difficulty = $"Score {result.TotalScore}",
             Moves = result.TotalScore,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleBasketballShotComplete(BasketballShot.BasketballShotResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Made {result.Makes}/{result.TotalShots}",
+            Moves = result.Makes,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

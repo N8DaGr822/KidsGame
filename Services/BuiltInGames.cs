@@ -56,6 +56,7 @@ public static class BuiltInGames
     public const string MorseCodeChallenge = "morse-code-challenge";
     public const string RobotCommands = "robot-commands";
     public const string ArcheryChallenge = "archery-challenge";
+    public const string BasketballShot = "basketball-shot";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -104,5 +105,6 @@ public static class BuiltInGames
         new BuiltInGame("Morse Code Challenge", "📡", MorseCodeChallenge, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Robot Commands", "🤖", RobotCommands, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Archery Challenge", "🏹", ArcheryChallenge, MinAge: 8, MaxAge: 14),
+        new BuiltInGame("Basketball Shot", "🏀", BasketballShot, MinAge: 7, MaxAge: 13),
     };
 }

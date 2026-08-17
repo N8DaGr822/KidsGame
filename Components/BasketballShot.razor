@@ -1,0 +1,459 @@
+@*
+    BasketballShot.razor
+    Same drag-to-aim, analytic-trajectory-solve approach as
+    ArcheryChallenge/TankDuel (pull back, release, dotted preview shows
+    exactly where the ball will go) - but scoring is binary make/miss
+    through a hoop's narrow opening instead of graduated rings, and a
+    consecutive-makes streak is the headline stat instead of a running
+    point total, so this doesn't just feel like Archery Challenge
+    reskinned. Hard difficulty's hoop also shifts position each shot.
+    A fixed 6-shot session; personal best tracks the longest streak.
+
+    Usage:
+        <BasketballShot OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="bk-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="bk-setup game-setup-panel">
+            <h2>🏀 Basketball Shot</h2>
+            <p>Drag back to aim, then let go to shoot! Sink the ball through the hoop.</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="bk-diff-name">@DifficultyName(diff)</span>
+                            <span class="bk-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="bk-title">Basketball</span>
+            <span class="game-stat">🏀 Shot @Math.Min(shotNumber, TotalShots)/@TotalShots</span>
+            <span class="game-stat">✅ Makes @makes</span>
+            <span class="game-stat">🔥 Streak @streak</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="bk-field" @ref="fieldRef"
+             @onpointerdown="OnFieldPointerDown" @onpointermove="OnFieldPointerMove"
+             @onpointerup="OnFieldPointerUp" @onpointercancel="OnFieldPointerUp">
+            <div class="bk-sky"></div>
+            <div class="bk-ground"></div>
+
+            <div class="bk-hoop" style="left:@(hoopX.ToString(Inv))%; top:@(hoopY.ToString(Inv))%;">
+                <span class="bk-backboard"></span>
+                <span class="bk-rim"></span>
+            </div>
+
+            @if (previewPoints.Count > 0)
+            {
+                @foreach (var p in previewPoints)
+                {
+                    <span class="bk-preview-dot" style="left:@(p.X.ToString(Inv))%; top:@(p.Y.ToString(Inv))%;"></span>
+                }
+            }
+
+            <span class="bk-player">🧍</span>
+
+            @if (lastImpact is { } impact)
+            {
+                <span class="bk-impact" style="left:@(impact.X.ToString(Inv))%; top:@(impact.Y.ToString(Inv))%;">@(impact.Made ? "🏀" : "💨")</span>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="bk-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🏀 All Done!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great shooting" : PlayerName + ", great shooting") - @makes/@TotalShots makes!</p>
+                    <PersonalBestBadge Value="@($"{bestStreak ?? streak} streak")" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<BasketballShotResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (longest consecutive-makes streak) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int TotalShots = 6;
+    private const double PlayerX = 12;
+    private const double GroundY = 78;
+    private const double LaunchYOffset = 10;
+    private const double Gravity = 150;
+    private const double MinSpeed = 65;
+    private const double MaxSpeed = 145;
+    private const double MinAngleDeg = 20;
+    private const double MaxAngleDeg = 75;
+    private const double MinDragDistance = 4;
+    private const double MaxDragDistance = 42;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static double HoopXBaseFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 55,
+        Difficulty.Medium => 68,
+        _ => 78,
+    };
+
+    private static double ToleranceFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 6,
+        Difficulty.Medium => 4,
+        _ => 2.5,
+    };
+
+    private static double MoveRangeFor(Difficulty d) => d == Difficulty.Hard ? 8 : 0;
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private double hoopX = 55;
+    private double hoopY = 35;
+    private int shotNumber;
+    private int makes;
+    private int streak;
+    private int bestStreakThisSession;
+    private string roundMessage = "";
+    private int? bestStreak;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    private ElementReference fieldRef;
+    private double fieldLeft, fieldTop, fieldWidth, fieldHeight;
+    private bool isDragging;
+    private long? activeFieldPointerId;
+    private readonly List<(double X, double Y)> previewPoints = new();
+    private (bool Made, double X, double Y)? lastImpact;
+    private bool resolving;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        shotNumber = 0;
+        makes = 0;
+        streak = 0;
+        bestStreakThisSession = 0;
+        roundMessage = "";
+        bestStreak = null;
+        isNewBest = false;
+        lastImpact = null;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        NextShot();
+    }
+
+    private void NextShot()
+    {
+        shotNumber++;
+        var baseX = HoopXBaseFor(selectedDifficulty);
+        var moveRange = MoveRangeFor(selectedDifficulty);
+        hoopX = baseX + (moveRange > 0 ? rng.NextDouble() * moveRange * 2 - moveRange : 0);
+        hoopY = 32 + rng.NextDouble() * 6;
+
+        previewPoints.Clear();
+        lastImpact = null;
+        roundMessage = "";
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new BasketballShotResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Makes: makes,
+                TotalShots: shotNumber - 1,
+                BestStreak: bestStreakThisSession,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task OnFieldPointerDown(PointerEventArgs e)
+    {
+        if (phase != Phase.Playing || resolving) return;
+
+        activeFieldPointerId = e.PointerId;
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        var rect = await _module.InvokeAsync<FieldRect>("getBoundingRect", fieldRef);
+        fieldLeft = rect.Left;
+        fieldTop = rect.Top;
+        fieldWidth = rect.Width;
+        fieldHeight = rect.Height;
+
+        await _module.InvokeVoidAsync("setPointerCapture", fieldRef, e.PointerId);
+
+        if (activeFieldPointerId != e.PointerId) return;
+
+        isDragging = true;
+        UpdateAim(e.ClientX, e.ClientY);
+    }
+
+    private void OnFieldPointerMove(PointerEventArgs e)
+    {
+        if (!isDragging) return;
+        UpdateAim(e.ClientX, e.ClientY);
+    }
+
+    private async Task OnFieldPointerUp(PointerEventArgs e)
+    {
+        activeFieldPointerId = null;
+        if (!isDragging) return;
+        isDragging = false;
+
+        var (hasShot, angle, speed) = ResolveAim(e.ClientX, e.ClientY);
+        previewPoints.Clear();
+
+        if (!hasShot)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        await FireAsync(angle, speed);
+    }
+
+    private void UpdateAim(double clientX, double clientY)
+    {
+        var (hasShot, angle, speed) = ResolveAim(clientX, clientY);
+        previewPoints.Clear();
+
+        if (hasShot)
+        {
+            var (vx, vy) = VelocityFromAngleSpeed(angle, speed);
+            previewPoints.AddRange(ComputeTrajectoryPreview(PlayerX, GroundY - LaunchYOffset, vx, vy));
+        }
+
+        StateHasChanged();
+    }
+
+    private (bool HasShot, double AngleDeg, double Speed) ResolveAim(double clientX, double clientY)
+    {
+        if (fieldWidth <= 0 || fieldHeight <= 0) return (false, 0, 0);
+
+        var pointerXPct = (clientX - fieldLeft) / fieldWidth * 100;
+        var pointerYPct = (clientY - fieldTop) / fieldHeight * 100;
+
+        var pullX = pointerXPct - PlayerX;
+        var pullY = pointerYPct - (GroundY - LaunchYOffset);
+        var dragDistance = Math.Sqrt(pullX * pullX + pullY * pullY);
+        if (dragDistance < MinDragDistance) return (false, 0, 0);
+
+        var fireX = -pullX;
+        var fireY = -pullY;
+
+        var angleDeg = Math.Atan2(-fireY, Math.Abs(fireX)) * 180 / Math.PI;
+        angleDeg = Math.Clamp(angleDeg, MinAngleDeg, MaxAngleDeg);
+
+        var clampedDrag = Math.Clamp(dragDistance, MinDragDistance, MaxDragDistance);
+        var t = (clampedDrag - MinDragDistance) / (MaxDragDistance - MinDragDistance);
+        var speed = MinSpeed + t * (MaxSpeed - MinSpeed);
+
+        return (true, angleDeg, speed);
+    }
+
+    private static (double Vx, double Vy) VelocityFromAngleSpeed(double angleDeg, double speed)
+    {
+        var rad = angleDeg * Math.PI / 180.0;
+        return (Math.Cos(rad) * speed, -Math.Sin(rad) * speed);
+    }
+
+    private static double SolveImpactTime(double y0, double vy)
+    {
+        var a = 0.5 * Gravity;
+        var b = vy;
+        var c = y0 - GroundY;
+        var discriminant = b * b - 4 * a * c;
+        if (discriminant < 0) return 0;
+
+        var sqrtDisc = Math.Sqrt(discriminant);
+        return Math.Max((-b + sqrtDisc) / (2 * a), (-b - sqrtDisc) / (2 * a));
+    }
+
+    private List<(double X, double Y)> ComputeTrajectoryPreview(double x0, double y0, double vx, double vy)
+    {
+        var points = new List<(double, double)>();
+        var impactTime = SolveImpactTime(y0, vy);
+        if (impactTime <= 0) return points;
+
+        const int steps = 14;
+        for (var i = 1; i <= steps; i++)
+        {
+            var t = impactTime * i / steps;
+            var x = x0 + vx * t;
+            var y = y0 + vy * t + 0.5 * Gravity * t * t;
+            if (x < 0 || x > 100) break;
+            points.Add((x, y));
+        }
+        return points;
+    }
+
+    private async Task FireAsync(double angleDeg, double speed)
+    {
+        resolving = true;
+        var (vx, vy) = VelocityFromAngleSpeed(angleDeg, speed);
+        var y0 = GroundY - LaunchYOffset;
+
+        var impactTime = SolveImpactTime(y0, vy);
+        var impactX = impactTime > 0 ? PlayerX + vx * impactTime : PlayerX;
+
+        bool made;
+        if (impactX < hoopX)
+        {
+            made = false;
+            roundMessage = "Fell short!";
+        }
+        else
+        {
+            var tCross = (hoopX - PlayerX) / vx;
+            var yCross = y0 + vy * tCross + 0.5 * Gravity * tCross * tCross;
+            made = Math.Abs(yCross - hoopY) <= ToleranceFor(selectedDifficulty);
+            roundMessage = made ? "Swish!" : "Just missed!";
+        }
+
+        if (made)
+        {
+            makes++;
+            streak++;
+            bestStreakThisSession = Math.Max(bestStreakThisSession, streak);
+        }
+        else
+        {
+            streak = 0;
+        }
+
+        lastImpact = (made, hoopX, hoopY);
+        await PlaySoundAsync(made ? "playMatchSound" : "playMismatchSound");
+        StateHasChanged();
+        await Task.Delay(1200);
+
+        resolving = false;
+
+        if (shotNumber >= TotalShots)
+        {
+            await FinishGame();
+        }
+        else
+        {
+            NextShot();
+            StateHasChanged();
+        }
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "best-streak";
+            bestStreak = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.BasketballShot, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.BasketballShot, key, bestStreakThisSession, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new BasketballShotResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Makes: makes,
+                TotalShots: TotalShots,
+                BestStreak: bestStreakThisSession,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Close hoop, big target",
+        Difficulty.Medium => "Farther hoop, smaller target",
+        _ => "Far, small target, hoop moves",
+    };
+
+    private record FieldRect(double Left, double Top, double Width, double Height);
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record BasketballShotResult(string Difficulty, int Makes, int TotalShots, int BestStreak, int ElapsedSeconds);
+}
