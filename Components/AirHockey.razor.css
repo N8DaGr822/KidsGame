@@ -1,0 +1,104 @@
+.ah-game {
+    width: min(420px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.75rem;
+}
+
+.ah-diff-name {
+    font-weight: 900;
+}
+
+.ah-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.ah-title {
+    font-weight: 900;
+}
+
+.ah-field {
+    position: relative;
+    width: min(360px, 90vw);
+    aspect-ratio: 100 / 150;
+    margin: 0 auto;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    background: linear-gradient(180deg, #eafcff 0%, #dff3ff 50%, #eafcff 100%);
+    border: 5px solid #2b6cb0;
+}
+
+.ah-center-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 2px;
+    background: rgba(43, 108, 176, 0.5);
+    transform: translateY(-50%);
+}
+
+.ah-center-circle {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 30%;
+    aspect-ratio: 1;
+    border: 2px solid rgba(43, 108, 176, 0.5);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.ah-goal {
+    position: absolute;
+    height: 5px;
+    background: #ffd60a;
+}
+
+.ah-goal-top {
+    top: -2px;
+}
+
+.ah-goal-bottom {
+    bottom: -2px;
+}
+
+.ah-puck {
+    position: absolute;
+    width: clamp(16px, 8%, 26px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: #1a1a2e;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.ah-paddle {
+    position: absolute;
+    width: clamp(32px, 16%, 52px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.ah-paddle.player {
+    background: radial-gradient(circle at 35% 30%, #6ee7df, #2a9d94);
+}
+
+.ah-paddle.cpu {
+    background: radial-gradient(circle at 35% 30%, #ff8a8a, #d43f3f);
+}
+
+.ah-message {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+}

@@ -63,6 +63,7 @@ public static class BuiltInGames
     public const string WordLadder = "word-ladder";
     public const string TriviaBattle = "trivia-battle";
     public const string FlagGuessingGame = "flag-guessing-game";
+    public const string AirHockey = "air-hockey";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -118,5 +119,6 @@ public static class BuiltInGames
         new BuiltInGame("Word Ladder", "🪜", WordLadder, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Trivia Battle", "🧠", TriviaBattle, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Flag Guessing Game", "🚩", FlagGuessingGame, MinAge: 7, MaxAge: 13),
+        new BuiltInGame("Air Hockey", "🏒", AirHockey, MinAge: 7, MaxAge: 14),
     };
 }

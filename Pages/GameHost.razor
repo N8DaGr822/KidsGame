@@ -230,6 +230,10 @@
             {
                 <FlagGuessingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleFlagGuessingGameComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.AirHockey)
+            {
+                <AirHockey PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleAirHockeyComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -1052,6 +1056,21 @@
             Theme = result.Difficulty,
             Difficulty = $"{result.Correct}/{result.TotalRounds} correct, score {result.Score}",
             Moves = result.Score,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleAirHockeyComplete(AirHockey.AirHockeyResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"{(result.Won ? "Won" : "Lost")} {result.PlayerScore}-{result.CpuScore}",
+            Moves = result.PlayerScore - result.CpuScore,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

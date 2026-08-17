@@ -1,0 +1,510 @@
+@*
+    AirHockey.razor
+    Real air hockey physics via Services/Physics2D.cs, not a scripted
+    trajectory: a fixed-timestep loop (1/120s substeps, capped per
+    rendered frame so a lagged tab can't spiral) steps the puck and both
+    paddles, resolves circle/circle and circle/wall collisions with real
+    impulses, and applies time-based drag. Drag your paddle in your half
+    of the table; the paddle's velocity is derived each substep from how
+    far the pointer target moved (not just teleported), so a fast flick
+    hits the puck harder than a slow nudge - without that, this would
+    feel like Pong wearing a circular hat instead of air hockey.
+
+    First to 7 goals wins. Difficulty scales the CPU paddle's top speed
+    and how far ahead it predicts the puck's path, not just a reaction
+    delay. Personal best tracks the biggest winning goal margin.
+
+    No spin/angular velocity yet - this is deliberately the "get the
+    fundamentals feeling right first" pass; Pool/Billiards is the planned
+    follow-up that builds on the same Physics2D layer (see
+    GAMES_ROADMAP.md).
+
+    Usage:
+        <AirHockey OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using System.Numerics
+@using KidsGameLauncher.Services
+
+<div class="ah-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="ah-setup game-setup-panel">
+            <h2>🏒 Air Hockey</h2>
+            <p>Drag your paddle to defend your goal and knock the puck into theirs. First to 7 wins!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="ah-diff-name">@DifficultyName(diff)</span>
+                            <span class="ah-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="ah-title">Air Hockey</span>
+            <span class="game-stat">🟦 You @playerScore</span>
+            <span class="game-stat">🟥 CPU @cpuScore</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="ah-field" @ref="fieldRef"
+             @onpointerdown="OnFieldPointerDown" @onpointermove="OnFieldPointerMove"
+             @onpointerup="OnFieldPointerUp" @onpointercancel="OnFieldPointerUp">
+            <div class="ah-center-line"></div>
+            <div class="ah-center-circle"></div>
+            <div class="ah-goal ah-goal-top" style="left:@((50 - GoalHalfWidth * 100f / TableWidth).ToString(Inv))%; width:@((GoalHalfWidth * 200f / TableWidth).ToString(Inv))%;"></div>
+            <div class="ah-goal ah-goal-bottom" style="left:@((50 - GoalHalfWidth * 100f / TableWidth).ToString(Inv))%; width:@((GoalHalfWidth * 200f / TableWidth).ToString(Inv))%;"></div>
+
+            <span class="ah-puck" style="left:@((puck.Position.X * 100f / TableWidth).ToString(Inv))%; top:@((puck.Position.Y * 100f / TableHeight).ToString(Inv))%;"></span>
+            <span class="ah-paddle cpu" style="left:@((cpuPaddle.Position.X * 100f / TableWidth).ToString(Inv))%; top:@((cpuPaddle.Position.Y * 100f / TableHeight).ToString(Inv))%;"></span>
+            <span class="ah-paddle player" style="left:@((playerPaddle.Position.X * 100f / TableWidth).ToString(Inv))%; top:@((playerPaddle.Position.Y * 100f / TableHeight).ToString(Inv))%;"></span>
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="ah-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(won ? "🎉 Victory!" : "💥 So Close!")</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")final score @playerScore-@cpuScore@(won ? "!" : " - try again!")</p>
+                    <PersonalBestBadge Value="@(bestMargin is { } bm ? $"+{bm} margin" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<AirHockeyResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (biggest winning margin) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    // Physics-space table units - not pixels or percent. Render position
+    // is just Position/TableSize as a percentage of the field box, which
+    // is CSS-constrained to this same aspect ratio.
+    private const float TableWidth = 100f;
+    private const float TableHeight = 150f;
+    private const float PuckRadius = 4.5f;
+    private const float PaddleRadius = 9f;
+    private const float GoalHalfWidth = 15f;
+    private const float WallRestitution = 0.92f;
+    private const float PaddleRestitution = 1.02f; // >1 makes paddle strikes feel punchy, same trick real arcade air hockey tables get from spring-loaded rails
+    private const float PuckDragPerSecond = 0.12f;
+    private const float MaxPuckSpeed = 260f;
+    private const int WinScore = 7;
+    private const float FixedDt = 1f / 120f;
+    private const int MaxSubstepsPerFrame = 8;
+    private const int FrameDelayMs = 16;
+    private const int GoalPauseMs = 1200;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static (float MaxSpeed, float PredictionFactor) CpuSettingsFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => (55f, 0.05f),
+        Difficulty.Medium => (85f, 0.12f),
+        _ => (125f, 0.22f),
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private PhysicsBody puck = new() { Radius = PuckRadius };
+    private PhysicsBody playerPaddle = new() { Radius = PaddleRadius, IsKinematic = true };
+    private PhysicsBody cpuPaddle = new() { Radius = PaddleRadius, IsKinematic = true };
+    private int playerScore;
+    private int cpuScore;
+    private bool won;
+    private string roundMessage = "";
+    private int? bestMargin;
+    private bool isNewBest;
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    private ElementReference fieldRef;
+    private double fieldLeft, fieldTop, fieldWidth, fieldHeight;
+    private long? activeFieldPointerId;
+    private Vector2? playerPointerTarget;
+
+    private CancellationTokenSource? _loopCts;
+    private float accumulator;
+    private bool paused;
+    private DateTime pauseUntilUtc;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        playerScore = 0;
+        cpuScore = 0;
+        won = false;
+        roundMessage = "";
+        bestMargin = null;
+        isNewBest = false;
+        accumulator = 0f;
+        paused = false;
+        activeFieldPointerId = null;
+        playerPointerTarget = null;
+
+        puck = new PhysicsBody { Radius = PuckRadius, Position = new Vector2(TableWidth / 2f, TableHeight / 2f) };
+        playerPaddle = new PhysicsBody { Radius = PaddleRadius, IsKinematic = true, Position = new Vector2(TableWidth / 2f, TableHeight * 0.85f) };
+        cpuPaddle = new PhysicsBody { Radius = PaddleRadius, IsKinematic = true, Position = new Vector2(TableWidth / 2f, TableHeight * 0.15f) };
+
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+
+        _loopCts?.Cancel();
+        _loopCts = new CancellationTokenSource();
+        _ = RunLoopAsync(_loopCts.Token);
+    }
+
+    private async Task ExitToSetup()
+    {
+        _loopCts?.Cancel();
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new AirHockeyResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                PlayerScore: playerScore,
+                CpuScore: cpuScore,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    // Runs physics at a fixed 1/120s timestep regardless of how often the
+    // browser actually wakes this loop up, with a capped number of
+    // substeps per iteration - without the cap, one slow/backgrounded
+    // frame would try to simulate a huge elapsed gap in one jump and the
+    // puck would tunnel straight through whatever was in its path.
+    private async Task RunLoopAsync(CancellationToken ct)
+    {
+        var lastTick = DateTime.UtcNow;
+
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(FrameDelayMs, ct);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            var elapsed = (float)(now - lastTick).TotalSeconds;
+            lastTick = now;
+
+            if (paused)
+            {
+                if (now >= pauseUntilUtc)
+                {
+                    paused = false;
+                    puck.Position = new Vector2(TableWidth / 2f, TableHeight / 2f);
+                    puck.Velocity = Vector2.Zero;
+                }
+            }
+            else
+            {
+                accumulator += elapsed;
+                var substeps = 0;
+                bool? goalScoredByPlayer = null;
+
+                while (accumulator >= FixedDt && substeps < MaxSubstepsPerFrame)
+                {
+                    goalScoredByPlayer = StepPhysics(FixedDt);
+                    accumulator -= FixedDt;
+                    substeps++;
+                    if (goalScoredByPlayer is not null) break;
+                }
+                if (substeps >= MaxSubstepsPerFrame) accumulator = 0f;
+
+                if (goalScoredByPlayer is { } playerScored)
+                {
+                    if (playerScored) { playerScore++; roundMessage = "Goal!"; }
+                    else { cpuScore++; roundMessage = "CPU scores!"; }
+                    await PlaySoundAsync(playerScored ? "playMatchSound" : "playMismatchSound");
+
+                    if (playerScore >= WinScore || cpuScore >= WinScore)
+                    {
+                        won = playerScore > cpuScore;
+                        StateHasChanged();
+                        await FinishGame();
+                        return;
+                    }
+
+                    puck.Velocity = Vector2.Zero;
+                    paused = true;
+                    pauseUntilUtc = DateTime.UtcNow.AddMilliseconds(GoalPauseMs);
+                }
+            }
+
+            StateHasChanged();
+        }
+    }
+
+    // Returns true if the player just scored, false if the CPU did, or
+    // null if no goal happened this substep.
+    private bool? StepPhysics(float dt)
+    {
+        UpdatePlayerPaddle(dt);
+        UpdateCpuPaddle(dt);
+
+        puck.Position += puck.Velocity * dt;
+        Physics2D.ApplyDrag(puck, dt, PuckDragPerSecond);
+        Physics2D.ResolveWallCollisionX(puck, TableWidth, WallRestitution);
+
+        var goal = CheckGoalOrBounceY();
+        if (goal is not null) return goal;
+
+        Physics2D.ResolveCircleCollision(playerPaddle, puck, PaddleRestitution);
+        Physics2D.ResolveCircleCollision(cpuPaddle, puck, PaddleRestitution);
+        ClampPuckSpeed();
+        return null;
+    }
+
+    private bool? CheckGoalOrBounceY()
+    {
+        var inGoalRangeX = MathF.Abs(puck.Position.X - TableWidth / 2f) <= GoalHalfWidth - puck.Radius;
+
+        if (puck.Position.Y - puck.Radius < 0f)
+        {
+            if (inGoalRangeX)
+            {
+                if (puck.Position.Y + puck.Radius < 0f) return true; // player shot it into the CPU's (top) goal
+            }
+            else
+            {
+                Physics2D.ResolveWallCollisionY(puck, TableHeight, WallRestitution);
+            }
+        }
+        else if (puck.Position.Y + puck.Radius > TableHeight)
+        {
+            if (inGoalRangeX)
+            {
+                if (puck.Position.Y - puck.Radius > TableHeight) return false; // CPU shot it into the player's (bottom) goal
+            }
+            else
+            {
+                Physics2D.ResolveWallCollisionY(puck, TableHeight, WallRestitution);
+            }
+        }
+
+        return null;
+    }
+
+    private void UpdatePlayerPaddle(float dt)
+    {
+        if (playerPointerTarget is not { } target)
+        {
+            playerPaddle.Velocity = Vector2.Zero;
+            return;
+        }
+
+        var clamped = ClampToHalf(target, bottomHalf: true);
+        playerPaddle.Velocity = (clamped - playerPaddle.Position) / dt;
+        playerPaddle.Position = clamped;
+    }
+
+    // Simple chase-and-predict AI: tracks the puck's X, leaning ahead of
+    // its current position by PredictionFactor * puck velocity when the
+    // puck is heading toward the CPU's own goal (so it intercepts rather
+    // than always arriving late), and mostly hangs back near its goal
+    // otherwise. Higher difficulty = faster paddle + more prediction, not
+    // just a shorter reaction delay, so Hard is genuinely harder to beat
+    // rather than just "the same AI but twitchier."
+    private void UpdateCpuPaddle(float dt)
+    {
+        var (maxSpeed, predictionFactor) = CpuSettingsFor(selectedDifficulty);
+
+        var targetX = puck.Position.X;
+        if (puck.Velocity.Y < 0f)
+        {
+            targetX += puck.Velocity.X * predictionFactor;
+        }
+        targetX = Math.Clamp(targetX, PaddleRadius, TableWidth - PaddleRadius);
+
+        var homeY = TableHeight * 0.22f;
+        var puckInCpuHalf = puck.Position.Y < TableHeight / 2f;
+        var targetY = puckInCpuHalf ? MathF.Min(puck.Position.Y, TableHeight / 2f - PaddleRadius) : homeY;
+        targetY = Math.Clamp(targetY, PaddleRadius, TableHeight / 2f - PaddleRadius);
+
+        var target = new Vector2(targetX, targetY);
+        var toTarget = target - cpuPaddle.Position;
+        var dist = toTarget.Length();
+        var maxStep = maxSpeed * dt;
+
+        var newPos = dist <= maxStep || dist < 0.0001f
+            ? target
+            : cpuPaddle.Position + toTarget / dist * maxStep;
+
+        cpuPaddle.Velocity = (newPos - cpuPaddle.Position) / dt;
+        cpuPaddle.Position = newPos;
+    }
+
+    private Vector2 ClampToHalf(Vector2 target, bool bottomHalf)
+    {
+        var x = Math.Clamp(target.X, PaddleRadius, TableWidth - PaddleRadius);
+        var y = bottomHalf
+            ? Math.Clamp(target.Y, TableHeight / 2f + PaddleRadius, TableHeight - PaddleRadius)
+            : Math.Clamp(target.Y, PaddleRadius, TableHeight / 2f - PaddleRadius);
+        return new Vector2(x, y);
+    }
+
+    private void ClampPuckSpeed()
+    {
+        if (puck.Velocity.LengthSquared() > MaxPuckSpeed * MaxPuckSpeed)
+        {
+            puck.Velocity = Vector2.Normalize(puck.Velocity) * MaxPuckSpeed;
+        }
+    }
+
+    private async Task OnFieldPointerDown(PointerEventArgs e)
+    {
+        if (phase != Phase.Playing) return;
+
+        activeFieldPointerId = e.PointerId;
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        var rect = await _module.InvokeAsync<FieldRect>("getBoundingRect", fieldRef);
+        fieldLeft = rect.Left;
+        fieldTop = rect.Top;
+        fieldWidth = rect.Width;
+        fieldHeight = rect.Height;
+
+        await _module.InvokeVoidAsync("setPointerCapture", fieldRef, e.PointerId);
+
+        if (activeFieldPointerId != e.PointerId) return;
+        UpdatePointerTarget(e.ClientX, e.ClientY);
+    }
+
+    private void OnFieldPointerMove(PointerEventArgs e)
+    {
+        if (activeFieldPointerId != e.PointerId) return;
+        UpdatePointerTarget(e.ClientX, e.ClientY);
+    }
+
+    private void OnFieldPointerUp(PointerEventArgs e)
+    {
+        if (activeFieldPointerId != e.PointerId) return;
+        activeFieldPointerId = null;
+        playerPointerTarget = null;
+    }
+
+    private void UpdatePointerTarget(double clientX, double clientY)
+    {
+        if (fieldWidth <= 0 || fieldHeight <= 0) return;
+        var xPct = (clientX - fieldLeft) / fieldWidth;
+        var yPct = (clientY - fieldTop) / fieldHeight;
+        playerPointerTarget = new Vector2((float)(xPct * TableWidth), (float)(yPct * TableHeight));
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "biggest-margin";
+            bestMargin = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.AirHockey, key);
+            if (won)
+            {
+                var margin = playerScore - cpuScore;
+                isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.AirHockey, key, margin, lowerIsBetter: false);
+            }
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new AirHockeyResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: won,
+                PlayerScore: playerScore,
+                CpuScore: cpuScore,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Slower CPU paddle, little prediction",
+        Difficulty.Medium => "Balanced CPU paddle",
+        _ => "Fast CPU paddle, predicts your shots",
+    };
+
+    private record FieldRect(double Left, double Top, double Width, double Height);
+
+    public async ValueTask DisposeAsync()
+    {
+        _loopCts?.Cancel();
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record AirHockeyResult(string Difficulty, bool Won, int PlayerScore, int CpuScore, int ElapsedSeconds);
+}

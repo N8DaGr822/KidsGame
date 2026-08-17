@@ -600,27 +600,46 @@ also wired up `Components/Shared/PersonalBestBadge.razor`: fewest guesses
       recency-weighted prediction approach fixed for Rock Paper Scissors
       earlier in this pass, reading a rolling window of recent shots instead
       of full match history, so Hard can't be baited by an old pattern.
-- [ ] Bridge Builder — deferred. Needs a real structural/rigid-body physics
-      engine (load-bearing joints, stress, collapse) that nothing in this
-      codebase currently provides; not a reskin of an existing system.
-- [ ] Physics Puzzle — deferred, same reasoning as Bridge Builder: continuous
-      physics simulation (ramps, springs, fans, magnets acting on a moving
-      object) is a new engine, not an extension of the analytic
-      trajectory-solve approach used for Archery/Basketball/TankDuel.
-- [ ] Marble Run — deferred, same reasoning: real-time physics simulation
-      rather than a solvable analytic shot.
-- [ ] Mini Golf — deferred. Closer to feasible than the above (could reuse
-      the drag-to-aim input), but needs continuous collision/bounce physics
-      off walls and slopes that the analytic single-parabola solve doesn't
-      cover.
-- [ ] Pool / Billiards Lite — deferred, same reasoning as Mini Golf: multi-ball
-      collision physics is a different problem than a single solved arc.
-- [ ] Air Hockey — deferred. Real-time continuous collision physics for a
-      fast-moving puck against paddles/walls; not analytically solvable like
-      a single projectile arc.
-- [ ] Dodgeball Arena — deferred. Needs real-time multi-projectile collision
-      and arena movement, not a fit for the turn-based/analytic-shot pattern
-      used elsewhere in this subsection.
+- [x] Air Hockey — the "needs a real continuous-collision physics engine"
+      reasoning that deferred this whole group turned out to be worth
+      solving properly rather than working around: added
+      `Services/Physics2D.cs`, a small reusable circle/circle +
+      circle/wall impulse-collision layer (position, velocity, mass,
+      restitution, time-based drag), stepped at a fixed 1/120s timestep
+      with capped substeps per rendered frame so a fast puck can't tunnel
+      through a paddle or wall on a slow frame. The player's paddle
+      derives its velocity each substep from how far the pointer target
+      moved, not just its position, so a fast flick hits harder than a
+      slow nudge. CPU paddle AI predicts the puck's future X (scaled by
+      difficulty) rather than just chasing its current position. No
+      spin/angular velocity yet - deliberately scoped to "get the
+      fundamentals feeling right" first. Personal best tracks biggest
+      winning margin.
+- [ ] Pool / Billiards Lite — next up, building on the same Physics2D
+      layer now that it exists. Needs more than Air Hockey used: many
+      balls instead of one puck (broad-phase collision checks between
+      all pairs), pockets (a ball leaving play rather than bouncing),
+      cue-stick aim/power input, and eventually spin (angular velocity +
+      tangential impulse at the contact point, and sliding-vs-rolling
+      friction) for realistic cue-ball control - explicitly the reason
+      Physics2D's circle collision doesn't model spin yet, per its own
+      header comment.
+- [ ] Bridge Builder — still deferred. A structural/rigid-body physics
+      engine (load-bearing joints, stress, collapse) is a different
+      problem from point-mass circle collision; Physics2D doesn't cover
+      it.
+- [ ] Physics Puzzle — still deferred, same reasoning as Bridge Builder:
+      ramps/springs/fans/magnets acting on a moving object need more than
+      circle/circle and circle/wall collision.
+- [ ] Marble Run — still deferred, same reasoning.
+- [ ] Mini Golf — reconsider now that Physics2D exists: it's much closer
+      to feasible than before (circle/wall bounce off course edges is
+      exactly what the new engine already does), mainly needing sloped
+      terrain/friction-per-surface and a hole-capture check added on top.
+      Not built yet, but no longer blocked on "no physics engine."
+- [ ] Dodgeball Arena — still deferred. Needs real-time multi-projectile
+      collision *and* arena movement (the player's own avatar dodging),
+      a bigger scope than a single controlled paddle/cue.
 
 ### Arcade, racing, and platforming
 
