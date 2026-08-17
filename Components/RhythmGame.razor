@@ -1,0 +1,310 @@
+@*
+    RhythmGame.razor
+    A pad pulses on every beat; tap it as close to the pulse as you can.
+    Timing is judged by comparing DateTime.UtcNow against the moment the
+    beat fired (same wall-clock timing approach as ReactionTimer), not by
+    counting animation frames, so judging stays accurate regardless of
+    render hiccups. Difficulty only changes tempo (time between beats) -
+    the hit windows are fixed - so Hard stays strictly harder than Easy
+    instead of accidentally becoming more forgiving, unlike the
+    HigherOrLower/ReactionTimer balance bugs fixed earlier this session.
+
+    Usage:
+        <RhythmGame OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="rg-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="rg-setup game-setup-panel">
+            <h2>🥁 Rhythm Game</h2>
+            <p>Tap the pad right when it pulses to keep your combo going!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="rg-diff-name">@DifficultyName(diff)</span>
+                            <span class="rg-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="rg-title">Rhythm Game</span>
+            <span class="game-stat">🥁 Beat @Math.Min(currentBeat, TotalBeats)/@TotalBeats</span>
+            <span class="game-stat">⭐ Score @score</span>
+            <span class="game-stat">🔥 Combo @combo</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <button class="rg-pad @(pulseOn ? "pulse" : "")" disabled="@(phase != Phase.Playing)" @onclick="Tap">
+            TAP!
+        </button>
+
+        <p class="rg-judgement rg-judgement-@JudgementClass()">@lastJudgement</p>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🥁 All Done!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")you scored @score points with a best combo of @bestComboThisSession!</p>
+                    <PersonalBestBadge Value="@($"{bestScore ?? score} points")" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<RhythmGameResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (highest score) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int TotalBeats = 12;
+    private const int PulseFlashMs = 150;
+    private const double PerfectWindowMs = 140;
+    private const double GoodWindowMs = 280;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int IntervalMsFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 800,
+        Difficulty.Medium => 600,
+        _ => 450,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int beatIntervalMs;
+    private int currentBeat;
+    private int score;
+    private int combo;
+    private int bestComboThisSession;
+    private bool pulseOn;
+    private bool tappedThisBeat;
+    private string lastJudgement = "";
+    private DateTime beatFiredAtUtc;
+    private int? bestScore;
+    private bool isNewBest;
+    private DateTime startedAtUtc;
+    private CancellationTokenSource? _loopCts;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        beatIntervalMs = IntervalMsFor(selectedDifficulty);
+        currentBeat = 0;
+        score = 0;
+        combo = 0;
+        bestComboThisSession = 0;
+        lastJudgement = "";
+        bestScore = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+
+        _loopCts?.Cancel();
+        _loopCts = new CancellationTokenSource();
+        _ = RunLoopAsync(_loopCts.Token);
+    }
+
+    private async Task RunLoopAsync(CancellationToken ct)
+    {
+        for (var i = 1; i <= TotalBeats; i++)
+        {
+            if (ct.IsCancellationRequested) return;
+
+            currentBeat = i;
+            tappedThisBeat = false;
+            beatFiredAtUtc = DateTime.UtcNow;
+            pulseOn = true;
+            await PlaySoundAsync("playDrumHit", 0);
+            StateHasChanged();
+
+            try
+            {
+                await Task.Delay(PulseFlashMs, ct);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+            pulseOn = false;
+            StateHasChanged();
+
+            try
+            {
+                await Task.Delay(Math.Max(50, beatIntervalMs - PulseFlashMs), ct);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            if (!tappedThisBeat)
+            {
+                combo = 0;
+                lastJudgement = "Miss";
+                StateHasChanged();
+            }
+        }
+
+        if (!ct.IsCancellationRequested)
+        {
+            await FinishGame();
+        }
+    }
+
+    private async Task ExitToSetup()
+    {
+        _loopCts?.Cancel();
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new RhythmGameResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                BestCombo: bestComboThisSession,
+                TotalBeats: currentBeat,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task Tap()
+    {
+        if (phase != Phase.Playing || tappedThisBeat) return;
+        tappedThisBeat = true;
+
+        var deltaMs = Math.Abs((DateTime.UtcNow - beatFiredAtUtc).TotalMilliseconds);
+        if (deltaMs <= PerfectWindowMs)
+        {
+            lastJudgement = "Perfect!";
+            score += 3;
+            combo++;
+        }
+        else if (deltaMs <= GoodWindowMs)
+        {
+            lastJudgement = "Good!";
+            score += 1;
+            combo++;
+        }
+        else
+        {
+            lastJudgement = "Miss";
+            combo = 0;
+        }
+        bestComboThisSession = Math.Max(bestComboThisSession, combo);
+        StateHasChanged();
+
+        await PlaySoundAsync(lastJudgement == "Miss" ? "playMismatchSound" : "playMatchSound");
+    }
+
+    private async Task PlaySoundAsync(string function, params object[] args)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function, args);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "high-score";
+            bestScore = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.RhythmGame, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.RhythmGame, key, score, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new RhythmGameResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                BestCombo: bestComboThisSession,
+                TotalBeats: TotalBeats,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private string JudgementClass() => lastJudgement switch
+    {
+        "Perfect!" => "perfect",
+        "Good!" => "good",
+        "Miss" => "miss",
+        _ => "",
+    };
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Slow, steady beat",
+        Difficulty.Medium => "Medium tempo",
+        _ => "Fast tempo",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        _loopCts?.Cancel();
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record RhythmGameResult(string Difficulty, int Score, int BestCombo, int TotalBeats, int ElapsedSeconds);
+}

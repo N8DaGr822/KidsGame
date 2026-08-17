@@ -214,6 +214,10 @@
             {
                 <LaserMaze PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleLaserMazeComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.RhythmGame)
+            {
+                <RhythmGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRhythmGameComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -976,6 +980,21 @@
             Theme = result.Difficulty,
             Difficulty = result.Solved ? $"Solved in {result.Moves} moves" : "Abandoned",
             Moves = result.Moves,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleRhythmGameComplete(RhythmGame.RhythmGameResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Score {result.Score}, best combo {result.BestCombo}",
+            Moves = result.Score,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

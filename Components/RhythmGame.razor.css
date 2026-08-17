@@ -1,0 +1,66 @@
+.rg-game {
+    width: min(420px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.85rem;
+    justify-items: center;
+}
+
+.rg-diff-name {
+    font-weight: 900;
+}
+
+.rg-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.rg-title {
+    font-weight: 900;
+}
+
+.rg-pad {
+    width: min(220px, 70vw);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    border: none;
+    background: radial-gradient(circle at 35% 30%, #ff8a5c, #d43f3f 70%);
+    color: #fff;
+    font-weight: 900;
+    font-size: 1.4rem;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transform: scale(1);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    box-shadow: 0 6px 0 rgba(0, 0, 0, 0.2);
+}
+
+.rg-pad:disabled {
+    cursor: default;
+}
+
+.rg-pad.pulse {
+    transform: scale(1.15);
+    box-shadow: 0 6px 24px rgba(255, 140, 90, 0.7);
+}
+
+.rg-judgement {
+    text-align: center;
+    font-weight: 900;
+    font-size: 1.3rem;
+    min-height: 1.8rem;
+}
+
+.rg-judgement-perfect {
+    color: #2fae4e;
+}
+
+.rg-judgement-good {
+    color: #d9a900;
+}
+
+.rg-judgement-miss {
+    color: #d43f3f;
+}
