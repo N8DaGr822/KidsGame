@@ -26,6 +26,22 @@
     color: var(--text-muted);
 }
 
+.wl-example {
+    text-align: center;
+    background: var(--control-bg-subtle);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.75rem;
+    letter-spacing: 0.05em;
+}
+
+.wl-hint {
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin: -0.4rem 0 0;
+}
+
 .wl-ladder {
     display: grid;
     gap: 0.4rem;

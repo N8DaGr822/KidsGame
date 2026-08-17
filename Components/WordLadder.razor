@@ -21,7 +21,9 @@
     {
         <div class="wl-setup game-setup-panel">
             <h2>🪜 Word Ladder</h2>
-            <p>Change one letter at a time to climb from the start word to the target word.</p>
+            <p>Change <strong>one letter at a time</strong> to turn the start word into the target word - every word in between has to be a real word too.</p>
+            <p class="wl-example">Example: <strong>CAT</strong> → <strong>COT</strong> → <strong>COG</strong> → <strong>DOG</strong> (each step changes just one letter)</p>
+            <p>Type your guess for the next word using the keyboard, then tap Submit. Guess wrong 3 times on the same step and a letter locks in for free to help you out.</p>
 
             <h3 class="game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
@@ -54,6 +56,7 @@
         </div>
 
         <p class="wl-goal">Reach: <strong>@chain[^1]</strong></p>
+        <p class="wl-hint">Change one letter from the word above to spell a new real word.</p>
 
         <div class="wl-ladder">
             @for (var i = 0; i < chain.Length; i++)
