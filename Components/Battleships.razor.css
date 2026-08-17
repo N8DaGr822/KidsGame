@@ -1,0 +1,85 @@
+.bs-game {
+    width: min(520px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.75rem;
+}
+
+.bs-diff-name {
+    font-weight: 900;
+}
+
+.bs-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.bs-title {
+    font-weight: 900;
+}
+
+.bs-board-title {
+    margin: 0.2rem 0 0;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 900;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.bs-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--bs-size), 1fr);
+    width: min(420px, 100%);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: #16324f;
+}
+
+.bs-grid-own {
+    width: min(260px, 70%);
+    background: #1b2a4a;
+    opacity: 0.9;
+}
+
+.bs-cell {
+    display: grid;
+    place-items: center;
+    border: 0.5px solid rgba(255, 255, 255, 0.08);
+    font-size: clamp(0.7rem, 3.5cqw, 1.2rem);
+    color: var(--text);
+    background: transparent;
+}
+
+.bs-grid .bs-cell:not(:disabled):hover {
+    background: rgba(78, 205, 196, 0.2);
+}
+
+.bs-cell.hit {
+    background: rgba(255, 107, 107, 0.5);
+}
+
+.bs-cell.miss {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.bs-own-cell.ship {
+    background: rgba(78, 205, 196, 0.25);
+}
+
+.bs-own-cell.ship.hit {
+    background: rgba(255, 107, 107, 0.6);
+}
+
+.bs-message {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+}
