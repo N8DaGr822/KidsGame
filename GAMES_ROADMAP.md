@@ -615,15 +615,26 @@ also wired up `Components/Shared/PersonalBestBadge.razor`: fewest guesses
       spin/angular velocity yet - deliberately scoped to "get the
       fundamentals feeling right" first. Personal best tracks biggest
       winning margin.
-- [ ] Pool / Billiards Lite — next up, building on the same Physics2D
-      layer now that it exists. Needs more than Air Hockey used: many
-      balls instead of one puck (broad-phase collision checks between
-      all pairs), pockets (a ball leaving play rather than bouncing),
-      cue-stick aim/power input, and eventually spin (angular velocity +
-      tangential impulse at the contact point, and sliding-vs-rolling
-      friction) for realistic cue-ball control - explicitly the reason
-      Physics2D's circle collision doesn't model spin yet, per its own
-      header comment.
+- [x] Pool / Billiards Lite — a solo "clear the table in fewest shots"
+      challenge, not a full 2-player 8-ball ruleset (no stripes/solids,
+      no turns, no fouls beyond a scratch) - built on the same Physics2D
+      layer as Air Hockey, extended with what it didn't need yet: many
+      balls (pairwise collision across all of them, not just one puck
+      against two paddles), pockets (a ball's center within capture range
+      is removed from play - checked before wall bounce, since pockets
+      sit right at the wall boundary), and a bounded per-shot physics
+      resolution (run substeps until every ball is at rest, then accept
+      the next shot) instead of Air Hockey's always-running loop. Cue
+      ball racked balls in a proper triangular formation, sized to the
+      difficulty's ball count (3/6/10). Cue-stick aim reuses the same
+      "drag back opposite your shot, release to fire" convention as
+      TankDuel/Archery/Basketball, simplified since pool has no
+      gravity/arc - just a straight initial velocity. Still no spin -
+      that's the one piece Physics2D deliberately doesn't model yet (see
+      its header comment): angular velocity + tangential impulse at the
+      contact point, and sliding-vs-rolling friction, for real cue-ball
+      control (screw/side spin, stopping the cue ball dead on contact).
+      Personal best tracks fewest shots to clear the table.
 - [ ] Bridge Builder — still deferred. A structural/rigid-body physics
       engine (load-bearing joints, stress, collapse) is a different
       problem from point-mass circle collision; Physics2D doesn't cover

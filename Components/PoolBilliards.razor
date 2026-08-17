@@ -1,0 +1,593 @@
+@*
+    PoolBilliards.razor
+    Solo "clear the table" challenge, not a full 2-player 8-ball ruleset
+    (no stripes/solids, no fouls beyond a scratch, no turns) - built on
+    the same Services/Physics2D.cs layer as Air Hockey, extended with
+    what a real pool table needs beyond a single puck: many balls
+    (pairwise circle collision, not just one body against two paddles),
+    pockets (a ball gets removed from play once its center is within
+    capture range, checked before wall bounce since pockets sit right at
+    the wall boundary), and a cue-stick drag-to-aim/power shot instead of
+    continuous paddle control.
+
+    A shot is a bounded one-off physics resolution, not a persistent
+    loop like Air Hockey's: release the drag, the cue ball gets an
+    initial velocity, and a fixed-timestep loop runs until every ball is
+    at rest (or a safety time cap trips) before the table accepts another
+    shot. Drag-to-aim reuses the same "pull back opposite your shot,
+    release to fire" convention as TankDuel/ArcheryChallenge/
+    BasketballShot for muscle-memory consistency across this app, but
+    simpler since pool has no gravity/arc - just a straight initial
+    velocity vector.
+
+    Difficulty scales ball count (a proper triangular rack each time:
+    3/6/10 balls) and the shot budget to clear them, not opponent
+    strength, since there's no opponent. No spin/angular velocity yet -
+    same "get the fundamentals right first" scoping as Air Hockey; see
+    GAMES_ROADMAP.md for what a spin layer would add on top of
+    Physics2D.
+
+    Usage:
+        <PoolBilliards OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using System.Numerics
+@using KidsGameLauncher.Services
+
+<div class="pb-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="pb-setup game-setup-panel">
+            <h2>🎱 Pool / Billiards</h2>
+            <p>Drag back from the cue ball and let go to shoot - sink every ball in as few shots as you can!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="pb-diff-name">@DifficultyName(diff)</span>
+                            <span class="pb-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="pb-title">Pool</span>
+            <span class="game-stat">🎯 Shots @shotsTaken/@ShotCapFor(selectedDifficulty)</span>
+            <span class="game-stat">🎱 Sunk @BallsSunkCount/@ObjectBallCount</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="pb-field" @ref="fieldRef"
+             @onpointerdown="OnFieldPointerDown" @onpointermove="OnFieldPointerMove"
+             @onpointerup="OnFieldPointerUp" @onpointercancel="OnFieldPointerUp">
+            <div class="pb-felt"></div>
+
+            @foreach (var pocket in Pockets)
+            {
+                <span class="pb-pocket" style="left:@((pocket.X * 100f / TableWidth).ToString(Inv))%; top:@((pocket.Y * 100f / TableHeight).ToString(Inv))%;"></span>
+            }
+
+            @if (previewPoints.Count > 0)
+            {
+                @foreach (var p in previewPoints)
+                {
+                    <span class="pb-preview-dot" style="left:@((p.X * 100f / TableWidth).ToString(Inv))%; top:@((p.Y * 100f / TableHeight).ToString(Inv))%;"></span>
+                }
+            }
+
+            @foreach (var ball in balls)
+            {
+                @if (!ball.IsSunk)
+                {
+                    <span class="pb-ball @(ball.IsCueBall ? "cue" : "")" style="left:@((ball.Body.Position.X * 100f / TableWidth).ToString(Inv))%; top:@((ball.Body.Position.Y * 100f / TableHeight).ToString(Inv))%; background:@(ball.IsCueBall ? "#f5f5f0" : ball.Color);"></span>
+                }
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="pb-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(won ? "🎉 Table Cleared!" : "🎱 Out of Shots")</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@(won ? $"cleared it in {shotsTaken} shots!" : $"sank {BallsSunkCount}/{ObjectBallCount} - try again!")</p>
+                    <PersonalBestBadge Value="@(bestShots is { } bs ? $"{bs} shots" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<PoolBilliardsResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest shots to clear the table) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private class PoolBall
+    {
+        public required PhysicsBody Body { get; init; }
+        public bool IsCueBall { get; init; }
+        public bool IsSunk { get; set; }
+        public string Color { get; init; } = "#fff";
+    }
+
+    // Physics-space table units, not pixels or percent - a 2:1 landscape
+    // table like a real pool table's proportions.
+    private const float TableWidth = 200f;
+    private const float TableHeight = 100f;
+    private const float BallRadius = 4.5f;
+    private const float PocketRadius = 8f;
+    private const float WallRestitution = 0.88f;
+    private const float BallRestitution = 0.96f;
+    private const float BallDragPerSecond = 0.35f;
+    private const float MinDragDistance = 6f;
+    private const float MaxDragDistance = 70f;
+    private const float MinShotSpeed = 40f;
+    private const float MaxShotSpeed = 220f;
+    private const float FixedDt = 1f / 120f;
+    private const int MaxSubstepsPerFrame = 8;
+    private const int FrameDelayMs = 16;
+    private const float MaxShotResolveSeconds = 12f;
+    private const float RestVelocityEpsilon = 0.6f;
+
+    private static readonly string[] BallColors =
+    {
+        "#ffd60a", "#3a86ff", "#e63946", "#2dc653", "#9d4edd",
+        "#fb8500", "#06aed5", "#ff70a6", "#8a5a2b", "#2b2b2b",
+    };
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static readonly Vector2[] Pockets =
+    {
+        new(0, 0), new(TableWidth / 2f, 0), new(TableWidth, 0),
+        new(0, TableHeight), new(TableWidth / 2f, TableHeight), new(TableWidth, TableHeight),
+    };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int BallCountFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 3,
+        Difficulty.Medium => 6,
+        _ => 10,
+    };
+
+    private static int ShotCapFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 12,
+        Difficulty.Medium => 15,
+        _ => 16,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private List<PoolBall> balls = new();
+    private int shotsTaken;
+    private bool resolving;
+    private bool won;
+    private string roundMessage = "";
+    private int? bestShots;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    private ElementReference fieldRef;
+    private double fieldLeft, fieldTop, fieldWidth, fieldHeight;
+    private bool isDragging;
+    private long? activeFieldPointerId;
+    private readonly List<Vector2> previewPoints = new();
+
+    private CancellationTokenSource? _loopCts;
+
+    private int ObjectBallCount => balls.Count(b => !b.IsCueBall);
+    private int BallsSunkCount => balls.Count(b => !b.IsCueBall && b.IsSunk);
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        shotsTaken = 0;
+        resolving = false;
+        won = false;
+        roundMessage = "";
+        bestShots = null;
+        isNewBest = false;
+        isDragging = false;
+        activeFieldPointerId = null;
+        previewPoints.Clear();
+
+        balls = BuildRack(BallCountFor(selectedDifficulty));
+
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    // Racks the object balls in a classic triangular formation (apex
+    // toward the cue ball) sized to whatever count the difficulty needs,
+    // and places the cue ball at the opposite "head spot".
+    private List<PoolBall> BuildRack(int ballCount)
+    {
+        var apex = new Vector2(TableWidth * 0.72f, TableHeight / 2f);
+        var spacingX = BallRadius * 2f * 0.866f;
+        var spacingY = BallRadius * 2f;
+
+        var result = new List<PoolBall>
+        {
+            new()
+            {
+                Body = new PhysicsBody { Radius = BallRadius, Position = new Vector2(TableWidth * 0.25f, TableHeight / 2f) },
+                IsCueBall = true,
+            },
+        };
+
+        var placed = 0;
+        var row = 0;
+        while (placed < ballCount)
+        {
+            var countInRow = row + 1;
+            for (var c = 0; c < countInRow && placed < ballCount; c++)
+            {
+                var pos = new Vector2(apex.X + row * spacingX, apex.Y + (c - row / 2f) * spacingY);
+                result.Add(new PoolBall
+                {
+                    Body = new PhysicsBody { Radius = BallRadius, Position = pos },
+                    Color = BallColors[placed % BallColors.Length],
+                });
+                placed++;
+            }
+            row++;
+        }
+
+        return result;
+    }
+
+    private async Task ExitToSetup()
+    {
+        _loopCts?.Cancel();
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new PoolBilliardsResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Cleared: false,
+                ShotsTaken: shotsTaken,
+                BallsSunk: BallsSunkCount,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task OnFieldPointerDown(PointerEventArgs e)
+    {
+        if (phase != Phase.Playing || resolving) return;
+
+        activeFieldPointerId = e.PointerId;
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        var rect = await _module.InvokeAsync<FieldRect>("getBoundingRect", fieldRef);
+        fieldLeft = rect.Left;
+        fieldTop = rect.Top;
+        fieldWidth = rect.Width;
+        fieldHeight = rect.Height;
+
+        await _module.InvokeVoidAsync("setPointerCapture", fieldRef, e.PointerId);
+
+        if (activeFieldPointerId != e.PointerId) return;
+
+        isDragging = true;
+        UpdateAimPreview(e.ClientX, e.ClientY);
+    }
+
+    private void OnFieldPointerMove(PointerEventArgs e)
+    {
+        if (!isDragging) return;
+        UpdateAimPreview(e.ClientX, e.ClientY);
+    }
+
+    private async Task OnFieldPointerUp(PointerEventArgs e)
+    {
+        activeFieldPointerId = null;
+        if (!isDragging) return;
+        isDragging = false;
+
+        var (hasShot, direction, power) = ResolveAim(e.ClientX, e.ClientY);
+        previewPoints.Clear();
+
+        if (!hasShot)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        await Shoot(direction, power);
+    }
+
+    private void UpdateAimPreview(double clientX, double clientY)
+    {
+        var (hasShot, direction, _) = ResolveAim(clientX, clientY);
+        previewPoints.Clear();
+
+        if (hasShot)
+        {
+            var cueBall = balls.First(b => b.IsCueBall).Body;
+            previewPoints.AddRange(ComputeAimPreview(cueBall.Position, direction));
+        }
+
+        StateHasChanged();
+    }
+
+    private (bool HasShot, Vector2 Direction, float Power) ResolveAim(double clientX, double clientY)
+    {
+        if (fieldWidth <= 0 || fieldHeight <= 0) return (false, Vector2.Zero, 0);
+
+        var pointerPos = new Vector2(
+            (float)((clientX - fieldLeft) / fieldWidth * TableWidth),
+            (float)((clientY - fieldTop) / fieldHeight * TableHeight));
+
+        var cueBall = balls.First(b => b.IsCueBall).Body;
+        var pull = pointerPos - cueBall.Position;
+        var pullDistance = pull.Length();
+        if (pullDistance < MinDragDistance) return (false, Vector2.Zero, 0);
+
+        var direction = -Vector2.Normalize(pull);
+        var clampedDrag = Math.Clamp(pullDistance, MinDragDistance, MaxDragDistance);
+        var t = (clampedDrag - MinDragDistance) / (MaxDragDistance - MinDragDistance);
+        var power = MinShotSpeed + t * (MaxShotSpeed - MinShotSpeed);
+
+        return (true, direction, power);
+    }
+
+    private static List<Vector2> ComputeAimPreview(Vector2 origin, Vector2 direction)
+    {
+        const float previewLength = 60f;
+        const int steps = 10;
+        var points = new List<Vector2>();
+        for (var i = 1; i <= steps; i++)
+        {
+            var p = origin + direction * (previewLength * i / steps);
+            if (p.X < 0 || p.X > TableWidth || p.Y < 0 || p.Y > TableHeight) break;
+            points.Add(p);
+        }
+        return points;
+    }
+
+    private async Task Shoot(Vector2 direction, float power)
+    {
+        resolving = true;
+        roundMessage = "";
+        var cueBall = balls.First(b => b.IsCueBall).Body;
+        cueBall.Velocity = direction * power;
+        shotsTaken++;
+        StateHasChanged();
+
+        _loopCts?.Cancel();
+        _loopCts = new CancellationTokenSource();
+        await ResolveShotAsync(_loopCts.Token);
+    }
+
+    // Runs physics at a fixed 1/120s timestep, capped substeps per
+    // iteration (same reasoning as Air Hockey's loop: a fast ball
+    // shouldn't be able to tunnel through another ball or a wall just
+    // because one rendered frame took longer than expected), until every
+    // ball on the table is at rest or a safety time cap trips.
+    private async Task ResolveShotAsync(CancellationToken ct)
+    {
+        var lastTick = DateTime.UtcNow;
+        var elapsedTotal = 0f;
+        var accumulator = 0f;
+        var scratched = false;
+
+        while (elapsedTotal < MaxShotResolveSeconds)
+        {
+            try
+            {
+                await Task.Delay(FrameDelayMs, ct);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            var elapsed = (float)(now - lastTick).TotalSeconds;
+            lastTick = now;
+            elapsedTotal += elapsed;
+
+            accumulator += elapsed;
+            var substeps = 0;
+            while (accumulator >= FixedDt && substeps < MaxSubstepsPerFrame)
+            {
+                if (StepPhysics()) scratched = true;
+                accumulator -= FixedDt;
+                substeps++;
+            }
+            if (substeps >= MaxSubstepsPerFrame) accumulator = 0f;
+
+            StateHasChanged();
+
+            if (AllBallsAtRest()) break;
+        }
+
+        foreach (var ball in balls.Where(b => !b.IsSunk))
+        {
+            ball.Body.Velocity = Vector2.Zero;
+        }
+
+        resolving = false;
+        if (scratched) roundMessage = "Scratch! Cue ball's back in play.";
+        await AfterShotAsync();
+    }
+
+    // Returns true if the cue ball scratched (sank) this substep.
+    private bool StepPhysics()
+    {
+        foreach (var ball in balls.Where(b => !b.IsSunk))
+        {
+            ball.Body.Position += ball.Body.Velocity * FixedDt;
+            Physics2D.ApplyDrag(ball.Body, FixedDt, BallDragPerSecond);
+        }
+
+        var scratched = false;
+        foreach (var ball in balls.Where(b => !b.IsSunk))
+        {
+            if (!IsCaptured(ball.Body))
+            {
+                Physics2D.ResolveWallCollisionX(ball.Body, TableWidth, WallRestitution);
+                Physics2D.ResolveWallCollisionY(ball.Body, TableHeight, WallRestitution);
+                continue;
+            }
+
+            if (ball.IsCueBall)
+            {
+                ball.Body.Position = new Vector2(TableWidth * 0.25f, TableHeight / 2f);
+                ball.Body.Velocity = Vector2.Zero;
+                scratched = true;
+            }
+            else
+            {
+                ball.IsSunk = true;
+                ball.Body.Velocity = Vector2.Zero;
+            }
+        }
+
+        var active = balls.Where(b => !b.IsSunk).ToList();
+        for (var i = 0; i < active.Count; i++)
+        {
+            for (var j = i + 1; j < active.Count; j++)
+            {
+                Physics2D.ResolveCircleCollision(active[i].Body, active[j].Body, BallRestitution);
+            }
+        }
+
+        return scratched;
+    }
+
+    private static bool IsCaptured(PhysicsBody body) =>
+        Pockets.Any(p => Vector2.DistanceSquared(body.Position, p) < PocketRadius * PocketRadius);
+
+    private bool AllBallsAtRest() =>
+        balls.Where(b => !b.IsSunk).All(b => b.Body.Velocity.LengthSquared() < RestVelocityEpsilon * RestVelocityEpsilon);
+
+    private async Task AfterShotAsync()
+    {
+        if (ObjectBallCount > 0 && BallsSunkCount == ObjectBallCount)
+        {
+            roundMessage = "Table cleared!";
+            StateHasChanged();
+            await FinishGame(cleared: true);
+            return;
+        }
+
+        if (shotsTaken >= ShotCapFor(selectedDifficulty))
+        {
+            StateHasChanged();
+            await FinishGame(cleared: false);
+        }
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame(bool cleared)
+    {
+        phase = Phase.Finished;
+        won = cleared;
+        await PlaySoundAsync(cleared ? "playMatchSound" : "playMismatchSound");
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "fewest-shots";
+            bestShots = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.PoolBilliards, key);
+            if (cleared)
+            {
+                isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.PoolBilliards, key, shotsTaken, lowerIsBetter: true);
+            }
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new PoolBilliardsResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Cleared: cleared,
+                ShotsTaken: shotsTaken,
+                BallsSunk: BallsSunkCount,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3 balls, 12 shots",
+        Difficulty.Medium => "6 balls, 15 shots",
+        _ => "10 balls, 16 shots",
+    };
+
+    private record FieldRect(double Left, double Top, double Width, double Height);
+
+    public async ValueTask DisposeAsync()
+    {
+        _loopCts?.Cancel();
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record PoolBilliardsResult(string Difficulty, bool Cleared, int ShotsTaken, int BallsSunk, int ElapsedSeconds);
+}
