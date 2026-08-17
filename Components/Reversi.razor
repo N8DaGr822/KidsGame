@@ -1,0 +1,309 @@
+@*
+    Reversi.razor
+    Classic Othello vs a CPU opponent on the standard 8x8 board. Tap an
+    empty cell to place a disc - any opponent discs it flanks (in any of
+    8 directions, with your own disc closing the far end) flip to your
+    color. If a side has no legal move, that side automatically passes
+    (both sides not being able to move at once ends the game); most
+    discs when that happens wins. Legal cells for the player are
+    lightly dotted as a guide. AI logic lives in Services/GameAi.cs
+    (ReversiMove/ReversiApplyMove/ReversiLegalMoves) alongside the
+    Tic-Tac-Toe/Connect Four helpers, using the same alpha-beta minimax
+    shape with a positional weight table (corners good, cells next to a
+    corner bad) plus a mobility term instead of raw disc-count. Personal
+    best tracks the biggest winning margin.
+
+    Usage:
+        <Reversi OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="rv-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="rv-setup game-setup-panel">
+            <h2>⚫ Reversi</h2>
+            <p>Flank the enemy's discs to flip them to your color! Most discs when nobody can move wins.</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="rv-diff-name">@DifficultyName(diff)</span>
+                            <span class="rv-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="rv-title">Reversi</span>
+            <span class="game-stat">⚫ You @playerCount</span>
+            <span class="game-stat">⚪ CPU @cpuCount</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="rv-board">
+            @for (var r = 0; r < GameAi.ReversiSize; r++)
+            {
+                for (var c = 0; c < GameAi.ReversiSize; c++)
+                {
+                    var row = r; var col = c;
+                    var v = board[row, col];
+                    var legal = turn == Turn.Player && phase == Phase.Playing && playerLegalCells.Contains((row, col));
+                    <button class="rv-cell @(legal ? "legal" : "")" disabled="@(!legal)" @onclick="() => PlaceDisk(row, col)">
+                        @if (v != 0)
+                        {
+                            <span class="rv-disk @(v == 1 ? "black" : "white")"></span>
+                        }
+                        else if (legal)
+                        {
+                            <span class="rv-hint"></span>
+                        }
+                    </button>
+                }
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="rv-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(won ? "🎉 You Win!" : (playerCount == cpuCount ? "🤝 Tie Game" : "🤖 CPU Wins"))</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")final score: @playerCount to @cpuCount.</p>
+                    <PersonalBestBadge Value="@($"+{bestMargin ?? (playerCount - cpuCount)} margin")" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<ReversiResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (biggest winning margin) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    private enum Turn { Player, Cpu }
+
+    private static readonly GameAi.Difficulty[] Difficulties = { GameAi.Difficulty.Easy, GameAi.Difficulty.Medium, GameAi.Difficulty.Hard };
+
+    private GameAi.Difficulty? LockedDifficulty =>
+        Enum.TryParse<GameAi.Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private Phase phase = Phase.Setup;
+    private GameAi.Difficulty selectedDifficulty = GameAi.Difficulty.Easy;
+    private Turn turn = Turn.Player;
+    private int[,] board = new int[GameAi.ReversiSize, GameAi.ReversiSize];
+    private HashSet<(int Row, int Col)> playerLegalCells = new();
+    private int playerCount = 2;
+    private int cpuCount = 2;
+    private bool won;
+    private string roundMessage = "";
+    private int? bestMargin;
+    private bool isNewBest;
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        board = new int[GameAi.ReversiSize, GameAi.ReversiSize];
+        var mid = GameAi.ReversiSize / 2;
+        board[mid - 1, mid - 1] = 2;
+        board[mid - 1, mid] = 1;
+        board[mid, mid - 1] = 1;
+        board[mid, mid] = 2;
+
+        turn = Turn.Player;
+        roundMessage = "";
+        won = false;
+        bestMargin = null;
+        isNewBest = false;
+        UpdateCounts();
+        playerLegalCells = GameAi.ReversiLegalMoves(board, 1).ToHashSet();
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new ReversiResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                PlayerCount: playerCount,
+                CpuCount: cpuCount,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task PlaceDisk(int row, int col)
+    {
+        if (phase != Phase.Playing || turn != Turn.Player) return;
+        if (!GameAi.ReversiApplyMove(board, row, col, 1)) return;
+
+        UpdateCounts();
+        roundMessage = "";
+        await PlaySoundAsync("playMatchSound");
+        turn = Turn.Cpu;
+        StateHasChanged();
+        await AdvanceAsync();
+    }
+
+    // Cascades through the "no legal move -> auto-pass" rule for both
+    // sides (including the CPU firing its own move when it's up) until
+    // either the game ends (neither side can move) or it's genuinely the
+    // player's turn with at least one legal cell to tap.
+    private async Task AdvanceAsync()
+    {
+        while (true)
+        {
+            var mover = turn == Turn.Player ? 1 : 2;
+            var moves = GameAi.ReversiLegalMoves(board, mover);
+
+            if (moves.Count == 0)
+            {
+                var otherMoves = GameAi.ReversiLegalMoves(board, mover == 1 ? 2 : 1);
+                if (otherMoves.Count == 0)
+                {
+                    won = playerCount > cpuCount;
+                    await FinishGame();
+                    return;
+                }
+
+                roundMessage = (turn == Turn.Player ? "You have" : "CPU has") + " no legal move - pass!";
+                turn = turn == Turn.Player ? Turn.Cpu : Turn.Player;
+                StateHasChanged();
+                await Task.Delay(900);
+                continue;
+            }
+
+            if (turn == Turn.Player)
+            {
+                playerLegalCells = moves.ToHashSet();
+                return;
+            }
+
+            await Task.Delay(500);
+            var move = GameAi.ReversiMove(board, 2, 1, selectedDifficulty)!.Value;
+            GameAi.ReversiApplyMove(board, move.Row, move.Col, 2);
+            UpdateCounts();
+            await PlaySoundAsync("playImpactSound");
+            turn = Turn.Player;
+            StateHasChanged();
+        }
+    }
+
+    private void UpdateCounts()
+    {
+        playerCount = 0;
+        cpuCount = 0;
+        for (var r = 0; r < GameAi.ReversiSize; r++)
+        {
+            for (var c = 0; c < GameAi.ReversiSize; c++)
+            {
+                if (board[r, c] == 1) playerCount++;
+                else if (board[r, c] == 2) cpuCount++;
+            }
+        }
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (won && !string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "biggest-margin";
+            var margin = playerCount - cpuCount;
+            bestMargin = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Reversi, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Reversi, key, margin, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new ReversiResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: won,
+                PlayerCount: playerCount,
+                CpuCount: cpuCount,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "Easy",
+        GameAi.Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "CPU moves randomly",
+        GameAi.Difficulty.Medium => "CPU plans a couple moves ahead",
+        _ => "CPU plans several moves ahead + real strategy",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record ReversiResult(string Difficulty, bool Won, int PlayerCount, int CpuCount, int ElapsedSeconds);
+}

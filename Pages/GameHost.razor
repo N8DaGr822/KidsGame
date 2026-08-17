@@ -182,6 +182,10 @@
             {
                 <Puzzle2048 PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandlePuzzle2048Complete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.Reversi)
+            {
+                <Reversi PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleReversiComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -824,6 +828,21 @@
             Theme = result.Difficulty,
             Difficulty = $"Tile {result.HighestTile}, score {result.Score}",
             Moves = result.Score,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleReversiComplete(Reversi.ReversiResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"{result.PlayerCount}-{result.CpuCount}",
+            Moves = result.PlayerCount,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

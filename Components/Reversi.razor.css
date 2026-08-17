@@ -1,0 +1,73 @@
+.rv-game {
+    width: min(480px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.85rem;
+}
+
+.rv-diff-name {
+    font-weight: 900;
+}
+
+.rv-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.rv-title {
+    font-weight: 900;
+}
+
+.rv-board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    width: min(420px, 100%);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: #1a5c38;
+}
+
+.rv-cell {
+    display: grid;
+    place-items: center;
+    border: 0.5px solid rgba(0, 0, 0, 0.2);
+    background: transparent;
+}
+
+.rv-cell.legal {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.rv-hint {
+    width: 22%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.rv-disk {
+    width: 82%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    box-shadow: var(--shadow-sm);
+}
+
+.rv-disk.black {
+    background: radial-gradient(circle at 35% 30%, #444, #0a0a0a);
+}
+
+.rv-disk.white {
+    background: radial-gradient(circle at 35% 30%, #fff, #d8d8d8);
+}
+
+.rv-message {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+}

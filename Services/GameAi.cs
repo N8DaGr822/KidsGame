@@ -256,4 +256,189 @@ public static class GameAi
         if (humanCount == 2 && emptyCount == 2) return -10;
         return 0;
     }
+
+    // ---- Reversi / Othello -----------------------------------------------
+
+    public const int ReversiSize = 8;
+
+    private static readonly (int DR, int DC)[] ReversiDirections =
+    {
+        (-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1),
+    };
+
+    // Corners are the most valuable cells (can never be flipped back); the
+    // cells diagonally and orthogonally adjacent to a corner are the worst
+    // (playing there commonly hands the opponent that corner) - classic
+    // Othello positional strategy, not just raw disc count.
+    private static readonly int[,] ReversiWeights =
+    {
+        { 100, -20, 10, 5, 5, 10, -20, 100 },
+        { -20, -50, -2, -2, -2, -2, -50, -20 },
+        { 10, -2, -1, -1, -1, -1, -2, 10 },
+        { 5, -2, -1, -1, -1, -1, -2, 5 },
+        { 5, -2, -1, -1, -1, -1, -2, 5 },
+        { 10, -2, -1, -1, -1, -1, -2, 10 },
+        { -20, -50, -2, -2, -2, -2, -50, -20 },
+        { 100, -20, 10, 5, 5, 10, -20, 100 },
+    };
+
+    private static bool ReversiInBounds(int r, int c) => r >= 0 && r < ReversiSize && c >= 0 && c < ReversiSize;
+
+    private static List<(int Row, int Col)> ReversiFlipsFor(int[,] board, int row, int col, int player, int opponent)
+    {
+        var flips = new List<(int, int)>();
+        foreach (var (dr, dc) in ReversiDirections)
+        {
+            var line = new List<(int, int)>();
+            var r = row + dr;
+            var c = col + dc;
+            while (ReversiInBounds(r, c) && board[r, c] == opponent)
+            {
+                line.Add((r, c));
+                r += dr;
+                c += dc;
+            }
+            if (line.Count > 0 && ReversiInBounds(r, c) && board[r, c] == player)
+            {
+                flips.AddRange(line);
+            }
+        }
+        return flips;
+    }
+
+    public static List<(int Row, int Col)> ReversiLegalMoves(int[,] board, int player)
+    {
+        var opponent = player == 1 ? 2 : 1;
+        var moves = new List<(int, int)>();
+        for (var r = 0; r < ReversiSize; r++)
+        {
+            for (var c = 0; c < ReversiSize; c++)
+            {
+                if (board[r, c] != 0) continue;
+                if (ReversiFlipsFor(board, r, c, player, opponent).Count > 0) moves.Add((r, c));
+            }
+        }
+        return moves;
+    }
+
+    /// <summary>Places player's disc at (row, col) and flips every disc it
+    /// captures. Returns false (no board change) if the move isn't legal.</summary>
+    public static bool ReversiApplyMove(int[,] board, int row, int col, int player)
+    {
+        var opponent = player == 1 ? 2 : 1;
+        var flips = ReversiFlipsFor(board, row, col, player, opponent);
+        if (flips.Count == 0) return false;
+
+        board[row, col] = player;
+        foreach (var (r, c) in flips) board[r, c] = player;
+        return true;
+    }
+
+    public static (int Row, int Col)? ReversiMove(int[,] board, int ai, int human, Difficulty difficulty)
+    {
+        var moves = ReversiLegalMoves(board, ai);
+        if (moves.Count == 0) return null;
+
+        if (difficulty == Difficulty.Easy)
+        {
+            return moves[Rng.Next(moves.Count)];
+        }
+
+        // Depth capped lower than Connect Four's - Reversi's branching
+        // factor (up to ~20 legal moves in the midgame, vs. at most 7
+        // columns) makes a naive equal depth much slower on a single WASM
+        // UI thread, even with alpha-beta pruning.
+        var depth = difficulty == Difficulty.Medium ? 2 : 4;
+        var bestScore = int.MinValue;
+        var bestMoves = new List<(int, int)>();
+
+        // Exploring likely-strong moves (corners/edges) first tightens
+        // alpha-beta pruning a lot - Reversi's branching factor (up to
+        // ~20) is high enough that move order matters more than it does
+        // for Connect Four's much narrower search.
+        foreach (var (row, col) in moves.OrderByDescending(m => ReversiWeights[m.Item1, m.Item2]))
+        {
+            var copy = (int[,])board.Clone();
+            ReversiApplyMove(copy, row, col, ai);
+            var score = ReversiMinimax(copy, depth - 1, false, ai, human, int.MinValue, int.MaxValue);
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestMoves.Clear();
+                bestMoves.Add((row, col));
+            }
+            else if (score == bestScore)
+            {
+                bestMoves.Add((row, col));
+            }
+        }
+
+        return bestMoves[Rng.Next(bestMoves.Count)];
+    }
+
+    private static int ReversiMinimax(int[,] board, int depth, bool maximizing, int ai, int human, int alpha, int beta)
+    {
+        var player = maximizing ? ai : human;
+        var moves = ReversiLegalMoves(board, player);
+
+        if (depth == 0)
+        {
+            return ReversiEvaluate(board, ai, human);
+        }
+
+        if (moves.Count == 0)
+        {
+            // A real pass, not a dead end - if the OTHER player also has
+            // no moves the game is over; otherwise play continues with
+            // the same maximizing/minimizing side flipped once more.
+            var otherMoves = ReversiLegalMoves(board, maximizing ? human : ai);
+            if (otherMoves.Count == 0) return ReversiEvaluate(board, ai, human);
+            return ReversiMinimax(board, depth - 1, !maximizing, ai, human, alpha, beta);
+        }
+
+        var best = maximizing ? int.MinValue : int.MaxValue;
+
+        foreach (var (row, col) in moves.OrderByDescending(m => ReversiWeights[m.Item1, m.Item2]))
+        {
+            var copy = (int[,])board.Clone();
+            ReversiApplyMove(copy, row, col, player);
+            var score = ReversiMinimax(copy, depth - 1, !maximizing, ai, human, alpha, beta);
+
+            if (maximizing)
+            {
+                best = Math.Max(best, score);
+                alpha = Math.Max(alpha, best);
+            }
+            else
+            {
+                best = Math.Min(best, score);
+                beta = Math.Min(beta, best);
+            }
+
+            if (beta <= alpha) break;
+        }
+
+        return best;
+    }
+
+    private static int ReversiEvaluate(int[,] board, int ai, int human)
+    {
+        var positional = 0;
+        for (var r = 0; r < ReversiSize; r++)
+        {
+            for (var c = 0; c < ReversiSize; c++)
+            {
+                if (board[r, c] == ai) positional += ReversiWeights[r, c];
+                else if (board[r, c] == human) positional -= ReversiWeights[r, c];
+            }
+        }
+
+        // Mobility (how many replies each side has) matters as much as
+        // position in real Othello strategy - being forced to pass, or
+        // into a bad cell, is often worse than a slightly worse position.
+        var mobility = ReversiLegalMoves(board, ai).Count - ReversiLegalMoves(board, human).Count;
+
+        return positional + mobility * 5;
+    }
 }
