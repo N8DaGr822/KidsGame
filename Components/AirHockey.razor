@@ -254,36 +254,50 @@
             }
             else
             {
-                accumulator += elapsed;
-                var substeps = 0;
                 bool? goalScoredByPlayer = null;
 
-                while (accumulator >= FixedDt && substeps < MaxSubstepsPerFrame)
+                // A stray exception here (e.g. a transient JS interop hiccup
+                // from PlaySoundAsync) must not be allowed to silently kill
+                // this fire-and-forget loop task - that would freeze the
+                // puck and both paddles for the rest of the match with no
+                // error visible anywhere. Worst case, this frame's physics
+                // is skipped and the next one picks back up.
+                try
                 {
-                    goalScoredByPlayer = StepPhysics(FixedDt);
-                    accumulator -= FixedDt;
-                    substeps++;
-                    if (goalScoredByPlayer is not null) break;
-                }
-                if (substeps >= MaxSubstepsPerFrame) accumulator = 0f;
+                    accumulator += elapsed;
+                    var substeps = 0;
 
-                if (goalScoredByPlayer is { } playerScored)
-                {
-                    if (playerScored) { playerScore++; roundMessage = "Goal!"; }
-                    else { cpuScore++; roundMessage = "CPU scores!"; }
-                    await PlaySoundAsync(playerScored ? "playMatchSound" : "playMismatchSound");
-
-                    if (playerScore >= WinScore || cpuScore >= WinScore)
+                    while (accumulator >= FixedDt && substeps < MaxSubstepsPerFrame)
                     {
-                        won = playerScore > cpuScore;
-                        StateHasChanged();
-                        await FinishGame();
-                        return;
+                        goalScoredByPlayer = StepPhysics(FixedDt);
+                        accumulator -= FixedDt;
+                        substeps++;
+                        if (goalScoredByPlayer is not null) break;
                     }
+                    if (substeps >= MaxSubstepsPerFrame) accumulator = 0f;
 
-                    puck.Velocity = Vector2.Zero;
-                    paused = true;
-                    pauseUntilUtc = DateTime.UtcNow.AddMilliseconds(GoalPauseMs);
+                    if (goalScoredByPlayer is { } playerScored)
+                    {
+                        if (playerScored) { playerScore++; roundMessage = "Goal!"; }
+                        else { cpuScore++; roundMessage = "CPU scores!"; }
+                        await PlaySoundAsync(playerScored ? "playMatchSound" : "playMismatchSound");
+
+                        if (playerScore >= WinScore || cpuScore >= WinScore)
+                        {
+                            won = playerScore > cpuScore;
+                            StateHasChanged();
+                            await FinishGame();
+                            return;
+                        }
+
+                        puck.Velocity = Vector2.Zero;
+                        paused = true;
+                        pauseUntilUtc = DateTime.UtcNow.AddMilliseconds(GoalPauseMs);
+                    }
+                }
+                catch (Exception) when (!ct.IsCancellationRequested)
+                {
+                    accumulator = 0f;
                 }
             }
 
@@ -372,9 +386,14 @@
         }
         targetX = Math.Clamp(targetX, PaddleRadius, TableWidth - PaddleRadius);
 
+        // Even when the puck is in the player's half, the paddle leans
+        // partway toward it rather than snapping to a fixed "home" spot -
+        // a hard binary switch made it look parked/frozen whenever the
+        // puck sat still on the player's side for more than a moment.
         var homeY = TableHeight * 0.22f;
+        var readyY = MathF.Min(puck.Position.Y, TableHeight / 2f - PaddleRadius);
         var puckInCpuHalf = puck.Position.Y < TableHeight / 2f;
-        var targetY = puckInCpuHalf ? MathF.Min(puck.Position.Y, TableHeight / 2f - PaddleRadius) : homeY;
+        var targetY = puckInCpuHalf ? readyY : homeY + (readyY - homeY) * 0.3f;
         targetY = Math.Clamp(targetY, PaddleRadius, TableHeight / 2f - PaddleRadius);
 
         var target = new Vector2(targetX, targetY);

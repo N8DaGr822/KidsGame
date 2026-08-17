@@ -81,7 +81,7 @@
 
             @foreach (var pocket in Pockets)
             {
-                <span class="pb-pocket" style="left:@((pocket.X * 100f / TableWidth).ToString(Inv))%; top:@((pocket.Y * 100f / TableHeight).ToString(Inv))%;"></span>
+                <span class="pb-pocket" style="left:@((pocket.Position.X * 100f / TableWidth).ToString(Inv))%; top:@((pocket.Position.Y * 100f / TableHeight).ToString(Inv))%;"></span>
             }
 
             @if (previewPoints.Count > 0)
@@ -155,14 +155,28 @@
     private const float TableWidth = 200f;
     private const float TableHeight = 100f;
     private const float BallRadius = 4.5f;
-    private const float PocketRadius = 8f;
+    // Corner pockets get a bigger capture radius than middle pockets -
+    // real pool corner pockets are genuinely harder to line up (approached
+    // from a narrower angle, two rails converging right there), and the
+    // first version of this used the same tight radius for both, which
+    // made corners feel unfairly stingy rather than just "harder."
+    private const float CornerPocketRadius = 11f;
+    private const float MiddlePocketRadius = 9f;
+    // Within this multiple of a pocket's capture radius, wall bounce is
+    // suppressed entirely so the ball can coast toward the pocket instead
+    // of clipping the rail right at the pocket's mouth and deflecting away
+    // just short of going in.
+    private const float PocketMouthMultiplier = 1.6f;
     private const float WallRestitution = 0.88f;
     private const float BallRestitution = 0.96f;
-    private const float BallDragPerSecond = 0.35f;
+    // Noticeably higher than a first pass used - pool balls should lose
+    // most of their speed within roughly a table length, not coast for
+    // several bounces before settling.
+    private const float BallDragPerSecond = 0.75f;
     private const float MinDragDistance = 6f;
     private const float MaxDragDistance = 70f;
     private const float MinShotSpeed = 40f;
-    private const float MaxShotSpeed = 220f;
+    private const float MaxShotSpeed = 190f;
     private const float FixedDt = 1f / 120f;
     private const int MaxSubstepsPerFrame = 8;
     private const int FrameDelayMs = 16;
@@ -177,10 +191,16 @@
 
     private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
 
-    private static readonly Vector2[] Pockets =
+    private record PocketDef(Vector2 Position, float CaptureRadius);
+
+    private static readonly PocketDef[] Pockets =
     {
-        new(0, 0), new(TableWidth / 2f, 0), new(TableWidth, 0),
-        new(0, TableHeight), new(TableWidth / 2f, TableHeight), new(TableWidth, TableHeight),
+        new(new Vector2(0, 0), CornerPocketRadius),
+        new(new Vector2(TableWidth / 2f, 0), MiddlePocketRadius),
+        new(new Vector2(TableWidth, 0), CornerPocketRadius),
+        new(new Vector2(0, TableHeight), CornerPocketRadius),
+        new(new Vector2(TableWidth / 2f, TableHeight), MiddlePocketRadius),
+        new(new Vector2(TableWidth, TableHeight), CornerPocketRadius),
     };
 
     private Difficulty? LockedDifficulty =>
@@ -475,8 +495,16 @@
         {
             if (!IsCaptured(ball.Body))
             {
-                Physics2D.ResolveWallCollisionX(ball.Body, TableWidth, WallRestitution);
-                Physics2D.ResolveWallCollisionY(ball.Body, TableHeight, WallRestitution);
+                // Skip the wall bounce entirely inside a pocket's mouth
+                // zone, so a ball heading roughly toward a pocket coasts
+                // the rest of the way in rather than clipping the rail
+                // right at the opening and deflecting away just short of
+                // sinking.
+                if (!IsNearPocketMouth(ball.Body))
+                {
+                    Physics2D.ResolveWallCollisionX(ball.Body, TableWidth, WallRestitution);
+                    Physics2D.ResolveWallCollisionY(ball.Body, TableHeight, WallRestitution);
+                }
                 continue;
             }
 
@@ -506,7 +534,14 @@
     }
 
     private static bool IsCaptured(PhysicsBody body) =>
-        Pockets.Any(p => Vector2.DistanceSquared(body.Position, p) < PocketRadius * PocketRadius);
+        Pockets.Any(p => Vector2.DistanceSquared(body.Position, p.Position) < p.CaptureRadius * p.CaptureRadius);
+
+    private static bool IsNearPocketMouth(PhysicsBody body) =>
+        Pockets.Any(p =>
+        {
+            var mouthRadius = p.CaptureRadius * PocketMouthMultiplier;
+            return Vector2.DistanceSquared(body.Position, p.Position) < mouthRadius * mouthRadius;
+        });
 
     private bool AllBallsAtRest() =>
         balls.Where(b => !b.IsSunk).All(b => b.Body.Velocity.LengthSquared() < RestVelocityEpsilon * RestVelocityEpsilon);
