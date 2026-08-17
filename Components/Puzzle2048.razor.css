@@ -1,0 +1,95 @@
+.p2048-game {
+    width: min(480px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.85rem;
+    touch-action: none;
+}
+
+.p2048-diff-name {
+    font-weight: 900;
+}
+
+.p2048-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.p2048-title {
+    font-weight: 900;
+}
+
+.p2048-board {
+    display: grid;
+    grid-template-columns: repeat(var(--p2048-size), 1fr);
+    gap: 0.4rem;
+    width: min(400px, 100%);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    padding: 0.4rem;
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    touch-action: none;
+}
+
+.p2048-tile {
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.06);
+    font-weight: 900;
+    font-size: clamp(0.8rem, 5.5cqw, 1.6rem);
+    color: var(--text);
+    transition: background 0.15s ease;
+}
+
+.p2048-v-2 { background: #eee4da; color: #3a3a3a; }
+.p2048-v-4 { background: #ede0c8; color: #3a3a3a; }
+.p2048-v-8 { background: #f2b179; color: #fff; }
+.p2048-v-16 { background: #f59563; color: #fff; }
+.p2048-v-32 { background: #f67c5f; color: #fff; }
+.p2048-v-64 { background: #f65e3b; color: #fff; }
+.p2048-v-128 { background: #edcf72; color: #fff; }
+.p2048-v-256 { background: #edcc61; color: #fff; }
+.p2048-v-512 { background: #edc850; color: #fff; }
+.p2048-v-1024 { background: #edc53f; color: #fff; }
+.p2048-v-2048 { background: #edc22e; color: #fff; }
+.p2048-v-4096 { background: #3c3a32; color: #f5f5f5; }
+
+.p2048-arrows {
+    display: grid;
+    justify-items: center;
+    gap: 0.4rem;
+}
+
+.p2048-arrow-row {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.p2048-arrow {
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    font-size: 1.3rem;
+    font-weight: 900;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.p2048-arrow:hover {
+    transform: translateY(-1px);
+    background: var(--control-bg-hover);
+}
+
+.p2048-message {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+}

@@ -178,6 +178,10 @@
             {
                 <DotsAndBoxes PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleDotsAndBoxesComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.Puzzle2048)
+            {
+                <Puzzle2048 PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandlePuzzle2048Complete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -805,6 +809,21 @@
             Theme = result.Difficulty,
             Difficulty = $"{result.PlayerScore}-{result.CpuScore}",
             Moves = result.PlayerScore,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandlePuzzle2048Complete(Puzzle2048.Puzzle2048Result result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Tile {result.HighestTile}, score {result.Score}",
+            Moves = result.Score,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

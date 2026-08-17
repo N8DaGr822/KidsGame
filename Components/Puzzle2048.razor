@@ -1,0 +1,396 @@
+@*
+    Puzzle2048.razor
+    Slide tiles with a swipe; matching tiles merge into double their
+    value. Reach the target tile to win. Swipe detection only needs the
+    net displacement between pointerdown and pointerup (no per-cell
+    tracking like WordSearch's drag-select needs), so no JS interop rect
+    lookups are needed at all - just the raw client-coordinate delta.
+    On-screen arrow buttons work identically, for discoverability and as
+    a non-swipe fallback. Difficulty changes board size and/or target
+    tile rather than the rules. Personal best tracks the highest tile
+    ever reached, win or lose.
+
+    Usage:
+        <Puzzle2048 OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="p2048-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="p2048-setup game-setup-panel">
+            <h2>🔢 2048</h2>
+            <p>Swipe (or tap the arrows) to slide every tile. Matching tiles merge into double the value - reach the target tile to win!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="p2048-diff-name">@DifficultyName(diff)</span>
+                            <span class="p2048-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="p2048-title">2048</span>
+            <span class="game-stat">⭐ Score @score</span>
+            <span class="game-stat">🎯 @target</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="p2048-board" style="--p2048-size:@size;"
+             @onpointerdown="OnPointerDown" @onpointerup="OnPointerUp">
+            @for (var r = 0; r < size; r++)
+            {
+                for (var c = 0; c < size; c++)
+                {
+                    var v = board[r, c];
+                    <span class="p2048-tile @(v > 0 ? "filled" : "") p2048-v-@v">@(v > 0 ? v.ToString() : "")</span>
+                }
+            }
+        </div>
+
+        <div class="p2048-arrows">
+            <button class="p2048-arrow p2048-up" @onclick='() => TryMove(Direction.Up)'>▲</button>
+            <div class="p2048-arrow-row">
+                <button class="p2048-arrow" @onclick='() => TryMove(Direction.Left)'>◀</button>
+                <button class="p2048-arrow" @onclick='() => TryMove(Direction.Down)'>▼</button>
+                <button class="p2048-arrow" @onclick='() => TryMove(Direction.Right)'>▶</button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="p2048-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(won ? "🎉 You Reached " + target + "!" : "🧩 No Moves Left")</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")score: @score.</p>
+                    <PersonalBestBadge Value="@($"tile {bestTile ?? HighestTile()}")" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<Puzzle2048Result> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (highest tile ever reached) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    private enum Direction { Up, Down, Left, Right }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int SizeFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 5,
+        _ => 4,
+    };
+
+    private static int TargetFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 1024,
+        Difficulty.Medium => 2048,
+        _ => 4096,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int size = 4;
+    private int target = 2048;
+    private int[,] board = new int[0, 0];
+    private int score;
+    private bool won;
+    private string roundMessage = "";
+    private int? bestTile;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+    private double swipeStartX, swipeStartY;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        size = SizeFor(selectedDifficulty);
+        target = TargetFor(selectedDifficulty);
+        board = new int[size, size];
+        score = 0;
+        won = false;
+        roundMessage = "";
+        bestTile = null;
+        isNewBest = false;
+        SpawnTile();
+        SpawnTile();
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new Puzzle2048Result(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                Score: score,
+                HighestTile: HighestTile(),
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private void OnPointerDown(PointerEventArgs e)
+    {
+        swipeStartX = e.ClientX;
+        swipeStartY = e.ClientY;
+    }
+
+    private async Task OnPointerUp(PointerEventArgs e)
+    {
+        const double threshold = 24;
+        var dx = e.ClientX - swipeStartX;
+        var dy = e.ClientY - swipeStartY;
+
+        if (Math.Max(Math.Abs(dx), Math.Abs(dy)) < threshold) return;
+
+        var direction = Math.Abs(dx) > Math.Abs(dy)
+            ? (dx > 0 ? Direction.Right : Direction.Left)
+            : (dy > 0 ? Direction.Down : Direction.Up);
+
+        await TryMove(direction);
+    }
+
+    private async Task TryMove(Direction direction)
+    {
+        if (phase != Phase.Playing) return;
+
+        var changed = Move(direction);
+        if (!changed) return;
+
+        SpawnTile();
+        await PlaySoundAsync("playMatchSound");
+        StateHasChanged();
+
+        if (HighestTile() >= target)
+        {
+            won = true;
+            await FinishGame();
+        }
+        else if (!HasMovesLeft())
+        {
+            won = false;
+            await FinishGame();
+        }
+    }
+
+    private bool Move(Direction direction)
+    {
+        var changed = false;
+        foreach (var line in GetLines(direction))
+        {
+            if (CompressLine(line)) changed = true;
+        }
+        return changed;
+    }
+
+    private List<List<(int R, int C)>> GetLines(Direction direction)
+    {
+        var lines = new List<List<(int R, int C)>>();
+
+        if (direction == Direction.Left || direction == Direction.Right)
+        {
+            for (var r = 0; r < size; r++)
+            {
+                var line = Enumerable.Range(0, size).Select(c => (r, c)).ToList();
+                if (direction == Direction.Right) line.Reverse();
+                lines.Add(line);
+            }
+        }
+        else
+        {
+            for (var c = 0; c < size; c++)
+            {
+                var line = Enumerable.Range(0, size).Select(r => (r, c)).ToList();
+                if (direction == Direction.Down) line.Reverse();
+                lines.Add(line);
+            }
+        }
+
+        return lines;
+    }
+
+    // Compresses non-empty values toward the front of the line, merging
+    // equal adjacent values once each (a merged tile never merges again
+    // in the same move - the standard 2048 rule).
+    private bool CompressLine(List<(int R, int C)> coords)
+    {
+        var values = coords.Select(p => board[p.R, p.C]).Where(v => v != 0).ToList();
+        var result = new List<int>();
+        var i = 0;
+        while (i < values.Count)
+        {
+            if (i + 1 < values.Count && values[i] == values[i + 1])
+            {
+                var merged = values[i] * 2;
+                result.Add(merged);
+                score += merged;
+                i += 2;
+            }
+            else
+            {
+                result.Add(values[i]);
+                i += 1;
+            }
+        }
+        while (result.Count < coords.Count) result.Add(0);
+
+        var changed = false;
+        for (var k = 0; k < coords.Count; k++)
+        {
+            var (r, c) = coords[k];
+            if (board[r, c] != result[k]) changed = true;
+            board[r, c] = result[k];
+        }
+        return changed;
+    }
+
+    private void SpawnTile()
+    {
+        var empty = new List<(int R, int C)>();
+        for (var r = 0; r < size; r++)
+            for (var c = 0; c < size; c++)
+                if (board[r, c] == 0) empty.Add((r, c));
+
+        if (empty.Count == 0) return;
+
+        var (row, col) = empty[rng.Next(empty.Count)];
+        board[row, col] = rng.NextDouble() < 0.9 ? 2 : 4;
+    }
+
+    private bool HasMovesLeft()
+    {
+        for (var r = 0; r < size; r++)
+        {
+            for (var c = 0; c < size; c++)
+            {
+                if (board[r, c] == 0) return true;
+                if (c + 1 < size && board[r, c] == board[r, c + 1]) return true;
+                if (r + 1 < size && board[r, c] == board[r + 1, c]) return true;
+            }
+        }
+        return false;
+    }
+
+    private int HighestTile()
+    {
+        var max = 0;
+        for (var r = 0; r < size; r++)
+            for (var c = 0; c < size; c++)
+                max = Math.Max(max, board[r, c]);
+        return max;
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+        roundMessage = won ? "You hit the target!" : "No moves left!";
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "highest-tile";
+            bestTile = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Puzzle2048, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Puzzle2048, key, HighestTile(), lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new Puzzle2048Result(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: won,
+                Score: score,
+                HighestTile: HighestTile(),
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "5x5 board, reach 1024",
+        Difficulty.Medium => "4x4 board, reach 2048",
+        _ => "4x4 board, reach 4096",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record Puzzle2048Result(string Difficulty, bool Won, int Score, int HighestTile, int ElapsedSeconds);
+}
