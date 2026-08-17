@@ -1,0 +1,297 @@
+@*
+    FlagGuessingGame.razor
+    Shows a country's flag as a Unicode flag emoji (a plain two-letter
+    regional-indicator sequence, e.g. U+1F1FA U+1F1F8 for USA) and asks
+    the player to pick the matching country name from four options - no
+    image assets needed, unlike a real flag-image quiz would require.
+    Modern Chromium (Edge, the browser this app targets) renders these as
+    real flag glyphs; older browsers may fall back to letter codes.
+    Same streak-bonus scoring as Trivia Battle for a familiar feel.
+
+    Usage:
+        <FlagGuessingGame OnComplete="HandleGameComplete" />
+*@
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="fg-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="fg-setup game-setup-panel">
+            <h2>🚩 Flag Guessing Game</h2>
+            <p>Look at the flag and pick the country it belongs to!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="fg-diff-name">@DifficultyName(diff)</span>
+                            <span class="fg-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="fg-title">Flag Guessing Game</span>
+            <span class="game-stat">🚩 @Math.Min(roundIndex + 1, rounds.Count)/@rounds.Count</span>
+            <span class="game-stat">⭐ Score @score</span>
+            <span class="game-stat">🔥 Streak @streak</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        @if (current is not null)
+        {
+            <div class="fg-flag">@current.Value.Emoji</div>
+
+            <div class="fg-options">
+                @foreach (var option in currentOptions)
+                {
+                    var isCorrect = option == current.Value.Name;
+                    var isChosen = option == answeredName;
+                    <button class="fg-option @(revealed && isCorrect ? "correct" : "") @(revealed && isChosen && !isCorrect ? "wrong" : "")"
+                            disabled="@(revealed || phase != Phase.Playing)"
+                            @onclick="() => Answer(option)">
+                        @option
+                    </button>
+                }
+            </div>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🚩 All Done!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")you got @correctCount/@rounds.Count right, with a best streak of @bestStreakThisSession!</p>
+                    <PersonalBestBadge Value="@($"{bestScore ?? score} points")" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<FlagGuessingGameResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (highest score) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private readonly record struct Flag(string Name, string Emoji);
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static readonly Flag[] EasyFlags =
+    {
+        new("United States", "🇺🇸"), new("United Kingdom", "🇬🇧"), new("France", "🇫🇷"),
+        new("Germany", "🇩🇪"), new("Japan", "🇯🇵"), new("Canada", "🇨🇦"),
+        new("Brazil", "🇧🇷"), new("Australia", "🇦🇺"), new("Italy", "🇮🇹"),
+        new("Spain", "🇪🇸"), new("Mexico", "🇲🇽"), new("China", "🇨🇳"),
+        new("India", "🇮🇳"), new("Russia", "🇷🇺"), new("Egypt", "🇪🇬"),
+    };
+
+    private static readonly Flag[] MediumFlags =
+    {
+        new("Sweden", "🇸🇪"), new("Norway", "🇳🇴"), new("Greece", "🇬🇷"),
+        new("Portugal", "🇵🇹"), new("Netherlands", "🇳🇱"), new("South Korea", "🇰🇷"),
+        new("Argentina", "🇦🇷"), new("South Africa", "🇿🇦"), new("Turkey", "🇹🇷"),
+        new("Thailand", "🇹🇭"), new("Ireland", "🇮🇪"), new("Switzerland", "🇨🇭"),
+        new("Poland", "🇵🇱"), new("Belgium", "🇧🇪"), new("Austria", "🇦🇹"),
+    };
+
+    private static readonly Flag[] HardFlags =
+    {
+        new("Kenya", "🇰🇪"), new("Peru", "🇵🇪"), new("Vietnam", "🇻🇳"),
+        new("Finland", "🇫🇮"), new("Iceland", "🇮🇸"), new("Morocco", "🇲🇦"),
+        new("Chile", "🇨🇱"), new("Philippines", "🇵🇭"), new("Nigeria", "🇳🇬"),
+        new("New Zealand", "🇳🇿"), new("Colombia", "🇨🇴"), new("Indonesia", "🇮🇩"),
+        new("Denmark", "🇩🇰"), new("Israel", "🇮🇱"), new("Pakistan", "🇵🇰"),
+    };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static Flag[] PoolFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => EasyFlags,
+        Difficulty.Medium => MediumFlags,
+        _ => HardFlags,
+    };
+
+    private static int RoundCountFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 8,
+        Difficulty.Medium => 10,
+        _ => 12,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private List<Flag> rounds = new();
+    private int roundIndex;
+    private Flag? current;
+    private List<string> currentOptions = new();
+    private string? answeredName;
+    private bool revealed;
+    private int score;
+    private int streak;
+    private int bestStreakThisSession;
+    private int correctCount;
+    private int? bestScore;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        var pool = PoolFor(selectedDifficulty);
+        rounds = pool.OrderBy(_ => rng.Next()).Take(Math.Min(RoundCountFor(selectedDifficulty), pool.Length)).ToList();
+
+        roundIndex = 0;
+        score = 0;
+        streak = 0;
+        bestStreakThisSession = 0;
+        correctCount = 0;
+        bestScore = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        LoadRound();
+    }
+
+    private void LoadRound()
+    {
+        current = rounds[roundIndex];
+        var pool = PoolFor(selectedDifficulty);
+        var wrongNames = pool.Where(f => f.Name != current.Value.Name)
+            .OrderBy(_ => rng.Next())
+            .Take(3)
+            .Select(f => f.Name);
+        currentOptions = wrongNames.Append(current.Value.Name).OrderBy(_ => rng.Next()).ToList();
+        answeredName = null;
+        revealed = false;
+    }
+
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new FlagGuessingGameResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                Correct: correctCount,
+                TotalRounds: roundIndex,
+                BestStreak: bestStreakThisSession,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task Answer(string name)
+    {
+        if (revealed || current is null || phase != Phase.Playing) return;
+
+        answeredName = name;
+        revealed = true;
+
+        if (name == current.Value.Name)
+        {
+            streak++;
+            bestStreakThisSession = Math.Max(bestStreakThisSession, streak);
+            score += 10 + (streak - 1) * 2;
+            correctCount++;
+        }
+        else
+        {
+            streak = 0;
+        }
+
+        StateHasChanged();
+        await Task.Delay(1300);
+
+        roundIndex++;
+        if (roundIndex >= rounds.Count)
+        {
+            await FinishGame();
+        }
+        else
+        {
+            LoadRound();
+            StateHasChanged();
+        }
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "high-score";
+            bestScore = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.FlagGuessingGame, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.FlagGuessingGame, key, score, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new FlagGuessingGameResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                Correct: correctCount,
+                TotalRounds: rounds.Count,
+                BestStreak: bestStreakThisSession,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Well-known countries",
+        Difficulty.Medium => "Trickier countries",
+        _ => "Toughest countries",
+    };
+
+    public record FlagGuessingGameResult(string Difficulty, int Score, int Correct, int TotalRounds, int BestStreak, int ElapsedSeconds);
+}

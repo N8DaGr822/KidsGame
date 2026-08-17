@@ -1,0 +1,62 @@
+.fg-game {
+    width: min(520px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.75rem;
+}
+
+.fg-diff-name {
+    font-weight: 900;
+}
+
+.fg-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.fg-title {
+    font-weight: 900;
+}
+
+.fg-flag {
+    text-align: center;
+    font-size: clamp(4rem, 18vw, 6rem);
+    line-height: 1;
+    margin: 0.5rem 0;
+}
+
+.fg-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+}
+
+.fg-option {
+    padding: 0.75rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.15s ease;
+}
+
+.fg-option:not(:disabled):hover {
+    transform: translateY(-2px);
+}
+
+.fg-option:disabled {
+    cursor: default;
+}
+
+.fg-option.correct {
+    background: rgba(47, 174, 78, 0.3);
+    border-color: #2fae4e;
+}
+
+.fg-option.wrong {
+    background: rgba(212, 63, 63, 0.3);
+    border-color: #d43f3f;
+}

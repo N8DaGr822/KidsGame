@@ -226,6 +226,10 @@
             {
                 <TriviaBattle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTriviaBattleComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.FlagGuessingGame)
+            {
+                <FlagGuessingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleFlagGuessingGameComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -1032,6 +1036,21 @@
             GameId = _game.Id,
             Theme = $"{result.Difficulty} / {result.Category}",
             Difficulty = $"{result.Correct}/{result.TotalQuestions} correct, score {result.Score}",
+            Moves = result.Score,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleFlagGuessingGameComplete(FlagGuessingGame.FlagGuessingGameResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"{result.Correct}/{result.TotalRounds} correct, score {result.Score}",
             Moves = result.Score,
             ElapsedSeconds = result.ElapsedSeconds,
         });
