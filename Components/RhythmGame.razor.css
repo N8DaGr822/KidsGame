@@ -21,28 +21,49 @@
     font-weight: 900;
 }
 
-.rg-pad {
-    width: min(220px, 70vw);
-    aspect-ratio: 1;
-    border-radius: 50%;
+.rg-lane {
+    position: relative;
+    width: min(160px, 40vw);
+    height: min(260px, 45vh);
+    background: linear-gradient(180deg, #1c2436 0%, #10151f 100%);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.rg-note {
+    position: absolute;
+    left: 50%;
+    width: 60%;
+    height: 10%;
+    background: linear-gradient(180deg, #ff8a5c, #d43f3f);
+    border-radius: var(--radius-sm);
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 10px rgba(255, 120, 80, 0.7);
+}
+
+.rg-press-bar {
+    width: min(280px, 80vw);
+    padding: 0.9rem 0;
     border: none;
-    background: radial-gradient(circle at 35% 30%, #ff8a5c, #d43f3f 70%);
+    border-radius: var(--radius-md);
+    background: linear-gradient(180deg, #ff8a5c, #d43f3f 70%);
     color: #fff;
     font-weight: 900;
-    font-size: 1.4rem;
-    letter-spacing: 0.05em;
+    font-size: 1.2rem;
+    letter-spacing: 0.08em;
     cursor: pointer;
     transform: scale(1);
     transition: transform 0.12s ease, box-shadow 0.12s ease;
     box-shadow: 0 6px 0 rgba(0, 0, 0, 0.2);
 }
 
-.rg-pad:disabled {
+.rg-press-bar:disabled {
     cursor: default;
 }
 
-.rg-pad.pulse {
-    transform: scale(1.15);
+.rg-press-bar.pulse {
+    transform: scale(1.06);
     box-shadow: 0 6px 24px rgba(255, 140, 90, 0.7);
 }
 
@@ -63,4 +84,59 @@
 
 .rg-judgement-miss {
     color: #d43f3f;
+}
+
+.rg-timing-meter {
+    width: min(320px, 90vw);
+    display: grid;
+    gap: 0.2rem;
+}
+
+.rg-timing-track {
+    position: relative;
+    height: 0.9rem;
+    background: var(--control-bg-subtle);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.rg-timing-zone-good {
+    position: absolute;
+    left: 19%;
+    right: 19%;
+    top: 0;
+    bottom: 0;
+    background: rgba(217, 169, 0, 0.35);
+}
+
+.rg-timing-zone-perfect {
+    position: absolute;
+    left: 34%;
+    right: 34%;
+    top: 0;
+    bottom: 0;
+    background: rgba(47, 174, 78, 0.45);
+}
+
+.rg-timing-pointer {
+    position: absolute;
+    top: -2px;
+    width: 4px;
+    height: calc(100% + 4px);
+    background: #fff;
+    border-radius: 2px;
+    transform: translateX(-50%);
+    transition: left 0.18s ease;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
+}
+
+.rg-timing-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }

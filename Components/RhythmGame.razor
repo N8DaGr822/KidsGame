@@ -1,12 +1,15 @@
 @*
     RhythmGame.razor
-    A pad pulses on every beat; tap it as close to the pulse as you can.
-    Timing is judged by comparing DateTime.UtcNow against the moment the
-    beat fired (same wall-clock timing approach as ReactionTimer), not by
-    counting animation frames, so judging stays accurate regardless of
-    render hiccups. Difficulty only changes tempo (time between beats) -
-    the hit windows are fixed - so Hard stays strictly harder than Easy
-    instead of accidentally becoming more forgiving, unlike the
+    A note falls down a lane toward a press bar, landing exactly on the
+    beat - tap the bar as it arrives. The note's position is recomputed
+    every ~45ms from real elapsed time against a beat target timestamp set
+    at the start of each cycle (same wall-clock approach as ReactionTimer),
+    not a separate CSS animation clock, so the fall always matches the
+    actual beat regardless of render hiccups. A timing meter below the bar
+    slides to show exactly how early or late each tap was, recentering at
+    the start of every beat. Difficulty only changes tempo (time between
+    beats) - the hit windows are fixed - so Hard stays strictly harder
+    than Easy instead of accidentally becoming more forgiving, unlike the
     HigherOrLower/ReactionTimer balance bugs fixed earlier this session.
 
     Usage:
@@ -23,7 +26,7 @@
     {
         <div class="rg-setup game-setup-panel">
             <h2>🥁 Rhythm Game</h2>
-            <p>Tap the pad right when it pulses to keep your combo going!</p>
+            <p>Watch the note fall down the lane and tap the bar right when it lands to keep your combo going!</p>
 
             <h3 class="game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
@@ -56,11 +59,27 @@
             <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
-        <button class="rg-pad @(pulseOn ? "pulse" : "")" disabled="@(phase != Phase.Playing)" @onclick="Tap">
-            TAP!
+        <div class="rg-lane">
+            <span class="rg-note" style="top:@((noteProgress * 100).ToString(Inv))%;"></span>
+        </div>
+
+        <button class="rg-press-bar @(pulseOn ? "pulse" : "")" disabled="@(phase != Phase.Playing)" @onclick="Tap">
+            PRESS
         </button>
 
         <p class="rg-judgement rg-judgement-@JudgementClass()">@lastJudgement</p>
+
+        <div class="rg-timing-meter">
+            <div class="rg-timing-track">
+                <span class="rg-timing-zone-good"></span>
+                <span class="rg-timing-zone-perfect"></span>
+                <span class="rg-timing-pointer" style="left:@(timingMeterPos.ToString(Inv))%;"></span>
+            </div>
+            <div class="rg-timing-labels">
+                <span>Early</span>
+                <span>Late</span>
+            </div>
+        </div>
 
         @if (phase == Phase.Finished)
         {
@@ -81,6 +100,8 @@
 </div>
 
 @code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
     [Parameter] public string? PlayerName { get; set; }
     [Parameter] public EventCallback<RhythmGameResult> OnComplete { get; set; }
 
@@ -97,9 +118,11 @@
     public enum Difficulty { Easy, Medium, Hard }
 
     private const int TotalBeats = 12;
-    private const int PulseFlashMs = 150;
+    private const int TickMs = 45;
+    private const int ImpactHoldMs = 90;
     private const double PerfectWindowMs = 140;
     private const double GoodWindowMs = 280;
+    private const double MeterRangeMs = 450;
 
     private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
 
@@ -124,6 +147,8 @@
     private bool tappedThisBeat;
     private string lastJudgement = "";
     private DateTime beatFiredAtUtc;
+    private double noteProgress;
+    private double timingMeterPos = 50;
     private int? bestScore;
     private bool isNewBest;
     private DateTime startedAtUtc;
@@ -161,36 +186,51 @@
 
             currentBeat = i;
             tappedThisBeat = false;
-            beatFiredAtUtc = DateTime.UtcNow;
+            pulseOn = false;
+            noteProgress = 0;
+            timingMeterPos = 50;
+            var cycleStart = DateTime.UtcNow;
+            beatFiredAtUtc = cycleStart.AddMilliseconds(beatIntervalMs);
+            StateHasChanged();
+
+            // The note's position is recomputed from real elapsed time on
+            // every tick, not driven by a separate CSS animation clock, so
+            // it always lands exactly on beatFiredAtUtc regardless of how
+            // long each render actually takes.
+            while (true)
+            {
+                var elapsed = (DateTime.UtcNow - cycleStart).TotalMilliseconds;
+                if (elapsed >= beatIntervalMs) break;
+                noteProgress = elapsed / beatIntervalMs;
+                StateHasChanged();
+                try
+                {
+                    await Task.Delay(TickMs, ct);
+                }
+                catch (TaskCanceledException)
+                {
+                    return;
+                }
+            }
+
+            noteProgress = 1;
             pulseOn = true;
             await PlaySoundAsync("playDrumHit", 0);
             StateHasChanged();
-
-            try
-            {
-                await Task.Delay(PulseFlashMs, ct);
-            }
-            catch (TaskCanceledException)
-            {
-                return;
-            }
-            pulseOn = false;
-            StateHasChanged();
-
-            try
-            {
-                await Task.Delay(Math.Max(50, beatIntervalMs - PulseFlashMs), ct);
-            }
-            catch (TaskCanceledException)
-            {
-                return;
-            }
 
             if (!tappedThisBeat)
             {
                 combo = 0;
                 lastJudgement = "Miss";
-                StateHasChanged();
+            }
+
+            try
+            {
+                await Task.Delay(ImpactHoldMs, ct);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
             }
         }
 
@@ -220,7 +260,12 @@
         if (phase != Phase.Playing || tappedThisBeat) return;
         tappedThisBeat = true;
 
-        var deltaMs = Math.Abs((DateTime.UtcNow - beatFiredAtUtc).TotalMilliseconds);
+        // Negative = tapped before the beat landed, positive = after -
+        // drives which way the timing-meter pointer slides.
+        var signedDeltaMs = (DateTime.UtcNow - beatFiredAtUtc).TotalMilliseconds;
+        timingMeterPos = 50 + Math.Clamp(signedDeltaMs / MeterRangeMs * 50, -50, 50);
+
+        var deltaMs = Math.Abs(signedDeltaMs);
         if (deltaMs <= PerfectWindowMs)
         {
             lastJudgement = "Perfect!";
