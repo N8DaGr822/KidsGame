@@ -1,0 +1,100 @@
+.ps-game {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.85rem;
+}
+
+.ps-diff-name {
+    font-weight: 900;
+}
+
+.ps-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.ps-title {
+    font-weight: 900;
+}
+
+.ps-goal {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+    background: linear-gradient(180deg, #dff3ff 0%, #eafff0 100%);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+}
+
+.ps-zone {
+    position: relative;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    border: 2px dashed rgba(0, 0, 0, 0.2);
+    background: rgba(255, 255, 255, 0.55);
+    font-size: 2rem;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.ps-zone:disabled {
+    cursor: default;
+}
+
+.ps-zone:not(:disabled):hover {
+    transform: scale(1.03);
+}
+
+.ps-zone.goal {
+    background: rgba(76, 217, 100, 0.35);
+    border-color: #2fae4e;
+}
+
+.ps-zone.saved {
+    background: rgba(255, 90, 90, 0.3);
+    border-color: #d43f3f;
+}
+
+.ps-zone-label {
+    font-size: 0.95rem;
+    font-weight: 900;
+    color: var(--text-muted);
+}
+
+.ps-ball {
+    position: absolute;
+    font-size: 1.8rem;
+    animation: ps-ball-in 0.35s ease-out;
+}
+
+.ps-keeper {
+    position: absolute;
+    font-size: 2.1rem;
+    opacity: 0.9;
+    animation: ps-dive-in 0.35s ease-out;
+}
+
+@keyframes ps-ball-in {
+    from { transform: translateY(-40px) scale(0.6); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes ps-dive-in {
+    from { transform: scale(0.5) rotate(-10deg); opacity: 0; }
+    to { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.ps-message {
+    text-align: center;
+    font-weight: 900;
+    font-size: 1.2rem;
+    color: var(--text-muted);
+    min-height: 1.6rem;
+}

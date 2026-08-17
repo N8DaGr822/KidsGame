@@ -1,0 +1,306 @@
+@*
+    PenaltyShootout.razor
+    Tap a zone (Left/Center/Right) to place your shot - the CPU keeper
+    picks a zone to dive toward at the same time, not in reaction to your
+    tap, so it's a simultaneous guessing game like Rock Paper Scissors
+    rather than a reflex test. Same-zone = saved; any mismatch = goal.
+    Keeper difficulty mirrors RockPaperScissors' fixed AI: it reads your
+    last few shots (a rolling window, not your whole match history, so
+    baiting it with an old pattern stops working once you've shot enough
+    times since) rather than peeking at the shot you're taking right now.
+    A fixed 5-shot session; personal best tracks most goals scored.
+
+    Usage:
+        <PenaltyShootout OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="ps-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="ps-setup game-setup-panel">
+            <h2>⚽ Penalty Shootout</h2>
+            <p>Tap a zone to shoot! The keeper picks a zone to dive to at the same time - if you don't match, it's a goal.</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="ps-diff-name">@DifficultyName(diff)</span>
+                            <span class="ps-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="ps-title">Penalty Shootout</span>
+            <span class="game-stat">⚽ Shot @Math.Min(shotNumber, TotalShots)/@TotalShots</span>
+            <span class="game-stat">🥅 Goals @goals</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="ps-goal">
+            @foreach (var zone in Zones)
+            {
+                var isBall = revealed && ballZone == zone;
+                var isKeeper = revealed && keeperZone == zone;
+                <button class="ps-zone @(revealed && ballZone == keeperZone && isBall ? "saved" : "") @(revealed && ballZone != keeperZone && isBall ? "goal" : "")"
+                        disabled="@(locked || phase != Phase.Playing)"
+                        @onclick="() => Shoot(zone)">
+                    @if (isKeeper)
+                    {
+                        <span class="ps-keeper">🧤</span>
+                    }
+                    @if (isBall)
+                    {
+                        <span class="ps-ball">⚽</span>
+                    }
+                    @if (!revealed)
+                    {
+                        <span class="ps-zone-label">@zone</span>
+                    }
+                </button>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="ps-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>⚽ All Done!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")you scored @goals/@TotalShots goals!</p>
+                    <PersonalBestBadge Value="@($"{bestGoals ?? goals} goals")" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<PenaltyShootoutResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (most goals scored) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int TotalShots = 5;
+    private const int RecentWindow = 4;
+    private static readonly string[] Zones = { "Left", "Center", "Right" };
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static double PredictChanceFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 0,
+        Difficulty.Medium => 0.5,
+        _ => 0.8,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int shotNumber;
+    private int goals;
+    private bool locked;
+    private bool revealed;
+    private string? ballZone;
+    private string? keeperZone;
+    private string roundMessage = "";
+    private int? bestGoals;
+    private bool isNewBest;
+    private readonly List<string> recentShots = new();
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        shotNumber = 0;
+        goals = 0;
+        roundMessage = "";
+        bestGoals = null;
+        isNewBest = false;
+        recentShots.Clear();
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        NextShot();
+    }
+
+    private void NextShot()
+    {
+        shotNumber++;
+        locked = false;
+        revealed = false;
+        ballZone = null;
+        keeperZone = null;
+        roundMessage = "";
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new PenaltyShootoutResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Goals: goals,
+                TotalShots: shotNumber - 1,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task Shoot(string zone)
+    {
+        if (locked || phase != Phase.Playing) return;
+        locked = true;
+
+        ballZone = zone;
+        keeperZone = PickKeeperZone();
+
+        recentShots.Add(zone);
+        if (recentShots.Count > RecentWindow) recentShots.RemoveAt(0);
+
+        revealed = true;
+
+        if (ballZone == keeperZone)
+        {
+            roundMessage = "Saved!";
+            await PlaySoundAsync("playMismatchSound");
+        }
+        else
+        {
+            goals++;
+            roundMessage = "GOAL!";
+            await PlaySoundAsync("playMatchSound");
+        }
+
+        StateHasChanged();
+        await Task.Delay(1300);
+
+        if (shotNumber >= TotalShots)
+        {
+            await FinishGame();
+        }
+        else
+        {
+            NextShot();
+            StateHasChanged();
+        }
+    }
+
+    // Predicts the player's most common recent zone (a rolling window,
+    // not the whole match) some fraction of the time based on difficulty,
+    // otherwise dives randomly - same recency-weighted approach as
+    // RockPaperScissors' AI, so a kid can't bait Hard by shooting one
+    // zone a few times early on then switching for good.
+    private string PickKeeperZone()
+    {
+        var predictChance = PredictChanceFor(selectedDifficulty);
+        if (predictChance > 0 && recentShots.Count > 0 && rng.NextDouble() < predictChance)
+        {
+            return recentShots
+                .GroupBy(z => z)
+                .OrderByDescending(g => g.Count())
+                .First().Key;
+        }
+        return Zones[rng.Next(Zones.Length)];
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "most-goals";
+            bestGoals = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.PenaltyShootout, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.PenaltyShootout, key, goals, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new PenaltyShootoutResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Goals: goals,
+                TotalShots: TotalShots,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Keeper dives randomly",
+        Difficulty.Medium => "Keeper sometimes reads your pattern",
+        _ => "Keeper often reads your pattern",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record PenaltyShootoutResult(string Difficulty, int Goals, int TotalShots, int ElapsedSeconds);
+}

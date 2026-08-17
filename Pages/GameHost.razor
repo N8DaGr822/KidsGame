@@ -206,6 +206,10 @@
             {
                 <BasketballShot PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleBasketballShotComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.PenaltyShootout)
+            {
+                <PenaltyShootout PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandlePenaltyShootoutComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -938,6 +942,21 @@
             Theme = result.Difficulty,
             Difficulty = $"Made {result.Makes}/{result.TotalShots}",
             Moves = result.Makes,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandlePenaltyShootoutComplete(PenaltyShootout.PenaltyShootoutResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Scored {result.Goals}/{result.TotalShots}",
+            Moves = result.Goals,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }
