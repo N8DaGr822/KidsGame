@@ -610,29 +610,30 @@ also wired up `Components/Shared/PersonalBestBadge.razor`: fewest guesses
 
 ### Arcade, racing, and platforming
 
-- [ ] Asteroids-style Space Game — fly a ship, shoot asteroids, collect
-      upgrades, and survive waves.
-- [ ] Space Trader — buy goods cheaply on one planet, sell elsewhere, upgrade
-      the ship, and avoid hazards.
-- [ ] Space Mining Game — mine resources, manage cargo, upgrade equipment, and
-      explore deeper areas.
-- [ ] Top-Down Racing — tracks, AI opponents, boosts, shortcuts, and lap
-      times.
-- [ ] Time Trial Racer — focus on personal records and ghost runs instead of
-      AI opponents.
-- [ ] Drift Challenge — score points by maintaining controlled slides around
-      corners.
-- [ ] Endless Survival Runner — upgrades, branching paths, hazards, missions,
-      and unlockables.
-- [ ] Platformer — handcrafted levels with jumping, collectibles, enemies,
-      moving platforms, and checkpoints.
-- [ ] Precision Platformer — short, difficult levels focused on mastering
-      movement.
-- [ ] Grappling Hook Game — swing between platforms using momentum.
-- [ ] Ninja Wall Jump — climb vertically by bouncing between walls while
-      avoiding hazards.
-- [ ] Stealth Game — avoid guards and cameras, distract enemies, grab an
-      objective, and escape.
+Deferred as a whole subsection. Every entry here needs continuous real-time
+movement and collision against hand-built levels/tracks (a platformer's
+jump arcs and moving platforms, a racer's track boundaries, a runner's
+obstacle timing) - a fundamentally different engine from the turn-based
+and analytic-solve patterns (drag-to-aim trajectory solve, grid/phase-based
+puzzles) used everywhere else in this app. Most also assume dedicated
+character/vehicle/level art rather than the emoji-and-CSS-shape approach
+that's kept every other game in this roadmap asset-free. Building even one
+of these properly (a real physics/collision step loop, camera, level
+format) is a new engine investment, not an evening's reskin - worth
+revisiting as a dedicated project, not folded into this pass.
+
+- [ ] Asteroids-style Space Game
+- [ ] Space Trader
+- [ ] Space Mining Game
+- [ ] Top-Down Racing
+- [ ] Time Trial Racer
+- [ ] Drift Challenge
+- [ ] Endless Survival Runner
+- [ ] Platformer
+- [ ] Precision Platformer
+- [ ] Grappling Hook Game
+- [ ] Ninja Wall Jump
+- [ ] Stealth Game
 
 ### Spatial and rhythm puzzles
 

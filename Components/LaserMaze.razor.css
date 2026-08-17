@@ -1,0 +1,71 @@
+.lm-game {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.85rem;
+}
+
+.lm-diff-name {
+    font-weight: 900;
+}
+
+.lm-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.lm-title {
+    font-weight: 900;
+}
+
+.lm-grid {
+    display: grid;
+    gap: 3px;
+    background: #10151f;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    padding: 6px;
+}
+
+.lm-cell {
+    position: relative;
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1c2436;
+    border-radius: 4px;
+    transition: background 0.15s ease;
+}
+
+.lm-cell.lit {
+    background: #b91c1c;
+    box-shadow: inset 0 0 8px rgba(255, 90, 60, 0.8);
+}
+
+.lm-cell.solved {
+    background: #2fae4e;
+    box-shadow: inset 0 0 10px rgba(90, 255, 130, 0.9);
+}
+
+.lm-source,
+.lm-target {
+    font-size: clamp(1rem, 3.2vw, 1.4rem);
+}
+
+.lm-mirror {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: transparent;
+    color: #eaf2ff;
+    font-weight: 900;
+    font-size: clamp(1.1rem, 3.6vw, 1.6rem);
+    cursor: pointer;
+}
+
+.lm-mirror:disabled {
+    cursor: default;
+}

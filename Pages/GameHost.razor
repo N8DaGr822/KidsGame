@@ -210,6 +210,10 @@
             {
                 <PenaltyShootout PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandlePenaltyShootoutComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.LaserMaze)
+            {
+                <LaserMaze PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleLaserMazeComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -957,6 +961,21 @@
             Theme = result.Difficulty,
             Difficulty = $"Scored {result.Goals}/{result.TotalShots}",
             Moves = result.Goals,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleLaserMazeComplete(LaserMaze.LaserMazeResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Solved ? $"Solved in {result.Moves} moves" : "Abandoned",
+            Moves = result.Moves,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }
