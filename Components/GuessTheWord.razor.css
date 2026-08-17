@@ -20,28 +20,9 @@
     font-weight: 900;
 }
 
-.gw-rocket-scene {
-    display: grid;
-    justify-items: center;
-    gap: 0.5rem;
-}
-
-.gw-rocket {
-    font-size: clamp(2.6rem, 10vw, 3.6rem);
-    line-height: 1;
-    transition: transform 0.2s ease;
-}
-
-.gw-rocket.sputter {
-    animation: gw-shake 0.35s ease;
-}
-
-.gw-rocket.launch {
-    animation: gw-launch 1.3s ease forwards;
-}
-
 .gw-fuel {
     display: flex;
+    justify-content: center;
     gap: 0.2rem;
 }
 
@@ -121,15 +102,4 @@
     font-weight: 900;
     color: var(--text-muted);
     min-height: 1.4rem;
-}
-
-@keyframes gw-shake {
-    0%, 100% { transform: translateX(0) rotate(0); }
-    25% { transform: translateX(-4px) rotate(-4deg); }
-    75% { transform: translateX(4px) rotate(4deg); }
-}
-
-@keyframes gw-launch {
-    0% { transform: translateY(0) scale(1); opacity: 1; }
-    100% { transform: translateY(-140px) scale(0.6); opacity: 0; }
 }

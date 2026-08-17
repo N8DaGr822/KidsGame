@@ -56,14 +56,11 @@
             <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
-        <div class="gw-rocket-scene">
-            <span class="gw-rocket @(launching ? "launch" : "") @(sputter ? "sputter" : "")">🚀</span>
-            <div class="gw-fuel">
-                @for (var i = 0; i < maxFuel; i++)
-                {
-                    <span class="gw-fuel-flame @(i < fuel ? "lit" : "")">🔥</span>
-                }
-            </div>
+        <div class="gw-fuel">
+            @for (var i = 0; i < maxFuel; i++)
+            {
+                <span class="gw-fuel-flame @(i < fuel ? "lit" : "")">🔥</span>
+            }
         </div>
 
         <div class="gw-emoji-clue">@CurrentWord.Emoji</div>
@@ -186,8 +183,6 @@
     private int maxFuel;
     private int fuel;
     private bool roundOver;
-    private bool launching;
-    private bool sputter;
     private string roundMessage = "";
     private int wordsWon;
     private int streak;
@@ -238,8 +233,6 @@
         maxFuel = MaxFuelFor(selectedDifficulty);
         fuel = maxFuel;
         roundOver = false;
-        launching = false;
-        sputter = false;
         roundMessage = "";
     }
 
@@ -261,11 +254,9 @@
         else
         {
             fuel--;
-            sputter = true;
             await PlaySoundAsync("playMismatchSound");
             StateHasChanged();
             await Task.Delay(350);
-            sputter = false;
 
             if (fuel <= 0)
             {
@@ -277,7 +268,6 @@
     private async Task WinRoundAsync()
     {
         roundOver = true;
-        launching = true;
         wordsWon++;
         streak++;
         bestStreak = Math.Max(bestStreak, streak);
