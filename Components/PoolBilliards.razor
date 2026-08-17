@@ -160,7 +160,7 @@
     // from a narrower angle, two rails converging right there), and the
     // first version of this used the same tight radius for both, which
     // made corners feel unfairly stingy rather than just "harder."
-    private const float CornerPocketRadius = 11f;
+    private const float CornerPocketRadius = 8.25f; // 11 * 0.75 - the mouth-suppression fix alone was already generous enough that the bigger radius made corners too easy
     private const float MiddlePocketRadius = 9f;
     // Within this multiple of a pocket's capture radius, wall bounce is
     // suppressed entirely so the ball can coast toward the pocket instead

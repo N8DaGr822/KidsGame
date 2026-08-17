@@ -239,31 +239,33 @@
                 return;
             }
 
-            var now = DateTime.UtcNow;
-            var elapsed = (float)(now - lastTick).TotalSeconds;
-            lastTick = now;
-
-            if (paused)
+            // Everything from here down is wrapped in one try/catch -
+            // a previous, narrower version only covered the goal-scoring
+            // branch, which left the paused/resume check and
+            // StateHasChanged() itself able to silently kill this
+            // fire-and-forget loop task on a stray exception, freezing
+            // the puck and both paddles for the rest of the match with no
+            // visible error. Worst case now, this frame is skipped and
+            // the next one picks back up.
+            try
             {
-                if (now >= pauseUntilUtc)
+                var now = DateTime.UtcNow;
+                var elapsed = (float)(now - lastTick).TotalSeconds;
+                lastTick = now;
+
+                if (paused)
                 {
-                    paused = false;
-                    puck.Position = new Vector2(TableWidth / 2f, TableHeight / 2f);
-                    puck.Velocity = Vector2.Zero;
+                    if (now >= pauseUntilUtc)
+                    {
+                        paused = false;
+                        puck.Position = new Vector2(TableWidth / 2f, TableHeight / 2f);
+                        puck.Velocity = Vector2.Zero;
+                    }
                 }
-            }
-            else
-            {
-                bool? goalScoredByPlayer = null;
-
-                // A stray exception here (e.g. a transient JS interop hiccup
-                // from PlaySoundAsync) must not be allowed to silently kill
-                // this fire-and-forget loop task - that would freeze the
-                // puck and both paddles for the rest of the match with no
-                // error visible anywhere. Worst case, this frame's physics
-                // is skipped and the next one picks back up.
-                try
+                else
                 {
+                    bool? goalScoredByPlayer = null;
+
                     accumulator += elapsed;
                     var substeps = 0;
 
@@ -295,13 +297,13 @@
                         pauseUntilUtc = DateTime.UtcNow.AddMilliseconds(GoalPauseMs);
                     }
                 }
-                catch (Exception) when (!ct.IsCancellationRequested)
-                {
-                    accumulator = 0f;
-                }
-            }
 
-            StateHasChanged();
+                StateHasChanged();
+            }
+            catch (Exception) when (!ct.IsCancellationRequested)
+            {
+                accumulator = 0f;
+            }
         }
     }
 
