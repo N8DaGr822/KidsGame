@@ -474,33 +474,63 @@ Implementation notes:
 ### Board, logic, and deduction games
 
 - [ ] Chess Puzzles — "mate in 1", "mate in 2", and tactical challenges
-      instead of full chess.
+      instead of full chess. Deferred - needs either a curated puzzle bank
+      or real chess-move validation, more upfront content/logic cost than
+      the rest of this subsection.
 - [ ] Checkers with AI — straightforward rules and strong difficulty-level
-      potential.
-- [ ] Reversi / Othello — simple rules, deep strategy, good AI-opponent
-      candidate.
-- [ ] Battleships — place ships, fire at coordinates, and play against AI or
-      another local player.
-- [ ] Mastermind — guess a hidden sequence of colors or symbols using feedback
-      after each attempt.
+      potential. Deferred - jump-chain rules and king promotion are a
+      bigger rules surface than this batch's games.
+- [x] Reversi / Othello — landed as `Components/Reversi.razor`. Standard
+      8x8 board vs a CPU opponent; AI extends `Services/GameAi.cs`
+      (`ReversiLegalMoves`/`ReversiApplyMove`/`ReversiMove`) with the same
+      alpha-beta minimax shape as Tic-Tac-Toe/Connect Four, evaluating a
+      positional weight table (corners great, cells next to a corner bad)
+      plus a mobility term, with move ordering for pruning efficiency
+      given Reversi's higher branching factor.
+- [x] Battleships — landed as `Components/Battleships.razor`. Vs a CPU,
+      both fleets auto-placed (manual placement deferred - the strategy
+      here is firing/hunting). CPU difficulty is a real targeting
+      algorithm: Easy random, Medium hunts after a hit, Hard adds
+      checkerboard-parity search while hunting blind.
+- [x] Mastermind — landed as `Components/Mastermind.razor`. Colored-peg
+      deduction, colors can repeat, black/white feedback pegs, guess
+      budget scales with difficulty.
 - [ ] Logic Grid Puzzles — deduction clues such as "Alex has the red bike,
       Sam doesn't own the cat."
 - [ ] Nonograms / Picross — number clues reveal a hidden pixel image; strong
       replayability from generated or data-driven puzzles.
-- [ ] 2048-style Puzzle — slide matching tiles together and aim for larger
-      values.
+- [x] 2048-style Puzzle — landed as `Components/Puzzle2048.razor`. Swipe
+      (net pointerdown/pointerup displacement, no per-cell tracking needed)
+      or on-screen arrows; difficulty scales board size and target tile.
 - [ ] Threes-style Number Puzzle — similar sliding-number category, with a
-      distinct rule set.
+      distinct rule set. Deferred - close enough to 2048 above that
+      shipping both back-to-back risked feeling redundant; revisit if the
+      distinct "next tile preview" rule earns its own slot later.
 - [ ] Hex / Territory Capture — players compete to control board sections by
       placing tiles.
-- [ ] Dots and Boxes — simple local multiplayer with more strategy than it
-      first appears.
+- [x] Dots and Boxes — landed as `Components/DotsAndBoxes.razor`. Real
+      "complete a box, go again" rule intact; renders on the standard
+      doubled-coordinate grid technique. CPU difficulty ladder: Easy fully
+      random once nothing's free, Medium avoids handing over free boxes,
+      Hard also minimizes what it gives away when forced to open a chain.
 - [ ] Ultimate Tic-Tac-Toe — nine Tic-Tac-Toe boards arranged inside one larger
       board.
 - [ ] Sequence Puzzle — memorize increasingly long visual, audio, or
-      directional sequences.
-- [ ] Code Breaker — guess a numeric or symbol password using clues such as
-      "2 digits correct, 1 in the right position."
+      directional sequences. Deferred to Section 5 (memory/sequence) where
+      it fits better alongside Simon Says' sequence-and-replay loop.
+- [x] Code Breaker — landed as `Components/CodeBreaker.razor`. Numeric
+      safe-cracking with no-repeat digits (a genuinely different
+      constraint from Mastermind's repeatable colors), spot/digit
+      feedback shown as counts instead of peg dots.
+
+All six landed games follow the same pattern as every other built-in:
+`GameSetupPanel`-shaped setup screen reusing `app.css`'s shared classes,
+`ForcedDifficulty` threading for admin per-kid locks, abandon-logs-to-
+history and personal-best wiring built in from the start (not retrofitted
+the way earlier sections needed), and a `<GameName>Result` record. All six
+also wired up `Components/Shared/PersonalBestBadge.razor`: fewest guesses
+(Mastermind, Code Breaker), fewest shots (Battleships), highest tile
+(2048), biggest win margin (Reversi, Dots and Boxes).
 
 ### Mystery, escape, and code puzzles
 
