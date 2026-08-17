@@ -20,13 +20,17 @@
     font-weight: 900;
 }
 
-.lm-grid {
-    display: grid;
-    gap: 3px;
+.lm-grid-wrap {
+    position: relative;
     background: #10151f;
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
     padding: 6px;
+}
+
+.lm-grid {
+    display: grid;
+    gap: 0;
 }
 
 .lm-cell {
@@ -36,26 +40,23 @@
     align-items: center;
     justify-content: center;
     background: #1c2436;
-    border-radius: 4px;
-    transition: background 0.15s ease;
-}
-
-.lm-cell.lit {
-    background: #b91c1c;
-    box-shadow: inset 0 0 8px rgba(255, 90, 60, 0.8);
-}
-
-.lm-cell.solved {
-    background: #2fae4e;
-    box-shadow: inset 0 0 10px rgba(90, 255, 130, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .lm-source,
 .lm-target {
     font-size: clamp(1rem, 3.2vw, 1.4rem);
+    position: relative;
+    z-index: 1;
+}
+
+.lm-cell.solved .lm-target {
+    animation: lm-target-pulse 0.6s ease infinite;
 }
 
 .lm-mirror {
+    position: relative;
+    z-index: 1;
     width: 100%;
     height: 100%;
     border: none;
@@ -64,8 +65,65 @@
     font-weight: 900;
     font-size: clamp(1.1rem, 3.6vw, 1.6rem);
     cursor: pointer;
+    transition: transform 0.15s ease;
 }
 
 .lm-mirror:disabled {
     cursor: default;
+}
+
+.lm-mirror.flip {
+    animation: lm-mirror-flip 0.22s ease;
+}
+
+.lm-beam-overlay {
+    position: absolute;
+    inset: 6px;
+    pointer-events: none;
+    overflow: visible;
+}
+
+.lm-beam-glow,
+.lm-beam-core {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.lm-beam-glow {
+    stroke: #ff5a3c;
+    stroke-width: 0.16;
+    opacity: 0.55;
+    filter: blur(2.5px);
+}
+
+.lm-beam-core {
+    stroke: #ffe3a8;
+    stroke-width: 0.06;
+    stroke-dasharray: 0.28 0.16;
+    animation: lm-beam-flow 0.55s linear infinite;
+}
+
+.lm-beam-glow.solved {
+    stroke: #4dff8a;
+}
+
+.lm-beam-core.solved {
+    stroke: #eaffef;
+    animation-duration: 0.9s;
+}
+
+@keyframes lm-beam-flow {
+    to { stroke-dashoffset: -0.44; }
+}
+
+@keyframes lm-mirror-flip {
+    0% { transform: scale(1) rotate(0deg); }
+    50% { transform: scale(1.3) rotate(90deg); }
+    100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes lm-target-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.35); }
 }

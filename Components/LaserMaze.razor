@@ -53,35 +53,41 @@
             <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
-        <div class="lm-grid" style="grid-template-columns: repeat(@size, 1fr);">
-            @for (var r = 0; r < size; r++)
-            {
-                @for (var c = 0; c < size; c++)
+        <div class="lm-grid-wrap">
+            <div class="lm-grid" style="grid-template-columns: repeat(@size, 1fr);">
+                @for (var r = 0; r < size; r++)
                 {
-                    var row = r; var col = c;
-                    var pos = (row, col);
-                    var lit = litCells.Contains(pos);
-                    var isSource = pos == sourceCell;
-                    var isTarget = pos == targetCell;
-                    var hasMirror = mirrorOrientation.TryGetValue(pos, out var orientation);
-                    <div class="lm-cell @(lit ? "lit" : "") @(isTarget && solved ? "solved" : "")">
-                        @if (isSource)
-                        {
-                            <span class="lm-source">@SourceArrow()</span>
-                        }
-                        else if (isTarget)
-                        {
-                            <span class="lm-target">🎯</span>
-                        }
-                        else if (hasMirror)
-                        {
-                            <button class="lm-mirror" disabled="@(solved || phase != Phase.Playing)" @onclick="() => FlipMirror(pos)">
-                                @(orientation == 0 ? "/" : "\\")
-                            </button>
-                        }
-                    </div>
+                    @for (var c = 0; c < size; c++)
+                    {
+                        var row = r; var col = c;
+                        var pos = (row, col);
+                        var isSource = pos == sourceCell;
+                        var isTarget = pos == targetCell;
+                        var hasMirror = mirrorOrientation.TryGetValue(pos, out var orientation);
+                        <div class="lm-cell @(isTarget && solved ? "solved" : "")">
+                            @if (isSource)
+                            {
+                                <span class="lm-source">@SourceArrow()</span>
+                            }
+                            else if (isTarget)
+                            {
+                                <span class="lm-target">🎯</span>
+                            }
+                            else if (hasMirror)
+                            {
+                                <button class="lm-mirror @(justFlipped == pos ? "flip" : "")" disabled="@(solved || phase != Phase.Playing)" @onclick="() => FlipMirror(pos)">
+                                    @(orientation == 0 ? "/" : "\\")
+                                </button>
+                            }
+                        </div>
+                    }
                 }
-            }
+            </div>
+
+            <svg class="lm-beam-overlay" viewBox="0 0 @size @size" preserveAspectRatio="none">
+                <polyline points="@BeamPoints()" class="lm-beam-glow @(solved ? "solved" : "")" />
+                <polyline points="@BeamPoints()" class="lm-beam-core @(solved ? "solved" : "")" />
+            </svg>
         </div>
 
         @if (phase == Phase.Finished)
@@ -151,8 +157,9 @@
     private int sourceDir;
     private (int, int) targetCell;
     private readonly Dictionary<(int, int), int> mirrorOrientation = new();
-    private HashSet<(int, int)> litCells = new();
+    private List<(int Row, int Col)> litPath = new();
     private bool solved;
+    private (int, int)? justFlipped;
     private int moves;
     private int? bestMoves;
     private bool isNewBest;
@@ -313,17 +320,26 @@
         if (solved || phase != Phase.Playing) return;
         mirrorOrientation[pos] = 1 - mirrorOrientation[pos];
         moves++;
+        justFlipped = pos;
         Simulate();
+        StateHasChanged();
+
+        await Task.Delay(220);
+        justFlipped = null;
 
         if (solved)
         {
             await FinishGame();
         }
+        else
+        {
+            StateHasChanged();
+        }
     }
 
     private void Simulate()
     {
-        var lit = new HashSet<(int, int)> { sourceCell };
+        var path = new List<(int Row, int Col)> { sourceCell };
         var pos = sourceCell;
         var dir = sourceDir;
         var maxSteps = size * size * 2;
@@ -334,7 +350,7 @@
             var next = (pos.Item1 + DR[dir], pos.Item2 + DC[dir]);
             if (!InBounds(next)) break;
             pos = next;
-            lit.Add(pos);
+            path.Add(pos);
             if (pos == targetCell) { reachedTarget = true; break; }
             if (mirrorOrientation.TryGetValue(pos, out var orientation))
             {
@@ -342,9 +358,15 @@
             }
         }
 
-        litCells = lit;
+        litPath = path;
         solved = reachedTarget;
     }
+
+    // Cell-center coordinates (col+0.5, row+0.5) for the beam's SVG
+    // polyline, in the grid's own 0..size coordinate space - the overlay's
+    // viewBox matches that space directly so no pixel math is needed.
+    private string BeamPoints() =>
+        string.Join(" ", litPath.Select(p => $"{p.Col + 0.5},{p.Row + 0.5}"));
 
     private string SourceArrow() => Arrows[sourceDir];
 
