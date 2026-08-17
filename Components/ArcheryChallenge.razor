@@ -66,8 +66,12 @@
              @onpointerdown="OnFieldPointerDown" @onpointermove="OnFieldPointerMove"
              @onpointerup="OnFieldPointerUp" @onpointercancel="OnFieldPointerUp">
             <div class="ac-sky"></div>
+            <span class="ac-sun">☀️</span>
+            <span class="ac-cloud ac-cloud-1">☁️</span>
+            <span class="ac-cloud ac-cloud-2">☁️</span>
             <div class="ac-ground"></div>
 
+            <div class="ac-target-stand" style="left:@(targetX.ToString(Inv))%; top:@((targetCenterY + 8).ToString(Inv))%; height:@((GroundY - targetCenterY - 8).ToString(Inv))%;"></div>
             <div class="ac-target" style="left:@(targetX.ToString(Inv))%; top:@(targetCenterY.ToString(Inv))%;">
                 <div class="ac-ring ac-ring-5"></div>
                 <div class="ac-ring ac-ring-4"></div>
@@ -84,7 +88,12 @@
                 }
             }
 
-            <span class="ac-archer">🏹</span>
+            @if (flyingArrowPos is { } fp)
+            {
+                <span class="ac-flying-arrow" style="left:@(fp.X.ToString(Inv))%; top:@(fp.Y.ToString(Inv))%; transform: translate(-50%, -50%) rotate(@(flyingArrowAngle.ToString(Inv))deg);"></span>
+            }
+
+            <span class="ac-archer @(resolving ? "firing" : "") @(isDragging ? "aiming" : "")">🏹</span>
 
             @if (lastImpact is { } impact)
             {
@@ -145,6 +154,8 @@
     private const double MinDragDistance = 4;
     private const double MaxDragDistance = 42;
     private const double TargetOuterRadius = 8;
+    private const int FlightSteps = 20;
+    private const int FlightTotalMs = 650;
 
     private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
 
@@ -187,6 +198,8 @@
     private long? activeFieldPointerId;
     private readonly List<(double X, double Y)> previewPoints = new();
     private (double X, double Y)? lastImpact;
+    private (double X, double Y)? flyingArrowPos;
+    private double flyingArrowAngle;
     private bool resolving;
 
     protected override void OnInitialized()
@@ -369,6 +382,9 @@
     private async Task FireAsync(double angleDeg, double speed)
     {
         resolving = true;
+        StateHasChanged();
+        await Task.Delay(180);
+
         var (vx, vy) = VelocityFromAngleSpeed(angleDeg, speed);
         var y0 = GroundY - LaunchYOffset;
 
@@ -376,7 +392,7 @@
         var impactX = impactTime > 0 ? ArcherX + vx * impactTime : ArcherX;
 
         int score;
-        double landX, landY;
+        double landX, landY, flightDuration;
 
         if (impactX < targetX)
         {
@@ -384,6 +400,7 @@
             score = 0;
             landX = Math.Min(impactX, 100);
             landY = GroundY;
+            flightDuration = impactTime;
             roundMessage = "Fell short!";
         }
         else
@@ -401,6 +418,7 @@
 
             landX = targetX;
             landY = Math.Clamp(yCross, 5, GroundY);
+            flightDuration = tCross;
             roundMessage = score switch
             {
                 10 => "Bullseye!",
@@ -410,11 +428,30 @@
             };
         }
 
+        // Replays the same analytic curve the preview showed, frame by
+        // frame, instead of teleporting straight to the impact point.
+        if (flightDuration > 0)
+        {
+            var stepDelay = FlightTotalMs / FlightSteps;
+            for (var i = 1; i <= FlightSteps; i++)
+            {
+                var t = flightDuration * i / FlightSteps;
+                var x = ArcherX + vx * t;
+                var y = y0 + vy * t + 0.5 * Gravity * t * t;
+                var vyInstant = vy + Gravity * t;
+                flyingArrowPos = (x, y);
+                flyingArrowAngle = Math.Atan2(vyInstant, vx) * 180 / Math.PI;
+                StateHasChanged();
+                await Task.Delay(stepDelay);
+            }
+        }
+        flyingArrowPos = null;
+
         totalScore += score;
         lastImpact = (landX, landY);
         await PlaySoundAsync(score >= 6 ? "playMatchSound" : score > 0 ? "playImpactSound" : "playMismatchSound");
         StateHasChanged();
-        await Task.Delay(1400);
+        await Task.Delay(1100);
 
         resolving = false;
 
