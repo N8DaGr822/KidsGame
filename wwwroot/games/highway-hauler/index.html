@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>INLAND HAULER — ITP 8-bit Semi Shifting</title>
+<title>HIGHWAY HAULER — 8-bit Semi Shifting</title>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -64,7 +64,7 @@
 </div>
 <div id="hint">
   <b>▲/W</b> gas &nbsp; <b>▼/S</b> brake &nbsp; <b>►/X</b> upshift &nbsp; <b>◄/Z</b> downshift &nbsp; <b>M</b> mute<br>
-  pull into the <b>ITP shop</b> to buy upgrades (1/2/3) · keep the tach out of the red · stay under the sign
+  pull into the <b>shop</b> to buy upgrades (1/2/3) · keep the tach out of the red · stay under the sign
 </div>
 
 <script>
@@ -83,7 +83,7 @@ const P = {
   road:'#4a4e57', roadDark:'#3a3d45', line:'#ffd23e', shoulder:'#c9c9c9',
   cab:'#b01e2e', cabDark:'#6e1420', trailer:'#e6e8ec', trailerDark:'#aab0bc',
   glass:'#aee6ff', tire:'#20222b', hub:'#9aa0ad', chrome:'#e8eef5',
-  text:'#f4ecd8', amber:'#ffb52e', green:'#7ee787', red:'#e63946', itp:'#b01e2e',
+  text:'#f4ecd8', amber:'#ffb52e', green:'#7ee787', red:'#e63946', brand:'#b01e2e',
   hudBg:'rgba(14,15,26,0.82)', smoke:'#6b6f7a'
 };
 
@@ -512,13 +512,13 @@ function drawSigns(){
   }
 }
 
-/* ---------------- ITP roadside flavor ---------------- */
+/* ---------------- roadside flavor ---------------- */
 const BILLBOARDS = [
-  ['INLAND','TRUCK PARTS'],
+  ['TRUCK STOP','2 MILES'],
   ['KEEP \'EM','ROLLING'],
-  ['EMPLOYEE','OWNED'],
+  ['DRIVE','SAFE'],
   ['ALL MAKES','ALL MODELS'],
-  ['EST.','1944'],
+  ['REST AREA','AHEAD'],
   ['PARTS ·','SERVICE'],
 ];
 function drawBillboards(){
@@ -534,12 +534,12 @@ function drawBillboards(){
     const msg = BILLBOARDS[((i%BILLBOARDS.length)+BILLBOARDS.length)%BILLBOARDS.length];
     px(sx-14, gy-30, 2, 30, '#6b5540'); px(sx+12, gy-30, 2, 30, '#6b5540');
     px(sx-24, gy-56, 48, 28, '#f7f8fa');
-    px(sx-24, gy-56, 48, 3,  P.itp);
-    px(sx-24, gy-31, 48, 3,  P.itp);
+    px(sx-24, gy-56, 48, 3,  P.brand);
+    px(sx-24, gy-31, 48, 3,  P.brand);
     px(sx-23, gy-55, 46, 26, '#fff');
-    px(sx-23, gy-55, 46, 2,  P.itp);
-    px(sx-23, gy-30, 46, 2,  P.itp);
-    text(msg[0], sx, gy-50, 5, P.itp,'center');
+    px(sx-23, gy-55, 46, 2,  P.brand);
+    px(sx-23, gy-30, 46, 2,  P.brand);
+    text(msg[0], sx, gy-50, 5, P.brand,'center');
     text(msg[1], sx, gy-42, 5, '#333','center');
   }
 }
@@ -550,9 +550,9 @@ function drawShop(wx){
   // building
   px(sx-34, gy-34, 68, 34, '#c9ccd4');       // walls
   px(sx-34, gy-34, 68, 2,  '#e6e8ec');
-  px(sx-36, gy-40, 72, 7,  P.itp);           // red fascia
+  px(sx-36, gy-40, 72, 7,  P.brand);           // red fascia
   px(sx-36, gy-40, 72, 1,  '#d64556');
-  text('ITP SERVICE', sx, gy-39, 5, '#fff','center');
+  text('TRUCK SVC', sx, gy-39, 5, '#fff','center');
   // bay doors
   px(sx-26, gy-24, 16, 24, '#7d828e'); px(sx-24, gy-22, 12, 20, '#9aa0ad');
   px(sx+10, gy-24, 16, 24, '#7d828e'); px(sx+12, gy-22, 12, 20, '#9aa0ad');
@@ -561,8 +561,8 @@ function drawShop(wx){
   px(sx-6, gy-20, 10, 20, '#5b5f6b'); px(sx-4, gy-18, 6, 8, P.glass);
   // little pole sign
   px(sx+42, gy-46, 2, 46, '#777');
-  px(sx+34, gy-58, 18, 12, P.itp); px(sx+35, gy-57, 16, 10, '#8f1826');
-  text('ITP', sx+43, gy-55, 5, '#fff','center');
+  px(sx+34, gy-58, 18, 12, P.brand); px(sx+35, gy-57, 16, 10, '#8f1826');
+  text('SVC', sx+43, gy-55, 5, '#fff','center');
 }
 
 function drawTruck(){
@@ -579,13 +579,13 @@ function drawTruck(){
   // shadow
   cx.fillStyle='rgba(0,0,0,0.25)'; cx.fillRect(-52,0,66,3);
 
-  // ----- trailer (INLAND livery) -----
+  // ----- trailer livery -----
   px(-52,-26, 40, 18, P.trailer);
   px(-52,-26, 40, 3,  '#f7f8fa');
-  px(-52,-13, 40, 2,  P.itp);              // red beltline stripe
+  px(-52,-13, 40, 2,  P.brand);              // red beltline stripe
   px(-52,-10, 40, 2,  P.trailerDark);
-  text('INLAND', -33, -22, 5, P.itp,'center');
-  text('TRUCK PARTS',-33, -16, 4, '#4a4d57','center');
+  text('ROADSTAR', -33, -22, 5, P.brand,'center');
+  text('TRUCKING',-33, -16, 4, '#4a4d57','center');
   // trailer wheels
   for(const twx of [-46,-38]){
     px(twx,-8,7,7,P.tire); px(twx+2,-6,3,3,P.hub);
@@ -710,11 +710,11 @@ function drawHUD(){
 
 function drawTitle(){
   cx.fillStyle='rgba(14,15,26,0.88)'; cx.fillRect(0,0,W,H);
-  // ITP badge
-  px(W/2-64, 30, 128, 14, P.itp); px(W/2-64, 30, 128, 2, '#d64556');
-  text('INLAND TRUCK PARTS & SERVICE', 240, 34, 5, '#fff','center');
-  outlineText('INLAND HAULER', 240, 54, 18, P.amber,'center');
-  outlineText('EST. 1944 · EMPLOYEE OWNED · 8-BIT EDITION', 240, 82, 5, '#c9ccd4','center');
+  // title badge
+  px(W/2-64, 30, 128, 14, P.brand); px(W/2-64, 30, 128, 2, '#d64556');
+  text('ROADSTAR TRUCKING CO.', 240, 34, 5, '#fff','center');
+  outlineText('HIGHWAY HAULER', 240, 54, 18, P.amber,'center');
+  outlineText('8-BIT EDITION', 240, 82, 5, '#c9ccd4','center');
   const lines = [
     ['GAS  ........ ▲ / W',P.green],
     ['BRAKE ....... ▼ / S','#ff8a8a'],
@@ -733,9 +733,9 @@ function drawOver(){
   cx.fillStyle='rgba(14,15,26,0.9)'; cx.fillRect(0,0,W,H);
   outlineText(st.overReason, 240, 62, 14, P.red,'center');
   if (st.overReason==='ENGINE BLOWN')
-    outlineText('BETTER TOW IT TO INLAND. IN-HOUSE REMAN.', 240, 88, 5, '#c9ccd4','center');
+    outlineText('BETTER GET IT TOWED FOR A REBUILD.', 240, 88, 5, '#c9ccd4','center');
   else
-    outlineText('EVEN INLAND CAN\'T FIX YOUR DRIVING RECORD.', 240, 88, 5, '#c9ccd4','center');
+    outlineText('TIME TO SLOW DOWN NEXT RUN.', 240, 88, 5, '#c9ccd4','center');
   outlineText('FINAL SCORE', 240, 108, 7, '#c9ccd4','center');
   outlineText(String(Math.floor(st.score)).padStart(6,'0'), 240, 122, 16, P.amber,'center');
   outlineText(st.dist.toFixed(1)+' MILES HAULED', 240, 150, 7, P.text,'center');
@@ -744,8 +744,8 @@ function drawOver(){
 
 function drawShopMenu(){
   cx.fillStyle='rgba(14,15,26,0.86)'; cx.fillRect(0,0,W,H);
-  px(W/2-110,20,220,16,P.itp); px(W/2-110,20,220,2,'#d64556');
-  text('INLAND SERVICE BAY', 240,24,6,'#fff','center');
+  px(W/2-110,20,220,16,P.brand); px(W/2-110,20,220,2,'#d64556');
+  text('TRUCK SERVICE BAY', 240,24,6,'#fff','center');
   outlineText('CASH: $'+Math.floor(st.cash), 240,44,8,P.amber,'center');
 
   const rows = [
@@ -777,12 +777,12 @@ function drawGreg(){
   // legs + boots
   px(gx-8,gy-18,7,18,'#2b4a6b'); px(gx+1,gy-18,7,18,'#2b4a6b');
   px(gx-8,gy-2,7,3,'#1a1a1a'); px(gx+1,gy-2,7,3,'#1a1a1a');
-  // torso (ITP shirt)
-  px(gx-9,gy-38,18,20,P.itp); px(gx-9,gy-38,18,3,'#8f1826');
-  text('ITP', gx, gy-34, 4, '#fff','center');
+  // torso (mechanic shirt)
+  px(gx-9,gy-38,18,20,P.brand); px(gx-9,gy-38,18,3,'#8f1826');
+  text('SVC', gx, gy-34, 4, '#fff','center');
   // head + cap + mustache
   px(gx-6,gy-50,12,12,'#e8b98a');
-  px(gx-7,gy-52,14,5,P.itp);
+  px(gx-7,gy-52,14,5,P.brand);
   px(gx-3,gy-44,6,2,'#5b3a24');
   // static arm
   px(gx-13,gy-34,5,14,'#e8b98a');

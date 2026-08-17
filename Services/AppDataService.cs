@@ -42,6 +42,7 @@ public class AppDataService
 
         _cache = JsonSerializer.Deserialize<AppData>(json) ?? SeedDefaultData();
         var changed = ApplyBuiltInCatalogArt(_cache);
+        changed |= RemoveStaleGameEntries(_cache);
         changed |= EnsureBuiltInCatalogEntries(_cache);
         changed |= EnsureExternalCatalogEntries(_cache);
         if (changed)
@@ -307,6 +308,16 @@ public class AppDataService
         return changed;
     }
 
+    // One-time cleanup: "Inland Hauler" was renamed to "Highway Hauler"
+    // (its ITP branding removed) shortly after it was first added, moving
+    // wwwroot/games/inland-hauler -> highway-hauler. Anyone who loaded the
+    // app in that narrow window would have synced a catalog entry
+    // pointing at the now-deleted old path - drop it here so
+    // EnsureExternalCatalogEntries's rename below doesn't just add the
+    // new one alongside a permanently dead duplicate.
+    private static bool RemoveStaleGameEntries(AppData data) =>
+        data.Games.RemoveAll(g => g.LaunchTarget == "games/inland-hauler/index.html") > 0;
+
     private record ExternalGameDef(string Title, string ThumbnailImagePath, string ThumbnailEmoji, string LaunchTarget, int? MinAge, int? MaxAge);
 
     // Iframe-hosted games (self-contained HTML, not routed Razor
@@ -318,7 +329,7 @@ public class AppDataService
     private static readonly ExternalGameDef[] ExternalGames =
     {
         new("Crown & Banner", "games/crown-and-banner/assets/units/griffin.png", "👑", "games/crown-and-banner/index.html", 7, 13),
-        new("Inland Hauler", "", "🚚", "games/inland-hauler/index.html", 8, 14),
+        new("Highway Hauler", "", "🚚", "games/highway-hauler/index.html", 8, 14),
         new("Truck Repair Bay", "", "🔧", "games/truck-repair-bay/index.html", 7, 13),
     };
 
