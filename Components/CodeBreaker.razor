@@ -115,7 +115,7 @@
                             }
                         </div>
                     }
-                    <PersonalBestBadge Value="@($"{bestGuesses ?? guesses.Count} guesses")" IsNew="isNewBest" />
+                    <PersonalBestBadge Value="@(bestGuesses is { } bg ? $"{bg} guesses" : null)" IsNew="isNewBest" />
                     <div class="game-result-actions">
                         <button class="game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
@@ -290,11 +290,14 @@
     {
         phase = Phase.Finished;
 
-        if (won && !string.IsNullOrEmpty(ProfileId))
+        if (!string.IsNullOrEmpty(ProfileId))
         {
             const string key = "fewest-guesses";
             bestGuesses = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.CodeBreaker, key);
-            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.CodeBreaker, key, guesses.Count, lowerIsBetter: true);
+            if (won)
+            {
+                isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.CodeBreaker, key, guesses.Count, lowerIsBetter: true);
+            }
         }
 
         StateHasChanged();

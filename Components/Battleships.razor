@@ -129,7 +129,7 @@
                 <div class="game-result-panel">
                     <h2>@(won ? "🎉 Victory!" : "💥 Fleet Lost")</h2>
                     <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@(won ? $"you sank the enemy fleet in {shotsFired} shots!" : "the enemy sank your fleet - try again!")</p>
-                    <PersonalBestBadge Value="@($"{bestShots ?? shotsFired} shots")" IsNew="isNewBest" />
+                    <PersonalBestBadge Value="@(bestShots is { } bs ? $"{bs} shots" : null)" IsNew="isNewBest" />
                     <div class="game-result-actions">
                         <button class="game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
@@ -498,11 +498,14 @@
     {
         phase = Phase.Finished;
 
-        if (won && !string.IsNullOrEmpty(ProfileId))
+        if (!string.IsNullOrEmpty(ProfileId))
         {
             const string key = "fewest-shots";
             bestShots = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Battleships, key);
-            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Battleships, key, shotsFired, lowerIsBetter: true);
+            if (won)
+            {
+                isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Battleships, key, shotsFired, lowerIsBetter: true);
+            }
         }
 
         StateHasChanged();

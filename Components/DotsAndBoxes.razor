@@ -112,7 +112,7 @@
                 <div class="game-result-panel">
                     <h2>@(won ? "🎉 You Win!" : (playerScore == cpuScore ? "🤝 Tie Game" : "🤖 CPU Wins"))</h2>
                     <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")final score: @playerScore to @cpuScore.</p>
-                    <PersonalBestBadge Value="@($"+{bestMargin ?? (playerScore - cpuScore)} margin")" IsNew="isNewBest" />
+                    <PersonalBestBadge Value="@(bestMargin is { } bm ? $"+{bm} margin" : null)" IsNew="isNewBest" />
                     <div class="game-result-actions">
                         <button class="game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
@@ -389,12 +389,15 @@
     {
         phase = Phase.Finished;
 
-        if (won && !string.IsNullOrEmpty(ProfileId))
+        if (!string.IsNullOrEmpty(ProfileId))
         {
             const string key = "biggest-margin";
-            var margin = playerScore - cpuScore;
             bestMargin = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.DotsAndBoxes, key);
-            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.DotsAndBoxes, key, margin, lowerIsBetter: false);
+            if (won)
+            {
+                var margin = playerScore - cpuScore;
+                isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.DotsAndBoxes, key, margin, lowerIsBetter: false);
+            }
         }
 
         StateHasChanged();
