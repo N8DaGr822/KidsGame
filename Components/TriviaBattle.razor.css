@@ -1,0 +1,76 @@
+.tb-game {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.75rem;
+}
+
+.tb-diff-name {
+    font-weight: 900;
+}
+
+.tb-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.tb-title {
+    font-weight: 900;
+}
+
+.tb-category {
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.tb-prompt {
+    text-align: center;
+    font-weight: 800;
+    font-size: 1.15rem;
+    margin: 0 0 0.2rem;
+}
+
+.tb-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+}
+
+.tb-option {
+    padding: 0.75rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.15s ease;
+}
+
+.tb-option:not(:disabled):hover {
+    transform: translateY(-2px);
+}
+
+.tb-option:disabled {
+    cursor: default;
+}
+
+.tb-option.eliminated {
+    opacity: 0.25;
+}
+
+.tb-option.correct {
+    background: rgba(47, 174, 78, 0.3);
+    border-color: #2fae4e;
+}
+
+.tb-option.wrong {
+    background: rgba(212, 63, 63, 0.3);
+    border-color: #d43f3f;
+}

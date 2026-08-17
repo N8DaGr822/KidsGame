@@ -1,0 +1,377 @@
+@*
+    TriviaBattle.razor
+    Multiple-choice trivia with a category filter, a streak bonus that
+    grows the longer you stay correct, and a one-time 50/50 lifeline that
+    removes two wrong answers (fewer lifelines on harder tiers, since the
+    question pool itself is also the source of difficulty here - see
+    EasyQuestions/MediumQuestions/HardQuestions below). Each question's
+    answer order is reshuffled per session so the correct choice isn't
+    always in the same slot.
+
+    Usage:
+        <TriviaBattle OnComplete="HandleGameComplete" />
+*@
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="tb-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="tb-setup game-setup-panel">
+            <h2>🧠 Trivia Battle</h2>
+            <p>Answer questions, build a streak, and use your 50/50 lifeline wisely.</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="tb-diff-name">@DifficultyName(diff)</span>
+                            <span class="tb-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <h3 class="game-section-title">Choose a category</h3>
+            <div class="game-option-grid">
+                @foreach (var cat in Categories)
+                {
+                    <button class="game-option-button @(cat == selectedCategory ? "selected" : "")" @onclick="() => selectedCategory = cat">
+                        @cat
+                    </button>
+                }
+            </div>
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="tb-title">Trivia Battle</span>
+            <span class="game-stat">❓ @Math.Min(questionIndex + 1, questions.Count)/@questions.Count</span>
+            <span class="game-stat">⭐ Score @score</span>
+            <span class="game-stat">🔥 Streak @streak</span>
+            <button class="game-secondary-action" disabled="@(fiftyFiftyUsed || fiftyFiftyCount <= 0 || revealed || phase != Phase.Playing)" @onclick="UseFiftyFifty">🎯 50/50 (@fiftyFiftyCount)</button>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        @if (current is not null)
+        {
+            <p class="tb-category">@current.Category</p>
+            <p class="tb-prompt">@current.Prompt</p>
+
+            <div class="tb-options">
+                @for (var i = 0; i < current.Options.Length; i++)
+                {
+                    var idx = i;
+                    var isEliminated = eliminatedOptions.Contains(idx);
+                    var isCorrect = idx == current.CorrectIndex;
+                    var isChosen = idx == answeredIndex;
+                    <button class="tb-option @(isEliminated ? "eliminated" : "") @(revealed && isCorrect ? "correct" : "") @(revealed && isChosen && !isCorrect ? "wrong" : "")"
+                            disabled="@(revealed || isEliminated || phase != Phase.Playing)"
+                            @onclick="() => Answer(idx)">
+                        @current.Options[idx]
+                    </button>
+                }
+            </div>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🧠 Battle Complete!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")you got @correctCount/@questions.Count right, with a best streak of @bestStreakThisSession!</p>
+                    <PersonalBestBadge Value="@($"{bestScore ?? score} points")" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<TriviaBattleResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (highest score) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private record Question(string Category, string Prompt, string[] Options, int CorrectIndex);
+
+    private const string MixedCategory = "Mixed";
+    private static readonly string[] Categories = { MixedCategory, "Animals", "Space", "Science", "Geography", "History" };
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static readonly Question[] EasyQuestions =
+    {
+        new("Animals", "What sound does a cow make?", new[] { "Moo", "Woof", "Meow", "Oink" }, 0),
+        new("Animals", "Which animal is known as the \"King of the Jungle\"?", new[] { "Lion", "Tiger", "Elephant", "Bear" }, 0),
+        new("Animals", "How many legs does a spider have?", new[] { "8", "6", "4", "10" }, 0),
+        new("Animals", "Which animal has a long neck to reach tall trees?", new[] { "Giraffe", "Elephant", "Zebra", "Hippo" }, 0),
+        new("Space", "What do we call the star at the center of our solar system?", new[] { "The Sun", "The Moon", "Mars", "Earth" }, 0),
+        new("Space", "Which planet do humans live on?", new[] { "Earth", "Mars", "Venus", "Jupiter" }, 0),
+        new("Science", "What do plants need most to make their own food?", new[] { "Sunlight", "Moonlight", "Snow", "Sand" }, 0),
+        new("Science", "What is water called when it freezes solid?", new[] { "Ice", "Steam", "Gas", "Sand" }, 0),
+        new("Science", "What gas do humans breathe in to stay alive?", new[] { "Oxygen", "Carbon Dioxide", "Helium", "Nitrogen" }, 0),
+        new("Science", "What do we call frozen water that falls from the sky?", new[] { "Snow", "Rain", "Fog", "Wind" }, 0),
+        new("Geography", "What do we call a very large body of salt water?", new[] { "Ocean", "Lake", "River", "Pond" }, 0),
+        new("Geography", "Which icy continent is known for its penguins?", new[] { "Antarctica", "Africa", "Asia", "Europe" }, 0),
+        new("History", "What is the name of the holiday that celebrates a brand new year?", new[] { "New Year's Day", "Thanksgiving", "Halloween", "Groundhog Day" }, 0),
+        new("History", "On which holiday do people give and receive presents in December?", new[] { "Christmas", "Easter", "Halloween", "New Year's Day" }, 0),
+    };
+
+    private static readonly Question[] MediumQuestions =
+    {
+        new("Space", "Which planet is known as the Red Planet?", new[] { "Mars", "Venus", "Jupiter", "Saturn" }, 0),
+        new("Space", "What is the name of Earth's natural satellite?", new[] { "The Moon", "The Sun", "Pluto", "A comet" }, 0),
+        new("Space", "What do we call a large group of stars held together by gravity?", new[] { "A galaxy", "A comet", "A nebula", "A constellation" }, 0),
+        new("Animals", "What is a baby kangaroo called?", new[] { "Joey", "Cub", "Kit", "Calf" }, 0),
+        new("Animals", "Which sea creature has eight arms?", new[] { "Octopus", "Starfish", "Jellyfish", "Crab" }, 0),
+        new("Animals", "Which bird cannot fly but is a very fast runner?", new[] { "Ostrich", "Eagle", "Penguin", "Sparrow" }, 0),
+        new("Science", "What is it called when a caterpillar turns into a butterfly?", new[] { "Metamorphosis", "Evaporation", "Photosynthesis", "Hibernation" }, 0),
+        new("Science", "About how many bones are in the adult human body?", new[] { "206", "106", "306", "26" }, 0),
+        new("Science", "Which planet is closest to the Sun?", new[] { "Mercury", "Venus", "Earth", "Mars" }, 0),
+        new("Geography", "What is the largest ocean on Earth?", new[] { "Pacific Ocean", "Atlantic Ocean", "Indian Ocean", "Arctic Ocean" }, 0),
+        new("Geography", "What is the longest river in the world?", new[] { "Nile River", "Amazon River", "Mississippi River", "Yangtze River" }, 0),
+        new("Geography", "Which country is shaped like a boot?", new[] { "Italy", "Spain", "France", "Greece" }, 0),
+        new("History", "Who is commonly credited with inventing the light bulb?", new[] { "Thomas Edison", "Albert Einstein", "Isaac Newton", "Benjamin Franklin" }, 0),
+        new("History", "In which country were the pyramids of Giza built?", new[] { "Egypt", "Mexico", "Greece", "China" }, 0),
+    };
+
+    private static readonly Question[] HardQuestions =
+    {
+        new("Space", "What is the name of the galaxy that contains our solar system?", new[] { "The Milky Way", "Andromeda", "The Sombrero Galaxy", "Triangulum" }, 0),
+        new("Space", "What force keeps planets in orbit around the Sun?", new[] { "Gravity", "Magnetism", "Wind", "Friction" }, 0),
+        new("Science", "What is the chemical symbol for gold?", new[] { "Au", "Ag", "Gd", "Go" }, 0),
+        new("Science", "What is the powerhouse of the cell called?", new[] { "Mitochondria", "Nucleus", "Ribosome", "Chloroplast" }, 0),
+        new("Science", "How many planets are in our solar system?", new[] { "8", "9", "7", "10" }, 0),
+        new("Science", "What part of a plant absorbs water from the soil?", new[] { "Roots", "Leaves", "Petals", "Stem" }, 0),
+        new("History", "In what year did World War II end?", new[] { "1945", "1918", "1939", "1950" }, 0),
+        new("History", "Who was the first President of the United States?", new[] { "George Washington", "Abraham Lincoln", "Thomas Jefferson", "John Adams" }, 0),
+        new("History", "Which ancient civilization built the Colosseum?", new[] { "The Romans", "The Greeks", "The Egyptians", "The Aztecs" }, 0),
+        new("Geography", "What is the smallest country in the world?", new[] { "Vatican City", "Monaco", "San Marino", "Liechtenstein" }, 0),
+        new("Geography", "Which mountain is the tallest in the world?", new[] { "Mount Everest", "K2", "Denali", "Kilimanjaro" }, 0),
+        new("Geography", "Which desert is the largest hot desert in the world?", new[] { "The Sahara", "The Gobi", "The Mojave", "The Kalahari" }, 0),
+        new("Animals", "What is the fastest land animal?", new[] { "Cheetah", "Lion", "Horse", "Greyhound" }, 0),
+        new("Animals", "Which mammal is known to lay eggs instead of giving birth?", new[] { "Platypus", "Kangaroo", "Dolphin", "Bat" }, 0),
+    };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static Question[] PoolFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => EasyQuestions,
+        Difficulty.Medium => MediumQuestions,
+        _ => HardQuestions,
+    };
+
+    private static int TargetCountFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 8,
+        Difficulty.Medium => 10,
+        _ => 10,
+    };
+
+    private static int LifelinesFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 2,
+        Difficulty.Medium => 1,
+        _ => 0,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private string selectedCategory = MixedCategory;
+    private List<Question> questions = new();
+    private int questionIndex;
+    private Question? current;
+    private readonly HashSet<int> eliminatedOptions = new();
+    private int? answeredIndex;
+    private bool revealed;
+    private int fiftyFiftyCount;
+    private bool fiftyFiftyUsed;
+    private int score;
+    private int streak;
+    private int bestStreakThisSession;
+    private int correctCount;
+    private int? bestScore;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        var pool = PoolFor(selectedDifficulty)
+            .Where(q => selectedCategory == MixedCategory || q.Category == selectedCategory)
+            .OrderBy(_ => rng.Next())
+            .Take(TargetCountFor(selectedDifficulty))
+            .Select(ShuffleOptions)
+            .ToList();
+
+        questions = pool.Count > 0 ? pool : PoolFor(selectedDifficulty).OrderBy(_ => rng.Next()).Take(TargetCountFor(selectedDifficulty)).Select(ShuffleOptions).ToList();
+
+        questionIndex = 0;
+        score = 0;
+        streak = 0;
+        bestStreakThisSession = 0;
+        correctCount = 0;
+        fiftyFiftyCount = LifelinesFor(selectedDifficulty);
+        bestScore = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        LoadQuestion();
+    }
+
+    private Question ShuffleOptions(Question q)
+    {
+        var order = Enumerable.Range(0, q.Options.Length).OrderBy(_ => rng.Next()).ToArray();
+        var newOptions = order.Select(i => q.Options[i]).ToArray();
+        var newCorrectIndex = Array.IndexOf(order, q.CorrectIndex);
+        return q with { Options = newOptions, CorrectIndex = newCorrectIndex };
+    }
+
+    private void LoadQuestion()
+    {
+        current = questions[questionIndex];
+        eliminatedOptions.Clear();
+        answeredIndex = null;
+        revealed = false;
+        fiftyFiftyUsed = false;
+    }
+
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new TriviaBattleResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Category: selectedCategory,
+                Score: score,
+                Correct: correctCount,
+                TotalQuestions: questionIndex,
+                BestStreak: bestStreakThisSession,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private void UseFiftyFifty()
+    {
+        if (fiftyFiftyUsed || fiftyFiftyCount <= 0 || revealed || current is null) return;
+
+        var wrongIndexes = Enumerable.Range(0, current.Options.Length)
+            .Where(i => i != current.CorrectIndex)
+            .OrderBy(_ => rng.Next())
+            .Take(2);
+        foreach (var i in wrongIndexes) eliminatedOptions.Add(i);
+
+        fiftyFiftyUsed = true;
+        fiftyFiftyCount--;
+    }
+
+    private async Task Answer(int idx)
+    {
+        if (revealed || eliminatedOptions.Contains(idx) || current is null || phase != Phase.Playing) return;
+
+        answeredIndex = idx;
+        revealed = true;
+
+        if (idx == current.CorrectIndex)
+        {
+            streak++;
+            bestStreakThisSession = Math.Max(bestStreakThisSession, streak);
+            score += 10 + (streak - 1) * 2;
+            correctCount++;
+        }
+        else
+        {
+            streak = 0;
+        }
+
+        StateHasChanged();
+        await Task.Delay(1300);
+
+        questionIndex++;
+        if (questionIndex >= questions.Count)
+        {
+            await FinishGame();
+        }
+        else
+        {
+            LoadQuestion();
+            StateHasChanged();
+        }
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "high-score";
+            bestScore = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.TriviaBattle, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.TriviaBattle, key, score, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new TriviaBattleResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Category: selectedCategory,
+                Score: score,
+                Correct: correctCount,
+                TotalQuestions: questions.Count,
+                BestStreak: bestStreakThisSession,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "2 lifelines, easier questions",
+        Difficulty.Medium => "1 lifeline",
+        _ => "No lifelines, tougher questions",
+    };
+
+    public record TriviaBattleResult(string Difficulty, string Category, int Score, int Correct, int TotalQuestions, int BestStreak, int ElapsedSeconds);
+}
