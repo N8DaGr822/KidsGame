@@ -46,6 +46,7 @@ public static class BuiltInGames
     public const string ShadowMatch = "shadow-match";
     public const string GuessTheWord = "guess-the-word";
     public const string WordSearch = "word-search";
+    public const string Mastermind = "mastermind";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -84,5 +85,6 @@ public static class BuiltInGames
         new BuiltInGame("Shadow Match", "🌑", ShadowMatch, MinAge: 4, MaxAge: 8),
         new BuiltInGame("Guess the Word", "🚀", GuessTheWord, MinAge: 5, MaxAge: 10),
         new BuiltInGame("Word Search", "🔍", WordSearch, MinAge: 6, MaxAge: 12),
+        new BuiltInGame("Mastermind", "🎯", Mastermind, MinAge: 8, MaxAge: 14),
     };
 }

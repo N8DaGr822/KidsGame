@@ -162,6 +162,10 @@
             {
                 <WordSearch PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWordSearchComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.Mastermind)
+            {
+                <Mastermind PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMastermindComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -729,6 +733,21 @@
             Theme = result.Difficulty,
             Difficulty = $"Found {result.WordsFound}/{result.TotalWords}",
             Moves = result.WordsFound,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleMastermindComplete(Mastermind.MastermindResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Won ? $"Cracked in {result.GuessesUsed}" : "Out of guesses",
+            Moves = result.GuessesUsed,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

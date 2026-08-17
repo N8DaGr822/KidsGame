@@ -1,0 +1,379 @@
+@*
+    Mastermind.razor
+    Guess the hidden row of colored pegs. After each guess, feedback pegs
+    show how close you got: a black peg for each right color in the right
+    spot, a white peg for each right color in the wrong spot - never which
+    peg is which, so the deduction stays real. A fixed number of guesses
+    per difficulty; run out and the code is revealed. Colors can repeat in
+    the secret code. Personal best tracks fewest guesses to crack a code.
+
+    Usage:
+        <Mastermind OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="mm-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="mm-setup game-setup-panel">
+            <h2>🎯 Mastermind</h2>
+            <p>Crack the secret code! Each guess tells you how many pegs are the right color in the right spot (⚫) or the right color in the wrong spot (⚪).</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="mm-diff-name">@DifficultyName(diff)</span>
+                            <span class="mm-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="mm-title">Mastermind</span>
+            <span class="game-stat">Guess @Math.Min(guesses.Count + 1, maxGuesses)/@maxGuesses</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="mm-board">
+            @foreach (var g in guesses)
+            {
+                <div class="mm-row">
+                    <div class="mm-pegs">
+                        @foreach (var c in g.Pegs)
+                        {
+                            <span class="mm-peg" style="background:@ColorHex(c)"></span>
+                        }
+                    </div>
+                    <div class="mm-feedback">
+                        @for (var i = 0; i < g.Black; i++)
+                        {
+                            <span class="mm-fb-peg black"></span>
+                        }
+                        @for (var i = 0; i < g.White; i++)
+                        {
+                            <span class="mm-fb-peg white"></span>
+                        }
+                        @for (var i = g.Black + g.White; i < pegCount; i++)
+                        {
+                            <span class="mm-fb-peg empty"></span>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (phase == Phase.Playing)
+            {
+                <div class="mm-row mm-row-active">
+                    <div class="mm-pegs">
+                        @for (var i = 0; i < pegCount; i++)
+                        {
+                            var slot = i;
+                            <button class="mm-peg mm-peg-slot @(selectedSlot == slot ? "selected" : "")"
+                                    style="background:@(currentGuess[slot] is { } c ? ColorHex(c) : "transparent")"
+                                    @onclick="() => selectedSlot = slot"></button>
+                        }
+                    </div>
+                    <button class="game-primary-action mm-submit-btn" disabled="@(currentGuess.Any(c => c is null))" @onclick="SubmitGuess">Guess</button>
+                </div>
+                <div class="mm-palette">
+                    @foreach (var c in ColorsFor(selectedDifficulty))
+                    {
+                        <button class="mm-peg mm-palette-peg" style="background:@c.Hex" @onclick="() => PlaceColor(c)"></button>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="mm-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(won ? "🎉 Cracked It!" : "🔒 Out of Guesses")</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@(won ? $"solved it in {guesses.Count} guesses!" : "the code was:")</p>
+                    @if (!won)
+                    {
+                        <div class="mm-pegs mm-reveal">
+                            @foreach (var c in secretCode)
+                            {
+                                <span class="mm-peg" style="background:@ColorHex(c)"></span>
+                            }
+                        </div>
+                    }
+                    <PersonalBestBadge Value="@($"{bestGuesses ?? guesses.Count} guesses")" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<MastermindResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest guesses to win) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private record GuessRow(List<int> Pegs, int Black, int White);
+    private record ColorDef(string Name, string Hex);
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    // Same hexes as ColorMatch's Easy/Medium palette for a consistent
+    // "house" color language across games.
+    private static readonly ColorDef[] Palette =
+    {
+        new("Red", "#E63946"), new("Blue", "#3A86FF"), new("Yellow", "#FFD60A"),
+        new("Green", "#2DC653"), new("Purple", "#9D4EDD"), new("Orange", "#FB8500"),
+        new("Pink", "#FF70A6"), new("Teal", "#06AED5"),
+    };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int PegCountFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 4,
+        Difficulty.Medium => 4,
+        _ => 5,
+    };
+
+    private static int ColorCountFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 5,
+        Difficulty.Medium => 6,
+        _ => 8,
+    };
+
+    private static int MaxGuessesFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 10,
+        Difficulty.Medium => 10,
+        _ => 8,
+    };
+
+    private static ColorDef[] ColorsFor(Difficulty d) => Palette.Take(ColorCountFor(d)).ToArray();
+
+    private static string ColorHex(int colorIndex) => Palette[colorIndex].Hex;
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int pegCount = 4;
+    private int maxGuesses = 10;
+    private List<int> secretCode = new();
+    private readonly List<int?> currentGuess = new();
+    private int selectedSlot;
+    private readonly List<GuessRow> guesses = new();
+    private bool won;
+    private string roundMessage = "";
+    private int? bestGuesses;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        pegCount = PegCountFor(selectedDifficulty);
+        maxGuesses = MaxGuessesFor(selectedDifficulty);
+        var colors = ColorsFor(selectedDifficulty);
+
+        secretCode = Enumerable.Range(0, pegCount).Select(_ => rng.Next(colors.Length)).ToList();
+        guesses.Clear();
+        currentGuess.Clear();
+        currentGuess.AddRange(Enumerable.Repeat((int?)null, pegCount));
+        selectedSlot = 0;
+        won = false;
+        roundMessage = "";
+        bestGuesses = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MastermindResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                GuessesUsed: guesses.Count,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private void PlaceColor(ColorDef color)
+    {
+        if (phase != Phase.Playing) return;
+        var index = Array.FindIndex(Palette, c => c.Name == color.Name);
+        currentGuess[selectedSlot] = index;
+        selectedSlot = Math.Min(selectedSlot + 1, pegCount - 1);
+    }
+
+    private async Task SubmitGuess()
+    {
+        if (phase != Phase.Playing || currentGuess.Any(c => c is null)) return;
+
+        var pegs = currentGuess.Select(c => c!.Value).ToList();
+        var (black, white) = ScoreGuess(pegs);
+        guesses.Add(new GuessRow(pegs, black, white));
+
+        currentGuess.Clear();
+        currentGuess.AddRange(Enumerable.Repeat((int?)null, pegCount));
+        selectedSlot = 0;
+
+        if (black == pegCount)
+        {
+            won = true;
+            roundMessage = "Cracked it!";
+            await PlaySoundAsync("playMatchSound");
+            await FinishGame();
+        }
+        else if (guesses.Count >= maxGuesses)
+        {
+            won = false;
+            await PlaySoundAsync("playMismatchSound");
+            await FinishGame();
+        }
+        else
+        {
+            await PlaySoundAsync(black + white > 0 ? "playImpactSound" : "playMismatchSound");
+        }
+    }
+
+    // Standard Mastermind scoring: exact-position matches first (black),
+    // then color-only matches (white) capped by how many of that color
+    // remain in both the guess and the secret once exact matches are set
+    // aside - otherwise a repeated color could over-count.
+    private (int Black, int White) ScoreGuess(List<int> guess)
+    {
+        var black = 0;
+        var secretRemaining = new List<int>();
+        var guessRemaining = new List<int>();
+
+        for (var i = 0; i < pegCount; i++)
+        {
+            if (guess[i] == secretCode[i])
+            {
+                black++;
+            }
+            else
+            {
+                secretRemaining.Add(secretCode[i]);
+                guessRemaining.Add(guess[i]);
+            }
+        }
+
+        var white = 0;
+        foreach (var color in guessRemaining)
+        {
+            var idx = secretRemaining.IndexOf(color);
+            if (idx >= 0)
+            {
+                white++;
+                secretRemaining.RemoveAt(idx);
+            }
+        }
+
+        return (black, white);
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (won && !string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "fewest-guesses";
+            bestGuesses = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Mastermind, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Mastermind, key, guesses.Count, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MastermindResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: won,
+                GuessesUsed: guesses.Count,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "4 pegs, 5 colors, 10 guesses",
+        Difficulty.Medium => "4 pegs, 6 colors, 10 guesses",
+        _ => "5 pegs, 8 colors, 8 guesses",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record MastermindResult(string Difficulty, bool Won, int GuessesUsed, int ElapsedSeconds);
+}

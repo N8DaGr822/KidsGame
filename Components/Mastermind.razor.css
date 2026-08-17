@@ -1,0 +1,124 @@
+.mm-game {
+    width: min(480px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1rem;
+}
+
+.mm-diff-name {
+    font-weight: 900;
+}
+
+.mm-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.mm-title {
+    font-weight: 900;
+}
+
+.mm-board {
+    display: grid;
+    gap: 0.5rem;
+    max-height: 52vh;
+    overflow-y: auto;
+    padding: 0.25rem;
+}
+
+.mm-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.4rem;
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+}
+
+.mm-row-active {
+    border: 1px solid rgba(78, 205, 196, 0.6);
+}
+
+.mm-pegs {
+    display: flex;
+    gap: 0.35rem;
+}
+
+.mm-peg {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    box-shadow: var(--shadow-sm);
+}
+
+.mm-peg-slot {
+    border: 2px dashed var(--line-strong);
+}
+
+.mm-peg-slot.selected {
+    border-color: rgba(78, 205, 196, 0.9);
+}
+
+.mm-feedback {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.15rem;
+    width: 2.4rem;
+}
+
+.mm-fb-peg {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: 50%;
+}
+
+.mm-fb-peg.black {
+    background: #1a1a2e;
+}
+
+.mm-fb-peg.white {
+    background: #f5f5f5;
+}
+
+.mm-fb-peg.empty {
+    background: transparent;
+    border: 1px solid var(--line);
+}
+
+.mm-submit-btn {
+    min-height: 40px !important;
+    padding: 0.4rem 0.9rem !important;
+}
+
+.mm-palette {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.mm-palette-peg {
+    width: 2.4rem;
+    height: 2.4rem;
+    transition: transform 0.15s ease;
+}
+
+.mm-palette-peg:hover {
+    transform: translateY(-2px) scale(1.05);
+}
+
+.mm-reveal {
+    justify-content: center;
+    margin: 0.5rem 0;
+}
+
+.mm-message {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+}
