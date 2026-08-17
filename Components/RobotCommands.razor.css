@@ -1,0 +1,126 @@
+.rc-game {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.85rem;
+}
+
+.rc-diff-name {
+    font-weight: 900;
+}
+
+.rc-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.rc-title {
+    font-weight: 900;
+}
+
+.rc-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--rc-size), 1fr);
+    width: min(360px, 100%);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--surface);
+}
+
+.rc-cell {
+    display: grid;
+    place-items: center;
+    border: 0.5px solid rgba(255, 255, 255, 0.05);
+    font-size: clamp(0.8rem, 5cqw, 1.3rem);
+}
+
+.rc-cell.wall {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.rc-cell.goal {
+    background: rgba(78, 205, 196, 0.18);
+}
+
+.rc-robot {
+    font-size: clamp(1rem, 5.5cqw, 1.4rem);
+    color: var(--accent);
+    transition: transform 0.3s ease;
+    display: inline-block;
+}
+
+.rc-program {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.3rem;
+    min-height: 2.4rem;
+    padding: 0.4rem;
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+}
+
+.rc-program-step {
+    font-size: 1.2rem;
+    opacity: 0.6;
+    padding: 0.2rem;
+    border-radius: 4px;
+}
+
+.rc-program-step.active {
+    opacity: 1;
+    background: rgba(78, 205, 196, 0.3);
+}
+
+.rc-program-step.done {
+    opacity: 0.35;
+}
+
+.rc-program-empty {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    align-self: center;
+}
+
+.rc-palette {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.rc-cmd-btn {
+    min-height: 44px;
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    font-weight: 800;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.rc-cmd-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    background: var(--control-bg-hover);
+}
+
+.rc-cmd-btn:disabled {
+    opacity: 0.4;
+}
+
+.rc-run-btn {
+    min-height: 44px !important;
+}
+
+.rc-message {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+}

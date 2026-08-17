@@ -194,6 +194,10 @@
             {
                 <MorseCodeChallenge PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMorseCodeChallengeComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.RobotCommands)
+            {
+                <RobotCommands PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRobotCommandsComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -881,6 +885,21 @@
             Theme = result.Difficulty,
             Difficulty = $"Solved {result.WordsSolved}/{result.SessionSize}",
             Moves = result.WordsSolved,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleRobotCommandsComplete(RobotCommands.RobotCommandsResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Solved {result.MazesSolved}/{result.TotalMazes}",
+            Moves = result.MazesSolved,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

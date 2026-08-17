@@ -1,0 +1,446 @@
+@*
+    RobotCommands.razor
+    Build a command program (Move Forward, Turn Left, Turn Right) to walk
+    a robot from its start cell to the goal through a procedurally
+    generated maze, then tap Run to watch it execute step by step.
+    Walking into a wall or off the grid halts execution right there
+    (no penalty beyond having to edit the program and try again) -
+    forgiving, matching this app's usual "never a hard dead end"
+    philosophy. Loop/repeat blocks are intentionally out of scope for
+    this vertical slice (see the roadmap note where this landed) -
+    difficulty instead scales grid size, wall density, and the maximum
+    program length allowed, which still forces more careful planning on
+    harder tiers. A fixed 3-maze session ends with a result overlay.
+    Personal best tracks fewest commands used to solve a maze.
+
+    Usage:
+        <RobotCommands OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="rc-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="rc-setup game-setup-panel">
+            <h2>🤖 Robot Commands</h2>
+            <p>Build a list of commands to walk the robot from ▲ to 🏁, then tap Run to watch it go!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="rc-diff-name">@DifficultyName(diff)</span>
+                            <span class="rc-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="rc-title">Robot Commands</span>
+            <span class="game-stat">Maze @Math.Min(mazeNumber, TotalMazes)/@TotalMazes</span>
+            <span class="game-stat">📝 @program.Count/@maxProgramLength</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="rc-grid" style="--rc-size:@gridSize;">
+            @for (var r = 0; r < gridSize; r++)
+            {
+                for (var c = 0; c < gridSize; c++)
+                {
+                    var isWall = walls.Contains((r, c));
+                    var isGoal = (r, c) == goal;
+                    var isRobot = (r, c) == robotPos;
+                    <span class="rc-cell @(isWall ? "wall" : "") @(isGoal ? "goal" : "")">
+                        @if (isRobot)
+                        {
+                            <span class="rc-robot" style="transform:rotate(@FacingDeg()deg)">▲</span>
+                        }
+                        else if (isGoal)
+                        {
+                            @("🏁")
+                        }
+                    </span>
+                }
+            }
+        </div>
+
+        <div class="rc-program">
+            @for (var i = 0; i < program.Count; i++)
+            {
+                <span class="rc-program-step @(i == executingIndex ? "active" : "") @(i < executingIndex ? "done" : "")">@CommandIcon(program[i])</span>
+            }
+            @if (program.Count == 0)
+            {
+                <span class="rc-program-empty">Tap commands below to build your program</span>
+            }
+        </div>
+
+        <div class="rc-palette">
+            <button class="rc-cmd-btn" disabled="@(running || program.Count >= maxProgramLength)" @onclick='() => AddCommand(Command.Forward)'>⬆️ Forward</button>
+            <button class="rc-cmd-btn" disabled="@(running || program.Count >= maxProgramLength)" @onclick='() => AddCommand(Command.TurnLeft)'>↩️ Turn Left</button>
+            <button class="rc-cmd-btn" disabled="@(running || program.Count >= maxProgramLength)" @onclick='() => AddCommand(Command.TurnRight)'>↪️ Turn Right</button>
+            <button class="game-secondary-action" disabled="@(running || program.Count == 0)" @onclick="RemoveLastCommand">⌫ Undo</button>
+            <button class="game-secondary-action" disabled="@(running || program.Count == 0)" @onclick="ClearProgram">Clear</button>
+            <button class="game-primary-action rc-run-btn" disabled="@(running || program.Count == 0)" @onclick="RunProgramAsync">▶️ Run</button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="rc-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🤖 All Done!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great programming" : PlayerName + ", great programming") - @(mazeNumber - 1)/@TotalMazes mazes solved!</p>
+                    <PersonalBestBadge Value="@($"{bestCommands ?? lastSolveCommands} commands")" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<RobotCommandsResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest commands used to solve a maze) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    private enum Command { Forward, TurnLeft, TurnRight }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int TotalMazes = 3;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+    private static readonly (int DR, int DC)[] FacingVectors = { (-1, 0), (0, 1), (1, 0), (0, -1) }; // Up, Right, Down, Left
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int GridSizeFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 5,
+        Difficulty.Medium => 6,
+        _ => 7,
+    };
+
+    private static double WallDensityFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 0.12,
+        Difficulty.Medium => 0.18,
+        _ => 0.24,
+    };
+
+    private static int MaxProgramLengthFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 16,
+        Difficulty.Medium => 12,
+        _ => 10,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int gridSize = 5;
+    private int maxProgramLength = 16;
+    private readonly HashSet<(int Row, int Col)> walls = new();
+    private (int Row, int Col) start;
+    private (int Row, int Col) goal;
+    private (int Row, int Col) robotPos;
+    private int facing; // index into FacingVectors
+    private int startFacing;
+    private readonly List<Command> program = new();
+    private bool running;
+    private int executingIndex = -1;
+    private int mazeNumber;
+    private int mazesSolved;
+    private int totalCommandsUsed;
+    private int lastSolveCommands;
+    private string roundMessage = "";
+    private int? bestCommands;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        gridSize = GridSizeFor(selectedDifficulty);
+        maxProgramLength = MaxProgramLengthFor(selectedDifficulty);
+        mazeNumber = 0;
+        mazesSolved = 0;
+        totalCommandsUsed = 0;
+        bestCommands = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        NextMaze();
+    }
+
+    private void NextMaze()
+    {
+        mazeNumber++;
+        roundMessage = "";
+        program.Clear();
+        executingIndex = -1;
+        running = false;
+        GenerateMaze();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new RobotCommandsResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                MazesSolved: mazesSolved,
+                TotalMazes: TotalMazes,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private void GenerateMaze()
+    {
+        for (var attempt = 0; attempt < 100; attempt++)
+        {
+            walls.Clear();
+            var cellCount = gridSize * gridSize;
+            var wallCount = (int)(cellCount * WallDensityFor(selectedDifficulty));
+
+            start = (rng.Next(gridSize), rng.Next(gridSize));
+            do { goal = (rng.Next(gridSize), rng.Next(gridSize)); }
+            while (goal == start || (Math.Abs(goal.Row - start.Row) + Math.Abs(goal.Col - start.Col)) < gridSize / 2);
+
+            while (walls.Count < wallCount)
+            {
+                var cell = (rng.Next(gridSize), rng.Next(gridSize));
+                if (cell != start && cell != goal) walls.Add(cell);
+            }
+
+            if (IsReachable(start, goal)) break;
+        }
+
+        robotPos = start;
+        facing = rng.Next(4);
+        startFacing = facing;
+    }
+
+    private bool IsReachable((int Row, int Col) from, (int Row, int Col) to)
+    {
+        var visited = new HashSet<(int, int)> { from };
+        var queue = new Queue<(int, int)>();
+        queue.Enqueue(from);
+
+        while (queue.Count > 0)
+        {
+            var (r, c) = queue.Dequeue();
+            if ((r, c) == to) return true;
+
+            foreach (var (dr, dc) in FacingVectors)
+            {
+                var next = (r + dr, c + dc);
+                if (next.Item1 < 0 || next.Item1 >= gridSize || next.Item2 < 0 || next.Item2 >= gridSize) continue;
+                if (walls.Contains(next) || visited.Contains(next)) continue;
+                visited.Add(next);
+                queue.Enqueue(next);
+            }
+        }
+
+        return false;
+    }
+
+    private int FacingDeg() => facing * 90;
+
+    private static string CommandIcon(Command c) => c switch
+    {
+        Command.Forward => "⬆️",
+        Command.TurnLeft => "↩️",
+        _ => "↪️",
+    };
+
+    private void AddCommand(Command c)
+    {
+        if (running || program.Count >= maxProgramLength) return;
+        program.Add(c);
+    }
+
+    private void RemoveLastCommand()
+    {
+        if (running || program.Count == 0) return;
+        program.RemoveAt(program.Count - 1);
+    }
+
+    private void ClearProgram()
+    {
+        if (running) return;
+        program.Clear();
+    }
+
+    private async Task RunProgramAsync()
+    {
+        if (running || program.Count == 0) return;
+        running = true;
+        roundMessage = "";
+        robotPos = start;
+        facing = startFacing;
+        StateHasChanged();
+        await Task.Delay(300);
+
+        for (var i = 0; i < program.Count; i++)
+        {
+            executingIndex = i;
+            StateHasChanged();
+            await Task.Delay(350);
+
+            if (program[i] == Command.TurnLeft)
+            {
+                facing = (facing + 3) % 4;
+            }
+            else if (program[i] == Command.TurnRight)
+            {
+                facing = (facing + 1) % 4;
+            }
+            else
+            {
+                var (dr, dc) = FacingVectors[facing];
+                var next = (robotPos.Row + dr, robotPos.Col + dc);
+                if (next.Item1 < 0 || next.Item1 >= gridSize || next.Item2 < 0 || next.Item2 >= gridSize || walls.Contains(next))
+                {
+                    roundMessage = "Blocked! Edit your program and try again.";
+                    await PlaySoundAsync("playMismatchSound");
+                    running = false;
+                    executingIndex = -1;
+                    StateHasChanged();
+                    return;
+                }
+                robotPos = next;
+            }
+
+            StateHasChanged();
+
+            if (robotPos == goal)
+            {
+                await PlaySoundAsync("playMatchSound");
+                await SolvedMazeAsync(i + 1);
+                return;
+            }
+        }
+
+        roundMessage = "Program finished, but not at the goal yet - keep building!";
+        running = false;
+        executingIndex = -1;
+        StateHasChanged();
+    }
+
+    private async Task SolvedMazeAsync(int commandsUsed)
+    {
+        mazesSolved++;
+        totalCommandsUsed += commandsUsed;
+        lastSolveCommands = commandsUsed;
+        roundMessage = "Maze solved!";
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "fewest-commands";
+            bestCommands = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.RobotCommands, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.RobotCommands, key, commandsUsed, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+        await Task.Delay(1300);
+
+        if (mazeNumber >= TotalMazes)
+        {
+            await FinishGame();
+        }
+        else
+        {
+            NextMaze();
+        }
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new RobotCommandsResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                MazesSolved: mazesSolved,
+                TotalMazes: TotalMazes,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "5x5, few walls, 16 commands",
+        Difficulty.Medium => "6x6, more walls, 12 commands",
+        _ => "7x7, most walls, 10 commands",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record RobotCommandsResult(string Difficulty, int MazesSolved, int TotalMazes, int ElapsedSeconds);
+}
