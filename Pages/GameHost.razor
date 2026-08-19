@@ -294,6 +294,18 @@
             {
                 <AnimalSoundGuessingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleAnimalSoundGuessingGameComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.BuildAMonster)
+            {
+                <BuildAMonster PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBuildAMonsterComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.DuckShoot)
+            {
+                <DuckShoot PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleDuckShootComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.Dominoes)
+            {
+                <Dominoes PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleDominoesComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -681,6 +693,50 @@
             Theme = result.Theme,
             Difficulty = $"{result.Taps} taps",
             Moves = result.Taps,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleBuildAMonsterComplete(BuildAMonster.BuildAMonsterResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Difficulty = $"{result.Swaps} swaps",
+            Moves = result.Swaps,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleDuckShootComplete(DuckShoot.DuckShootResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Score {result.Score}",
+            Moves = result.DucksHit,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleDominoesComplete(Dominoes.DominoesResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Outcome,
+            Moves = result.PlayerTurnsTaken,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

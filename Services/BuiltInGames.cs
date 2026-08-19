@@ -79,6 +79,9 @@ public static class BuiltInGames
     public const string HotAndCold = "hot-and-cold";
     public const string TreasureHunt = "treasure-hunt";
     public const string AnimalSoundGuessingGame = "animal-sound-guessing-game";
+    public const string BuildAMonster = "build-a-monster";
+    public const string DuckShoot = "duck-shoot";
+    public const string Dominoes = "dominoes";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -150,5 +153,8 @@ public static class BuiltInGames
         new BuiltInGame("Hot and Cold", "🔥", HotAndCold, MinAge: 5, MaxAge: 11),
         new BuiltInGame("Treasure Hunt", "🗺️", TreasureHunt, MinAge: 5, MaxAge: 11),
         new BuiltInGame("Animal Sound Guessing", "🔊", AnimalSoundGuessingGame, MinAge: 3, MaxAge: 8),
+        new BuiltInGame("Build-a-Monster", "👾", BuildAMonster, "images/buildamonster/body_greenA.png", MinAge: 3, MaxAge: 8),
+        new BuiltInGame("Duck Shoot", "🦆", DuckShoot, MinAge: 4, MaxAge: 10),
+        new BuiltInGame("Dominoes", "🀫", Dominoes, MinAge: 5, MaxAge: 11),
     };
 }

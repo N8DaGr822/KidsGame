@@ -893,4 +893,163 @@ public static class GameAi
 
         return material + mobility * 2;
     }
+
+    // ---- Dominoes ---------------------------------------------------------
+    //
+    // Standard block dominoes, double-six set. A "move" is one tile plus
+    // which open end of the chain it goes on - the tile's OTHER pip value
+    // becomes that end's new value (DominoesApplyMove). Blocked (no legal
+    // tile) is scored as a terminal position rather than simulating a
+    // boneyard draw during search - the real draw-until-playable flow still
+    // works during actual play (see Dominoes.razor), this only affects how
+    // far the AI's own lookahead can see past a blocked spot. Unlike every
+    // other AI section here, the search sees the opponent's actual hand
+    // (dominoes is hidden-information for a human, but there's no reason to
+    // make the AI pretend not to know its own game state) - a deliberate
+    // "AI can see the board" simplification, not a bug.
+
+    public record struct DominoTile(int A, int B);
+    public record struct DominoMove(DominoTile Tile, bool PlaceOnLeft);
+
+    public static List<DominoTile> DominoesFullSet()
+    {
+        var list = new List<DominoTile>();
+        for (var a = 0; a <= 6; a++)
+        {
+            for (var b = a; b <= 6; b++)
+            {
+                list.Add(new DominoTile(a, b));
+            }
+        }
+        return list;
+    }
+
+    /// <summary>Every legal placement for a hand against the chain's open
+    /// ends - a tile with a matching pip count can go on the left, the
+    /// right, or both (two separate moves) if it matches both ends. An
+    /// empty chain (both ends null) allows any tile, played arbitrarily on
+    /// the "left."</summary>
+    public static List<DominoMove> DominoesLegalMoves(List<DominoTile> hand, int? leftEnd, int? rightEnd)
+    {
+        var moves = new List<DominoMove>();
+        foreach (var tile in hand)
+        {
+            if (leftEnd is null && rightEnd is null)
+            {
+                moves.Add(new DominoMove(tile, true));
+                continue;
+            }
+            if (leftEnd is { } le && (tile.A == le || tile.B == le)) moves.Add(new DominoMove(tile, true));
+            if (rightEnd is { } re && (tile.A == re || tile.B == re)) moves.Add(new DominoMove(tile, false));
+        }
+        return moves;
+    }
+
+    /// <summary>Removes the played tile from hand and returns the chain's
+    /// new (leftEnd, rightEnd) - the tile's matching value stays touching
+    /// the end it was played against, its other value becomes that end's
+    /// new open value.</summary>
+    public static (int LeftEnd, int RightEnd) DominoesApplyMove(List<DominoTile> hand, DominoMove move, int? leftEnd, int? rightEnd)
+    {
+        hand.Remove(move.Tile);
+
+        if (leftEnd is null || rightEnd is null)
+        {
+            return (move.Tile.A, move.Tile.B);
+        }
+
+        if (move.PlaceOnLeft)
+        {
+            var newEnd = move.Tile.A == leftEnd.Value ? move.Tile.B : move.Tile.A;
+            return (newEnd, rightEnd.Value);
+        }
+
+        var newRight = move.Tile.A == rightEnd.Value ? move.Tile.B : move.Tile.A;
+        return (leftEnd.Value, newRight);
+    }
+
+    public static DominoMove? DominoesMove(List<DominoTile> aiHand, List<DominoTile> humanHand, int? leftEnd, int? rightEnd, Difficulty difficulty)
+    {
+        var moves = DominoesLegalMoves(aiHand, leftEnd, rightEnd);
+        if (moves.Count == 0) return null;
+
+        if (difficulty == Difficulty.Easy)
+        {
+            return moves[Rng.Next(moves.Count)];
+        }
+
+        var depth = difficulty == Difficulty.Medium ? 3 : 5;
+        var bestScore = int.MinValue;
+        var bestMoves = new List<DominoMove>();
+
+        foreach (var move in moves)
+        {
+            var aiCopy = new List<DominoTile>(aiHand);
+            var (le, re) = DominoesApplyMove(aiCopy, move, leftEnd, rightEnd);
+            var score = DominoesMinimax(aiCopy, new List<DominoTile>(humanHand), le, re, depth - 1, false, int.MinValue, int.MaxValue);
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestMoves.Clear();
+                bestMoves.Add(move);
+            }
+            else if (score == bestScore)
+            {
+                bestMoves.Add(move);
+            }
+        }
+
+        return bestMoves[Rng.Next(bestMoves.Count)];
+    }
+
+    private static int DominoesMinimax(List<DominoTile> aiHand, List<DominoTile> humanHand, int leftEnd, int rightEnd, int depth, bool maximizing, int alpha, int beta)
+    {
+        if (aiHand.Count == 0) return 100000 + depth; // AI emptied its hand - prefer a faster win
+        if (humanHand.Count == 0) return -100000 - depth;
+
+        var hand = maximizing ? aiHand : humanHand;
+        var moves = DominoesLegalMoves(hand, leftEnd, rightEnd);
+
+        // Blocked or search horizon reached - score the position rather
+        // than continuing (see the section header for why a block doesn't
+        // simulate a boneyard draw here).
+        if (moves.Count == 0 || depth == 0) return DominoesEvaluate(aiHand, humanHand);
+
+        var best = maximizing ? int.MinValue : int.MaxValue;
+        foreach (var move in moves)
+        {
+            var handCopy = new List<DominoTile>(hand);
+            var (le, re) = DominoesApplyMove(handCopy, move, leftEnd, rightEnd);
+            var nextAiHand = maximizing ? handCopy : aiHand;
+            var nextHumanHand = maximizing ? humanHand : handCopy;
+            var score = DominoesMinimax(nextAiHand, nextHumanHand, le, re, depth - 1, !maximizing, alpha, beta);
+
+            if (maximizing)
+            {
+                best = Math.Max(best, score);
+                alpha = Math.Max(alpha, best);
+            }
+            else
+            {
+                best = Math.Min(best, score);
+                beta = Math.Min(beta, best);
+            }
+
+            if (beta <= alpha) break;
+        }
+
+        return best;
+    }
+
+    // Fewer pips left in hand is strictly better (closer to emptying it,
+    // and a lower penalty if the game ends blocked) - the same "material"
+    // idea as every other evaluator here, just pip-count instead of piece
+    // value.
+    private static int DominoesEvaluate(List<DominoTile> aiHand, List<DominoTile> humanHand)
+    {
+        var aiPips = aiHand.Sum(t => t.A + t.B);
+        var humanPips = humanHand.Sum(t => t.A + t.B);
+        return humanPips - aiPips;
+    }
 }

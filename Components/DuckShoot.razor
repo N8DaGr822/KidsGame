@@ -1,0 +1,406 @@
+@*
+    DuckShoot.razor
+    A carnival shooting-gallery arcade game, built on kenney_shooting-
+    gallery's real duck/crosshair/target art. Ducks cross a set of lanes
+    left-to-right or right-to-left; tap one while it's crossing to shoot it
+    (swaps to the target-marked sprite as hit feedback, same two-phase
+    resolve-then-remove lifecycle CatchGame.razor uses for its falling
+    items - this game copies that shape almost directly, just horizontal
+    instead of vertical and tap-to-shoot instead of move-a-basket).
+    Ammo is the one genuinely new mechanic: every shot costs one, whether
+    it hits a duck or empty water, so trigger-happy tapping doesn't
+    trivialize it. The round ends when ammo runs out or the timer expires,
+    whichever comes first - no win/lose branch, just a final score like
+    Whack-a-Mole/Archery Challenge. Harder difficulties add lanes, speed
+    up the crossing, and tighten the ammo budget.
+
+    Usage:
+        <DuckShoot OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+
+<div class="ds-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="ds-setup game-setup-panel">
+            <h2>🦆 Duck Shoot</h2>
+            <p>Tap the ducks as they paddle by - but watch your ammo, every shot counts!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="ds-diff-name">@DifficultyName(diff)</span>
+                            <span class="ds-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="ds-hud game-hud">
+            <span class="ds-title">Duck Shoot</span>
+            <span class="game-stat">⭐ @score</span>
+            <span class="game-stat">🔫 @ammo</span>
+            <span class="game-stat">⏱️ @FormatTime(remainingMs)</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="ds-field" @onclick="RegisterMiss">
+            @foreach (var duck in ducks)
+            {
+                <button @key="duck.Id" class="ds-duck @(duck.Hit ? "hit" : "")" style="@DuckStyle(duck)"
+                        disabled="@(phase != Phase.Playing)"
+                        @onclick="() => Shoot(duck)" @onclick:stopPropagation="true">
+                    <img src="images/duckshoot/@(duck.Hit ? DuckTargetSprite(duck.Color) : DuckSprite(duck.Color))" alt="" />
+                </button>
+            }
+            <img class="ds-crosshair" src="images/duckshoot/crosshair_red_small.png" style="@crosshairStyle" alt="" />
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(ammo <= 0 ? "🔫 Out of Ammo!" : "⏰ Time's Up!")</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Nice shooting" : PlayerName + ", nice shooting") - here's how you did!</p>
+                    <div class="game-result-stats">
+                        <div><span class="game-stat-label">Score</span><span class="game-stat-value">@score</span></div>
+                        <div><span class="game-stat-label">Ducks hit</span><span class="game-stat-value">@ducksHit</span></div>
+                        <div><span class="game-stat-label">Best streak</span><span class="game-stat-value">@bestStreak</span></div>
+                    </div>
+                    <PersonalBestBadge Value="@(bestScore is { } bs ? $"{bs} pts" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<DuckShootResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (high score, per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private record DifficultyConfig(int Lanes, int RoundSeconds, int CrossMs, int MinSpawnMs, int MaxSpawnMs, int MaxActiveDucks, int Ammo);
+
+    private static readonly string[] DuckColors = { "yellow", "white", "brown" };
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static DifficultyConfig ConfigFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => new DifficultyConfig(3, 30, 3400, 900, 1300, 3, 18),
+        Difficulty.Medium => new DifficultyConfig(3, 35, 2600, 700, 1000, 4, 15),
+        _ => new DifficultyConfig(4, 40, 1900, 550, 850, 5, 12),
+    };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private class Duck
+    {
+        public string Id { get; } = Guid.NewGuid().ToString();
+        public int Lane;
+        public string Color = "yellow";
+        public bool ReverseDirection;
+        public int ElapsedMs;
+        public bool Resolved;
+        public bool Hit;
+    }
+
+    private const int TickMs = 100;
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private DifficultyConfig config = ConfigFor(Difficulty.Easy);
+    private readonly List<Duck> ducks = new();
+    private int score;
+    private int ducksHit;
+    private int ammo;
+    private int streak;
+    private int bestStreak;
+    private int remainingMs;
+    private int nextSpawnInMs;
+    private int? bestScore;
+    private bool isNewBest;
+    private string crosshairStyle = "opacity:0;";
+    private readonly Random rng = new();
+    private System.Threading.Timer? timer;
+    private IJSObjectReference? _module;
+
+    private int CurrentMultiplier => 1 + Math.Min(streak / 5, 3);
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        config = ConfigFor(selectedDifficulty);
+        ducks.Clear();
+        score = 0;
+        ducksHit = 0;
+        ammo = config.Ammo;
+        streak = 0;
+        bestStreak = 0;
+        bestScore = null;
+        isNewBest = false;
+        remainingMs = config.RoundSeconds * 1000;
+        nextSpawnInMs = rng.Next(config.MinSpawnMs, config.MaxSpawnMs + 1);
+        phase = Phase.Playing;
+        StartTimer();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new DuckShootResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                DucksHit: ducksHit,
+                BestStreak: bestStreak,
+                ElapsedSeconds: config.RoundSeconds - remainingMs / 1000));
+        }
+        StopTimer();
+        phase = Phase.Setup;
+    }
+
+    private void Tick(object? _) => InvokeAsync(async () =>
+    {
+        if (phase != Phase.Playing) return;
+
+        remainingMs -= TickMs;
+        if (remainingMs <= 0)
+        {
+            remainingMs = 0;
+            await FinishGame();
+            return;
+        }
+
+        nextSpawnInMs -= TickMs;
+        if (nextSpawnInMs <= 0 && ducks.Count(d => !d.Resolved) < config.MaxActiveDucks)
+        {
+            SpawnDuck();
+            nextSpawnInMs = rng.Next(config.MinSpawnMs, config.MaxSpawnMs + 1);
+        }
+
+        foreach (var duck in ducks.Where(d => !d.Resolved))
+        {
+            duck.ElapsedMs += TickMs;
+            if (duck.ElapsedMs >= config.CrossMs) duck.Resolved = true;
+        }
+
+        ducks.RemoveAll(d => d.Resolved && !d.Hit);
+
+        if (ammo <= 0 && ducks.All(d => d.Resolved))
+        {
+            await FinishGame();
+            return;
+        }
+
+        StateHasChanged();
+    });
+
+    private void SpawnDuck()
+    {
+        ducks.Add(new Duck
+        {
+            Lane = rng.Next(config.Lanes),
+            Color = DuckColors[rng.Next(DuckColors.Length)],
+            ReverseDirection = rng.NextDouble() < 0.5,
+        });
+    }
+
+    private async Task Shoot(Duck duck)
+    {
+        if (phase != Phase.Playing || duck.Resolved || ammo <= 0) return;
+
+        ammo--;
+        FlashCrosshair(duck);
+        _ = FadeCrosshairAsync();
+
+        duck.Resolved = true;
+        duck.Hit = true;
+        ducksHit++;
+        streak++;
+        bestStreak = Math.Max(bestStreak, streak);
+        score += 10 * CurrentMultiplier;
+        await PlaySoundAsync("playImpactSound");
+
+        StateHasChanged();
+        await Task.Delay(300);
+        ducks.Remove(duck);
+
+        if (ammo <= 0 && ducks.All(d => d.Resolved))
+        {
+            await FinishGame();
+            return;
+        }
+        StateHasChanged();
+    }
+
+    // Tapping empty water still costs a shot and breaks the streak - a
+    // real shooting gallery doesn't refund a miss, and it keeps "just tap
+    // everything" from trivializing the ammo budget. Duck buttons stop
+    // this click from bubbling up (@onclick:stopPropagation), so a hit
+    // never also double-counts as a miss.
+    private async Task RegisterMiss()
+    {
+        if (phase != Phase.Playing || ammo <= 0) return;
+
+        ammo--;
+        streak = 0;
+        await PlaySoundAsync("playMismatchSound");
+
+        if (ammo <= 0 && ducks.All(d => d.Resolved))
+        {
+            await FinishGame();
+            return;
+        }
+        StateHasChanged();
+    }
+
+    private void FlashCrosshair(Duck duck)
+    {
+        var laneWidth = 100.0 / config.Lanes;
+        var top = laneWidth * duck.Lane + laneWidth / 2;
+        var left = CrossPct(duck);
+        crosshairStyle = $"opacity:1; top:{top.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}%; left:{left.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}%;";
+    }
+
+    private async Task FadeCrosshairAsync()
+    {
+        await Task.Delay(250);
+        if (crosshairStyle.StartsWith("opacity:1")) crosshairStyle = "opacity:0;";
+        StateHasChanged();
+    }
+
+    private double CrossPct(Duck duck)
+    {
+        var pct = 100.0 * duck.ElapsedMs / config.CrossMs;
+        return duck.ReverseDirection ? 100 - pct : pct;
+    }
+
+    private string DuckStyle(Duck duck)
+    {
+        var laneWidth = 100.0 / config.Lanes;
+        var top = laneWidth * duck.Lane + laneWidth / 2;
+        var left = Math.Clamp(CrossPct(duck), 4, 96);
+        var flip = duck.ReverseDirection ? "scaleX(-1)" : "scaleX(1)";
+        return $"top:{top.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}%; left:{left.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}%; transform:translate(-50%,-50%) {flip};";
+    }
+
+    private static string DuckSprite(string color) => $"duck_{color}.png";
+    private static string DuckTargetSprite(string color) => $"duck_target_{color}.png";
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        StopTimer();
+        phase = Phase.Finished;
+        StateHasChanged();
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"high-score-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestScore = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.DuckShoot, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.DuckShoot, key, score, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new DuckShootResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                DucksHit: ducksHit,
+                BestStreak: bestStreak,
+                ElapsedSeconds: config.RoundSeconds - remainingMs / 1000));
+        }
+    }
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(Tick, null, TickMs, TickMs);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalMs)
+    {
+        var span = TimeSpan.FromMilliseconds(totalMs);
+        return span.Minutes > 0 ? $"{span.Minutes}:{span.Seconds:00}" : $"0:{span.Seconds:00}";
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3 lanes, slow ducks, lots of ammo",
+        Difficulty.Medium => "3 lanes, quicker ducks",
+        _ => "4 lanes, fast ducks, tight ammo",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        StopTimer();
+
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record DuckShootResult(string Difficulty, int Score, int DucksHit, int BestStreak, int ElapsedSeconds);
+}

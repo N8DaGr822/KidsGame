@@ -35,31 +35,42 @@ do not leave blank UI.
   layout in `Services/RaceTrack.cs` rather than duplicating file paths:
   - `car-*.png` (15 files: silver, navygold, yellow, blue, red, green,
     phoenix, shadow, patriot, sunset, sky, police, nightpatrol, rally,
-    f1) are the full player-selectable car roster - all confirmed
-    nose-up at their native orientation before wiring the CSS rotation
-    formula. Raw pixel dimensions vary a lot between them (some near-
-    square crops, some wide - likely different padding/perspective in
-    how each was originally rendered), handled with `object-fit:
-    contain` in a fixed-aspect box rather than assuming uniform source
-    dimensions. One near-duplicate navy/gold car was found during
-    cataloging and deliberately left uncopied (kept in Downloads only).
+    f1) were all catalogued, but only 14 are in the actual selectable
+    roster (`RaceTrack.CarRoster`) - `car-f1.png` was found (after a
+    user bug report) to be drawn in side profile rather than top-down
+    like every other car, so it can never look right rotating around
+    the track; it's excluded from the roster and only still used as
+    Time Trial Racer's static launcher thumbnail. Raw pixel dimensions
+    vary a lot between the rest (some near-square crops, some wide -
+    likely different padding/perspective in how each was originally
+    rendered), handled with `object-fit: contain` in a fixed-aspect box
+    rather than assuming uniform source dimensions. One near-duplicate
+    navy/gold car was found during cataloging and deliberately left
+    uncopied (kept in Downloads only).
   - `tile-corner.png`, `tile-straight-h.png`, `tile-straight-v.png` are
-    the road tiles the track is built from - a hand-laid 4x6 grid, one
-    curve image reused at all four corners via CSS rotation (worked out
-    by hand which edges the source art connects: the corner tile
-    connects its West and North edges at `rotate(0deg)`, so the other
-    three corners each need one more 90-degree clockwise turn to
-    connect their own two track neighbors - see the component's
-    `TrackTiles` comment for the derivation, not a guess-and-check).
+    the road tiles every track is built from - one curve image reused
+    at every corner via CSS rotation. Verified directly against the
+    rendered pixels (an earlier version of this note guessed wrong): at
+    `rotate(0deg)` the drivable asphalt touches the tile's **West and
+    South** edges, not West/North. `Services/RaceTrack.cs` now ships
+    three selectable `TrackDef` layouts built from these same three
+    tiles - Grand Prix Loop (the original 4x6 rounded rectangle),
+    Thunder Oval (the same shape at 6x4, resized), and Switchback
+    Circuit (an L-shaped 6x6 layout with six corners instead of four) -
+    see that file's own comments for how each corner's rotation is
+    derived from its two actual neighbor tiles.
   - `tire-stack.png` and `grandstand.png` are infield decoration (purely
-    cosmetic, `pointer-events: none`). `finish-strip.png` is the start/
-    finish banner and `checkered-flag.png` is used as the result
-    overlay's title icon in place of an emoji.
+    cosmetic, `pointer-events: none`) - shown only on the two
+    rectangular tracks, since Switchback Circuit's L-shaped infield has
+    an empty notch the tuned decoration percentages weren't designed
+    for. `finish-strip.png` is the start/finish banner and
+    `checkered-flag.png` is used as the result overlay's title icon in
+    place of an emoji.
   - Not used: a red/white traffic-cone-and-barrier set, a second curve-
     tile variant, a coin icon, and a stopwatch icon - none needed for
     this game's placement-race shape (no currency, no on-track
-    obstacles in v1, and the HUD shows lap/placement rather than a
-    running timer). Worth a look if Time Trial Racer gets built later.
+    obstacles, and the HUD shows lap/placement rather than a running
+    timer).
 - `space/*.png` (added 2026-08-18) are `ship_H.png`, `meteor_detailedLarge.png`,
   `meteor_detailedSmall.png`, `effect_yellow.png`, `star_tiny.png`, and
   `star_small.png` from [Kenney](https://kenney.nl)'s "Simple Space" pack
@@ -127,6 +138,36 @@ do not leave blank UI.
   game, not a transient burst - a static "ship on fire" icon replacing
   the plain 🔥 emoji, rather than a looping animation that would keep
   playing on every hit cell simultaneously as they accumulate.
+- `buildamonster/*.png` (added 2026-08-19) is the full `PNG/Default` set (178
+  files) from [Kenney](https://kenney.nl)'s "Monster Builder Pack"
+  (`kenney_monster-builder-pack.zip`), CC0 - real modular parts (arm/body/
+  leg/eye/eyebrow/nose/mouth/detail/snot), not pre-assembled characters.
+  `PNG/Double` (a two-tone stylistic variant) was left uncopied. Used by
+  `Components/BuildAMonster.razor`, which hardcodes the file list per
+  category rather than listing the directory at runtime. One correction
+  made after viewing the actual art: `eye_blue.png` (the obvious-sounding
+  default) renders as an X-marked "dead" eye, not a friendly round one -
+  the component defaults to `eye_cute_dark.png` instead.
+- `duckshoot/*.png` (added 2026-08-19) is a lean subset (8 of ~50 files)
+  from [Kenney](https://kenney.nl)'s "Shooting Gallery" pack
+  (`kenney_shooting-gallery.zip`), CC0: `duck_{yellow,white,brown}.png` and
+  matching `duck_target_*.png` (used as hit feedback, not literally the
+  pack's own intended meaning - repurposed since no distinct "hit/falling"
+  duck sprite exists in the pack), plus `target_back.png` and
+  `crosshair_red_small.png`. Used by `Components/DuckShoot.razor`. The
+  pack's HUD digit sprites/curtain dressing were not pulled in - plain HTML
+  text and a CSS gradient pond stand in for those.
+- `dominoes/*.png` (added 2026-08-19) is the `Light` themed set (29 files:
+  `tile_0_0.png` through `tile_6_6.png` plus `tile_empty.png`) from
+  [Kenney](https://kenney.nl)'s "Domino Pack" (`kenney_domino-pack.zip`),
+  CC0 - a complete standard double-six set. The other four themes (`Dark`,
+  `Hearts`, `Stars`, `Gingerbread`) weren't copied, a cosmetic swap for
+  later if wanted. Used by `Components/Dominoes.razor`. Art is portrait
+  (verified by viewing `tile_3_4.png`: 3's pips on top, 4's on bottom) -
+  the component rotates each placed tile 90deg to read left-to-right in a
+  horizontal chain, direction computed per-tile from which value needs to
+  end up on which side (see `Dominoes.razor`'s `ChainTileStyle`), not a
+  fixed rotation.
 - `checkers/*.png` and `chess/*.png` are from a user-provided batch dropped
   in `Downloads/Assets/Checkers-Chess` on 2026-08-18 (33 UUID-named PNGs,
   no pack metadata - source/license unknown, unlike the Kenney/CraftPix

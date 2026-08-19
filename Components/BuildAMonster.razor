@@ -1,0 +1,261 @@
+@*
+    BuildAMonster.razor
+    A slot-based creature-assembly toy built on kenney_monster-builder-pack's
+    real modular parts (body/arms/legs/eyes/eyebrows/nose/mouth/details/snot -
+    not pre-assembled characters, see wwwroot/images/README.md). No win/lose,
+    no difficulty, no personal best - same "sandbox toy" shape as
+    PopAndSparkle/MagicGarden: an "All done" button in the play view is what
+    logs the play session, there's no Phase.Finished overlay. Slots are
+    fixed anchor positions on a canvas (not free drag-and-drop like
+    DressUp's stickers) - tapping a category tab shows that category's
+    options as a scrollable thumbnail strip, tapping one swaps whatever's
+    currently in that slot. Every combination is valid; Eyebrows/Details/
+    Snot default to "None" since they're decorative extras, everything
+    else always shows something so the canvas is never empty.
+
+    Usage:
+        <BuildAMonster OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="bm-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="bm-setup game-setup-panel">
+            <h2>👾 Build-a-Monster</h2>
+            <p>Mix and match parts to build your own silly monster - there's no wrong way to do it!</p>
+            <button class="game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="bm-hud game-hud">
+            <span class="bm-title">Build-a-Monster</span>
+            <button class="game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="bm-canvas">
+            @if (LegFile is not null)
+            {
+                <img class="bm-part bm-leg bm-leg-left" src="images/buildamonster/@LegFile" alt="" />
+                <img class="bm-part bm-leg bm-leg-right" src="images/buildamonster/@LegFile" alt="" />
+            }
+            <img class="bm-part bm-body" src="images/buildamonster/@BodyFile" alt="" />
+            @if (ArmFile is not null)
+            {
+                <img class="bm-part bm-arm bm-arm-left" src="images/buildamonster/@ArmFile" alt="" />
+                <img class="bm-part bm-arm bm-arm-right" src="images/buildamonster/@ArmFile" alt="" />
+            }
+            @if (DetailFile is not null)
+            {
+                <img class="bm-part bm-detail bm-detail-left" src="images/buildamonster/@DetailFile" alt="" />
+                <img class="bm-part bm-detail bm-detail-right" src="images/buildamonster/@DetailFile" alt="" />
+            }
+            @if (EyebrowFile is not null)
+            {
+                <img class="bm-part bm-eyebrow bm-eyebrow-left" src="images/buildamonster/@EyebrowFile" alt="" />
+                <img class="bm-part bm-eyebrow bm-eyebrow-right" src="images/buildamonster/@EyebrowFile" alt="" />
+            }
+            <img class="bm-part bm-eye bm-eye-left" src="images/buildamonster/@EyeFile" alt="" />
+            <img class="bm-part bm-eye bm-eye-right" src="images/buildamonster/@EyeFile" alt="" />
+            <img class="bm-part bm-nose" src="images/buildamonster/@NoseFile" alt="" />
+            <img class="bm-part bm-mouth" src="images/buildamonster/@MouthFile" alt="" />
+            @if (SnotFile is not null)
+            {
+                <img class="bm-part bm-snot" src="images/buildamonster/@SnotFile" alt="" />
+            }
+        </div>
+
+        <div class="bm-tabs">
+            @foreach (var cat in Categories)
+            {
+                <button class="bm-tab @(cat == activeCategory ? "selected" : "")" @onclick="() => activeCategory = cat">
+                    <span class="bm-tab-icon">@CategoryIcon(cat)</span>
+                    <span class="bm-tab-label">@CategoryLabel(cat)</span>
+                </button>
+            }
+        </div>
+
+        <div class="bm-swatch-strip">
+            @if (IsOptional(activeCategory))
+            {
+                <button class="bm-swatch bm-swatch-none @(selected[activeCategory] == -1 ? "selected" : "")" @onclick="() => SelectPart(activeCategory, -1)">✖</button>
+            }
+            @{
+                var options = PartsFor(activeCategory);
+            }
+            @for (var i = 0; i < options.Length; i++)
+            {
+                var idx = i;
+                <button class="bm-swatch @(selected[activeCategory] == idx ? "selected" : "")" @onclick="() => SelectPart(activeCategory, idx)">
+                    <img src="images/buildamonster/@(options[idx])" alt="" />
+                </button>
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<BuildAMonsterResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private enum PartCategory { Body, Arms, Legs, Eyes, Eyebrows, Nose, Mouth, Details, Snot }
+
+    private static readonly PartCategory[] Categories =
+    {
+        PartCategory.Body, PartCategory.Arms, PartCategory.Legs, PartCategory.Eyes,
+        PartCategory.Eyebrows, PartCategory.Nose, PartCategory.Mouth, PartCategory.Details, PartCategory.Snot,
+    };
+
+    // Every filename below was read directly off the extracted pack
+    // (wwwroot/images/buildamonster/) rather than typed from memory - see
+    // wwwroot/images/README.md for provenance.
+    private static readonly string[] BodyParts =
+    { "body_blueA.png", "body_blueB.png", "body_blueC.png", "body_blueD.png", "body_blueE.png", "body_blueF.png", "body_darkA.png", "body_darkB.png", "body_darkC.png", "body_darkD.png", "body_darkE.png", "body_darkF.png", "body_greenA.png", "body_greenB.png", "body_greenC.png", "body_greenD.png", "body_greenE.png", "body_greenF.png", "body_redA.png", "body_redB.png", "body_redC.png", "body_redD.png", "body_redE.png", "body_redF.png", "body_whiteA.png", "body_whiteB.png", "body_whiteC.png", "body_whiteD.png", "body_whiteE.png", "body_whiteF.png", "body_yellowA.png", "body_yellowB.png", "body_yellowC.png", "body_yellowD.png", "body_yellowE.png", "body_yellowF.png" };
+
+    private static readonly string[] ArmParts =
+    { "arm_blueA.png", "arm_blueB.png", "arm_blueC.png", "arm_blueD.png", "arm_blueE.png", "arm_darkA.png", "arm_darkB.png", "arm_darkC.png", "arm_darkD.png", "arm_darkE.png", "arm_greenA.png", "arm_greenB.png", "arm_greenC.png", "arm_greenD.png", "arm_greenE.png", "arm_redA.png", "arm_redB.png", "arm_redC.png", "arm_redD.png", "arm_redE.png", "arm_whiteA.png", "arm_whiteB.png", "arm_whiteC.png", "arm_whiteD.png", "arm_whiteE.png", "arm_yellowA.png", "arm_yellowB.png", "arm_yellowC.png", "arm_yellowD.png", "arm_yellowE.png" };
+
+    private static readonly string[] LegParts =
+    { "leg_blueA.png", "leg_blueB.png", "leg_blueC.png", "leg_blueD.png", "leg_blueE.png", "leg_darkA.png", "leg_darkB.png", "leg_darkC.png", "leg_darkD.png", "leg_darkE.png", "leg_greenA.png", "leg_greenB.png", "leg_greenC.png", "leg_greenD.png", "leg_greenE.png", "leg_redA.png", "leg_redB.png", "leg_redC.png", "leg_redD.png", "leg_redE.png", "leg_whiteA.png", "leg_whiteB.png", "leg_whiteC.png", "leg_whiteD.png", "leg_whiteE.png", "leg_yellowA.png", "leg_yellowB.png", "leg_yellowC.png", "leg_yellowD.png", "leg_yellowE.png" };
+
+    private static readonly string[] EyeParts =
+    { "eye_angry_blue.png", "eye_angry_green.png", "eye_angry_red.png", "eye_blue.png", "eye_closed_feminine.png", "eye_closed_happy.png", "eye_cute_dark.png", "eye_cute_light.png", "eye_dead.png", "eye_human.png", "eye_human_blue.png", "eye_human_green.png", "eye_human_red.png", "eye_psycho_dark.png", "eye_psycho_light.png", "eye_red.png", "eye_yellow.png" };
+
+    private static readonly string[] EyebrowParts = { "eyebrowA.png", "eyebrowB.png", "eyebrowC.png" };
+
+    private static readonly string[] NoseParts = { "nose_brown.png", "nose_green.png", "nose_red.png", "nose_yellow.png" };
+
+    private static readonly string[] MouthParts =
+    { "mouthA.png", "mouthB.png", "mouthC.png", "mouthD.png", "mouthE.png", "mouthF.png", "mouthG.png", "mouthH.png", "mouthI.png", "mouthJ.png", "mouth_closed_fangs.png", "mouth_closed_happy.png", "mouth_closed_sad.png", "mouth_closed_teeth.png" };
+
+    private static readonly string[] DetailParts =
+    { "detail_blue_antenna_large.png", "detail_blue_antenna_small.png", "detail_blue_ear.png", "detail_blue_ear_round.png", "detail_blue_eye.png", "detail_blue_horn_large.png", "detail_blue_horn_small.png", "detail_dark_antenna_large.png", "detail_dark_antenna_small.png", "detail_dark_ear.png", "detail_dark_ear_round.png", "detail_dark_eye.png", "detail_dark_horn_large.png", "detail_dark_horn_small.png", "detail_green_antenna_large.png", "detail_green_antenna_small.png", "detail_green_ear.png", "detail_green_ear_round.png", "detail_green_eye.png", "detail_green_horn_large.png", "detail_green_horn_small.png", "detail_red_antenna_large.png", "detail_red_antenna_small.png", "detail_red_ear.png", "detail_red_ear_round.png", "detail_red_eye.png", "detail_red_horn_large.png", "detail_red_horn_small.png", "detail_white_antenna_large.png", "detail_white_antenna_small.png", "detail_white_ear.png", "detail_white_ear_round.png", "detail_white_eye.png", "detail_white_horn_large.png", "detail_white_horn_small.png", "detail_yellow_antenna_large.png", "detail_yellow_antenna_small.png", "detail_yellow_ear.png", "detail_yellow_ear_round.png", "detail_yellow_eye.png", "detail_yellow_horn_large.png", "detail_yellow_horn_small.png" };
+
+    private static readonly string[] SnotParts = { "snot_large.png", "snot_small.png" };
+
+    private Phase phase = Phase.Setup;
+    private PartCategory activeCategory = PartCategory.Body;
+    private DateTime startedAtUtc;
+    private int swaps;
+
+    // Index into that category's part array, or -1 for "none" (Eyebrows/
+    // Details/Snot only - the rest always show something).
+    private readonly Dictionary<PartCategory, int> selected = new()
+    {
+        [PartCategory.Body] = 0,
+        [PartCategory.Arms] = 0,
+        [PartCategory.Legs] = 0,
+        [PartCategory.Eyes] = 6, // eye_cute_dark.png - the "blue/green/red" eyes are all X-marked, not friendly round pupils
+        [PartCategory.Eyebrows] = -1,
+        [PartCategory.Nose] = 3, // nose_yellow.png
+        [PartCategory.Mouth] = 11, // mouth_closed_happy.png
+        [PartCategory.Details] = -1,
+        [PartCategory.Snot] = -1,
+    };
+
+    private string? BodyFile => BodyParts[selected[PartCategory.Body]];
+    private string? ArmFile => selected[PartCategory.Arms] is { } a && a >= 0 ? ArmParts[a] : null;
+    private string? LegFile => selected[PartCategory.Legs] is { } l && l >= 0 ? LegParts[l] : null;
+    private string EyeFile => EyeParts[selected[PartCategory.Eyes]];
+    private string? EyebrowFile => selected[PartCategory.Eyebrows] is { } b && b >= 0 ? EyebrowParts[b] : null;
+    private string NoseFile => NoseParts[selected[PartCategory.Nose]];
+    private string MouthFile => MouthParts[selected[PartCategory.Mouth]];
+    private string? DetailFile => selected[PartCategory.Details] is { } d && d >= 0 ? DetailParts[d] : null;
+    private string? SnotFile => selected[PartCategory.Snot] is { } s && s >= 0 ? SnotParts[s] : null;
+
+    private static string[] PartsFor(PartCategory cat) => cat switch
+    {
+        PartCategory.Body => BodyParts,
+        PartCategory.Arms => ArmParts,
+        PartCategory.Legs => LegParts,
+        PartCategory.Eyes => EyeParts,
+        PartCategory.Eyebrows => EyebrowParts,
+        PartCategory.Nose => NoseParts,
+        PartCategory.Mouth => MouthParts,
+        PartCategory.Details => DetailParts,
+        _ => SnotParts,
+    };
+
+    // Arms/legs/eyes/eyebrows/details render as a mirrored left/right pair
+    // from one chosen art file (see markup) - only these three categories
+    // are true optional extras a monster can go without entirely.
+    private static bool IsOptional(PartCategory cat) =>
+        cat is PartCategory.Eyebrows or PartCategory.Details or PartCategory.Snot;
+
+    private static string CategoryIcon(PartCategory cat) => cat switch
+    {
+        PartCategory.Body => "🟦",
+        PartCategory.Arms => "💪",
+        PartCategory.Legs => "🦵",
+        PartCategory.Eyes => "👀",
+        PartCategory.Eyebrows => "〰️",
+        PartCategory.Nose => "👃",
+        PartCategory.Mouth => "👄",
+        PartCategory.Details => "👂",
+        _ => "💧",
+    };
+
+    private static string CategoryLabel(PartCategory cat) => cat switch
+    {
+        PartCategory.Body => "Body",
+        PartCategory.Arms => "Arms",
+        PartCategory.Legs => "Legs",
+        PartCategory.Eyes => "Eyes",
+        PartCategory.Eyebrows => "Brows",
+        PartCategory.Nose => "Nose",
+        PartCategory.Mouth => "Mouth",
+        PartCategory.Details => "Ears",
+        _ => "Snot",
+    };
+
+    private void StartGame()
+    {
+        startedAtUtc = DateTime.UtcNow;
+        swaps = 0;
+        phase = Phase.Playing;
+    }
+
+    private async Task SelectPart(PartCategory cat, int index)
+    {
+        if (selected[cat] == index) return;
+        selected[cat] = index;
+        swaps++;
+        await PlaySoundAsync("playMatchSound");
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private IJSObjectReference? _module;
+
+    private async Task FinishSession()
+    {
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new BuildAMonsterResult(
+                Swaps: swaps,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record BuildAMonsterResult(int Swaps, int ElapsedSeconds);
+}

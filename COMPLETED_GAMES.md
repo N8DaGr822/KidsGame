@@ -7,20 +7,25 @@ when moving items out of `GAMES_ROADMAP.md`.
 
 - Air Hockey
 - Animal Sound Guessing
+- Archery Challenge
 - Baby Piano
 - Basketball Shot
 - Battleships
 - Bubble Pop
+- Build-a-Monster
 - Catch the Falling Objects
 - Checkers
+- Chess
 - Chess Puzzles
 - Color Match
 - Code Breaker
 - Connect Four
 - Copy the Pattern
 - Cryptogram
+- Dominoes
 - Dots and Boxes
 - Dress Up
+- Duck Shoot
 - Feed the Animal
 - Fishing Catch
 - Flag Guessing Game

@@ -1,0 +1,443 @@
+@*
+    Dominoes.razor
+    Standard block dominoes (double-six set) vs a CPU, built on
+    kenney_domino-pack's real per-tile art (tile_A_B.png, A<=B, drawn
+    portrait with A's pips on top). Player and CPU each draw a 7-tile
+    hand; the rest form a boneyard. Tap a hand tile to select it, then tap
+    either open end of the chain to play it there (only the ends that
+    tile actually matches are tappable) - draw from the boneyard if
+    nothing in hand plays, or pass once the boneyard is empty too. Game
+    ends when a hand empties (that side wins) or both sides pass in a row
+    with an empty boneyard (blocked - lower pip total in hand wins,
+    the real tie-break rule). AI logic lives in Services/GameAi.cs
+    (DominoesLegalMoves/DominoesMove/DominoesApplyMove), same alpha-beta
+    minimax shape as Reversi/Checkers/Chess - the one wrinkle is the
+    search sees the human's actual hand rather than pretending it's
+    hidden, a deliberate simplification (see that file's comment).
+
+    Chain tiles render rotated 90 degrees from their native portrait
+    art so the chain reads left-to-right (see ChainTileStyle) - which
+    direction depends on which of the tile's two values needs to end up
+    on which side, not just "always rotate the same way."
+
+    Usage:
+        <Dominoes OnComplete="HandleGameComplete" />
+*@
+@using KidsGameLauncher.Services
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+
+<div class="dm-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="dm-setup game-setup-panel">
+            <h2>🀫 Dominoes</h2>
+            <p>Match the open ends of the chain to play your tiles - empty your hand first to win!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="dm-diff-name">@DifficultyName(diff)</span>
+                            <span class="dm-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="dm-hud game-hud">
+            <span class="dm-title">Dominoes</span>
+            <span class="game-stat">You @playerHand.Count</span>
+            <span class="game-stat">CPU @cpuHand.Count</span>
+            <span class="game-stat">Boneyard @boneyard.Count</span>
+            <span class="game-stat">Turn @playerTurnsTaken</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <p class="dm-status">@StatusText</p>
+
+        <div class="dm-chain">
+            @if (chain.Count == 0)
+            {
+                <button class="dm-start-zone" disabled="@(selectedHandIndex is null || turn != Turn.Player)" @onclick="() => PlaceSelected(true)">Tap here to start the chain</button>
+            }
+            else
+            {
+                <button class="dm-end dm-end-left" aria-label="Play on the left end" disabled="@(!CanPlaceSelected(true))" @onclick="() => PlaceSelected(true)">◀</button>
+                @foreach (var placed in chain)
+                {
+                    <div class="dm-tile-placed-wrap">
+                        <img class="dm-tile-placed" src="images/dominoes/@TileFile(placed.Tile)" style="@ChainTileStyle(placed)" alt="" />
+                    </div>
+                }
+                <button class="dm-end dm-end-right" aria-label="Play on the right end" disabled="@(!CanPlaceSelected(false))" @onclick="() => PlaceSelected(false)">▶</button>
+            }
+        </div>
+
+        @if (turn == Turn.Player && phase == Phase.Playing && !PlayerHasLegalMove)
+        {
+            @if (boneyard.Count > 0)
+            {
+                <button class="game-primary-action" @onclick="PlayerDraw">Draw from boneyard (@boneyard.Count)</button>
+            }
+            else
+            {
+                <button class="game-primary-action" @onclick="PlayerPass">Pass</button>
+            }
+        }
+
+        <div class="dm-hand">
+            @for (var i = 0; i < playerHand.Count; i++)
+            {
+                var idx = i;
+                <button class="dm-hand-tile @(selectedHandIndex == idx ? "selected" : "")" disabled="@(turn != Turn.Player)" @onclick="() => SelectHandTile(idx)">
+                    <img src="images/dominoes/@TileFile(playerHand[idx])" alt="" />
+                </button>
+            }
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(outcome switch { "Win" => "🎉 You Win!", "Loss" => "🤖 CPU Wins", _ => "🤝 It's a Draw!" })</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@(outcome == "Win" ? "you emptied your hand first!" : outcome == "Loss" ? "the CPU emptied its hand first." : "nobody could play - lowest pips wins, and it's a tie.")</p>
+                    <div class="game-result-stats">
+                        <div><span class="game-stat-label">Turns</span><span class="game-stat-value">@playerTurnsTaken</span></div>
+                        <div><span class="game-stat-label">Your pips left</span><span class="game-stat-value">@playerHand.Sum(t => t.A + t.B)</span></div>
+                    </div>
+                    <PersonalBestBadge Value="@(bestTurns is { } bt ? $"{bt} turns" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<DominoesResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest turns to win, per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    private enum Turn { Player, Cpu }
+
+    private static readonly GameAi.Difficulty[] Difficulties =
+        { GameAi.Difficulty.Easy, GameAi.Difficulty.Medium, GameAi.Difficulty.Hard };
+
+    private GameAi.Difficulty? LockedDifficulty =>
+        Enum.TryParse<GameAi.Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private Phase phase = Phase.Setup;
+    private GameAi.Difficulty selectedDifficulty = GameAi.Difficulty.Easy;
+    private Turn turn = Turn.Player;
+    private List<GameAi.DominoTile> playerHand = new();
+    private List<GameAi.DominoTile> cpuHand = new();
+    private List<GameAi.DominoTile> boneyard = new();
+    private readonly List<(GameAi.DominoTile Tile, int LeftValue, int RightValue)> chain = new();
+    private int? leftEnd;
+    private int? rightEnd;
+    private int? selectedHandIndex;
+    private int playerTurnsTaken;
+    private int consecutivePasses;
+    private string outcome = "";
+    private int? bestTurns;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    private bool PlayerHasLegalMove => GameAi.DominoesLegalMoves(playerHand, leftEnd, rightEnd).Count > 0;
+
+    private string StatusText => turn switch
+    {
+        Turn.Cpu => "CPU is thinking...",
+        _ when !PlayerHasLegalMove && boneyard.Count > 0 => "No matching tile - draw from the boneyard.",
+        _ when !PlayerHasLegalMove => "No matching tile and the boneyard is empty - pass.",
+        _ => "Your move - tap a tile, then tap an open end.",
+    };
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        var set = GameAi.DominoesFullSet().OrderBy(_ => rng.Next()).ToList();
+        playerHand = set.Take(7).ToList();
+        cpuHand = set.Skip(7).Take(7).ToList();
+        boneyard = set.Skip(14).ToList();
+        chain.Clear();
+        leftEnd = null;
+        rightEnd = null;
+        selectedHandIndex = null;
+        turn = Turn.Player;
+        playerTurnsTaken = 0;
+        consecutivePasses = 0;
+        outcome = "";
+        bestTurns = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new DominoesResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Outcome: "Exited",
+                PlayerTurnsTaken: playerTurnsTaken,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private void SelectHandTile(int index)
+    {
+        if (phase != Phase.Playing || turn != Turn.Player) return;
+        selectedHandIndex = selectedHandIndex == index ? null : index;
+    }
+
+    private bool CanPlaceSelected(bool onLeft)
+    {
+        if (turn != Turn.Player || selectedHandIndex is not int idx || idx >= playerHand.Count) return false;
+        var tile = playerHand[idx];
+        if (leftEnd is null || rightEnd is null) return true;
+        var endValue = onLeft ? leftEnd.Value : rightEnd.Value;
+        return tile.A == endValue || tile.B == endValue;
+    }
+
+    private async Task PlaceSelected(bool onLeft)
+    {
+        if (!CanPlaceSelected(onLeft) || selectedHandIndex is not int idx) return;
+
+        var tile = playerHand[idx];
+        selectedHandIndex = null;
+        PlaceTileAndRecord(playerHand, tile, onLeft);
+        playerTurnsTaken++;
+        await PlaySoundAsync("playImpactSound");
+        StateHasChanged();
+
+        if (playerHand.Count == 0)
+        {
+            await FinishGame("Win");
+            return;
+        }
+
+        turn = Turn.Cpu;
+        StateHasChanged();
+        await RunCpuTurnAsync();
+    }
+
+    private async Task PlayerDraw()
+    {
+        if (phase != Phase.Playing || turn != Turn.Player || boneyard.Count == 0) return;
+        DrawOne(playerHand);
+        await PlaySoundAsync("playMatchSound");
+        StateHasChanged();
+    }
+
+    private async Task PlayerPass()
+    {
+        if (phase != Phase.Playing || turn != Turn.Player || PlayerHasLegalMove || boneyard.Count > 0) return;
+
+        consecutivePasses++;
+        if (consecutivePasses >= 2)
+        {
+            await FinishGame("Blocked");
+            return;
+        }
+
+        turn = Turn.Cpu;
+        StateHasChanged();
+        await RunCpuTurnAsync();
+    }
+
+    private async Task RunCpuTurnAsync()
+    {
+        await Task.Delay(600);
+
+        while (GameAi.DominoesLegalMoves(cpuHand, leftEnd, rightEnd).Count == 0 && boneyard.Count > 0)
+        {
+            DrawOne(cpuHand);
+            StateHasChanged();
+            await Task.Delay(250);
+        }
+
+        if (GameAi.DominoesLegalMoves(cpuHand, leftEnd, rightEnd).Count == 0)
+        {
+            consecutivePasses++;
+            if (consecutivePasses >= 2)
+            {
+                await FinishGame("Blocked");
+                return;
+            }
+            turn = Turn.Player;
+            StateHasChanged();
+            return;
+        }
+
+        var move = GameAi.DominoesMove(cpuHand, playerHand, leftEnd, rightEnd, selectedDifficulty)!.Value;
+        PlaceTileAndRecord(cpuHand, move.Tile, move.PlaceOnLeft);
+        await PlaySoundAsync("playImpactSound");
+        StateHasChanged();
+
+        if (cpuHand.Count == 0)
+        {
+            await FinishGame("Loss");
+            return;
+        }
+
+        turn = Turn.Player;
+        StateHasChanged();
+    }
+
+    private void DrawOne(List<GameAi.DominoTile> hand)
+    {
+        if (boneyard.Count == 0) return;
+        var tile = boneyard[^1];
+        boneyard.RemoveAt(boneyard.Count - 1);
+        hand.Add(tile);
+    }
+
+    // Removes the tile from hand (via GameAi.DominoesApplyMove) and
+    // records it in the chain with its final left/right pip values, so
+    // the chain reads correctly left-to-right regardless of which raw
+    // value (A or B) ends up facing which way - see ChainTileStyle for
+    // the rotation this feeds.
+    private void PlaceTileAndRecord(List<GameAi.DominoTile> hand, GameAi.DominoTile tile, bool placeOnLeft)
+    {
+        var oldLeft = leftEnd;
+        var oldRight = rightEnd;
+        var (le, re) = GameAi.DominoesApplyMove(hand, new GameAi.DominoMove(tile, placeOnLeft), leftEnd, rightEnd);
+
+        if (oldLeft is null || oldRight is null)
+        {
+            chain.Add((tile, tile.A, tile.B));
+        }
+        else if (placeOnLeft)
+        {
+            chain.Insert(0, (tile, le, oldLeft.Value));
+        }
+        else
+        {
+            chain.Add((tile, oldRight.Value, re));
+        }
+
+        leftEnd = le;
+        rightEnd = re;
+        consecutivePasses = 0;
+    }
+
+    private static string TileFile(GameAi.DominoTile t) => $"tile_{t.A}_{t.B}.png";
+
+    // The art is portrait (A's pips on top, B's on bottom at 0deg).
+    // Rotating -90deg carries "top" to "left"; +90deg carries "top" to
+    // "right" - so whichever raw value (the filename's first/lower
+    // number, physically on top) needs to land on the left decides the
+    // direction. LeftValue<=RightValue exactly when LeftValue is that
+    // raw top value.
+    private static string ChainTileStyle((GameAi.DominoTile Tile, int LeftValue, int RightValue) placed)
+    {
+        var deg = placed.LeftValue <= placed.RightValue ? -90 : 90;
+        return $"transform:translate(-50%,-50%) rotate({deg}deg);";
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame(string result)
+    {
+        outcome = result;
+        if (result == "Blocked")
+        {
+            var playerPips = playerHand.Sum(t => t.A + t.B);
+            var cpuPips = cpuHand.Sum(t => t.A + t.B);
+            outcome = playerPips < cpuPips ? "Win" : playerPips > cpuPips ? "Loss" : "Draw";
+        }
+
+        phase = Phase.Finished;
+        StateHasChanged();
+        await PlaySoundAsync(outcome == "Win" ? "playMatchSound" : outcome == "Loss" ? "playMismatchSound" : "playImpactSound");
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"fewest-turns-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestTurns = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Dominoes, key);
+            if (outcome == "Win")
+            {
+                isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Dominoes, key, playerTurnsTaken, lowerIsBetter: true);
+            }
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new DominoesResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Outcome: outcome,
+                PlayerTurnsTaken: playerTurnsTaken,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "Easy",
+        GameAi.Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "CPU plays randomly",
+        GameAi.Difficulty.Medium => "CPU plans a few moves ahead",
+        _ => "CPU plans deep and plays tight",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record DominoesResult(string Difficulty, string Outcome, int PlayerTurnsTaken, int ElapsedSeconds);
+}
