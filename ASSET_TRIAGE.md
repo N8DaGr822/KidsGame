@@ -147,17 +147,33 @@ Simulator/Restaurant Manager):
 ## Tower Defense Variety
 
 Tower Defense already shipped with art from `kenney_tower-defense.zip` /
-`kenney_tower-defense-top-down.zip`. These add enemy and tileset variety if
-it gets a content refresh, or could seed a second, differently-themed TD
-game:
+`kenney_tower-defense-top-down.zip`. The CraftPix TD-specific packs below
+were tried for enemy variety and rejected after actually viewing sample
+sprites (not just filenames) - both had real integration problems, not
+just theoretical style-clash risk:
 
 - `craftpix-net-168163-free-monster-enemy-sprites-for-tower-defense.zip` -
-  10 monster folders, purpose-built for this genre.
-- `craftpix-net-397030-free-cartoon-cat-defense-game-asset-kit.zip` - a
-  complete themed kit (cat defenders + enemies) - distinct enough in tone to
-  be its own game rather than a reskin.
-- `craftpix-net-305231-free-tower-defense-2d-vector-tileset.zip` - background
-  and tileset variety.
+  **rejected.** Sampled `Monster_1`'s attack frame: a sharp-fanged,
+  heavily-outlined insectoid. Clashes badly with the game's existing soft,
+  round, pastel animal-face enemies - both in detail level and in tone
+  (menacing vs. friendly). Also ships as full animation-state PNG
+  sequences (Attack/Dying/Fall/Fly/Idle/Walking per monster), a different
+  integration shape than the current one-static-image-per-enemy pattern.
+- `craftpix-net-397030-free-cartoon-cat-defense-game-asset-kit.zip` -
+  **rejected for enemies, tone is actually right.** The Cat Guardian
+  tower/defender character (`Png/Cat Guardian/Idle/*.png`, plain numbered
+  animation frames) is genuinely cute and would fit this game's style well.
+  But the actual enemies (`Json Atlas/Enemies/*/Enemy.png`) are Spine
+  skeletal-rig atlas sheets - scattered body parts on a texture sheet, not
+  ready-to-use images - real rigging/compositing work, not a drop-in.
+- `craftpix-net-305231-free-tower-defense-2d-vector-tileset.zip` -
+  background/tileset variety, not evaluated in this pass (only enemy art
+  was under consideration).
+
+Variety was added instead using the 7 Memory Match animals (chick, cow,
+frog, giraffe, monkey, owl, panda) that were already in the project but
+unused by Tower Defense - same art style already established, zero new
+asset work. See `Components/TowerDefense.razor`'s `EnemyType` definitions.
 
 ## Toddler & Casual Game Fits
 

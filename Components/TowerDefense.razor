@@ -320,14 +320,30 @@
     private record EnemyType(string Id, string ImagePath, int Hp, double SpeedCellsPerSec, int Reward, int LifeCost);
 
     // Reuses Memory Match's animal art rather than the tower-defense pack's
-    // tanks - reads friendlier for a kids' game, and six distinct stat
-    // profiles give waves real variety instead of one "basic" + one "tough".
+    // tanks - reads friendlier for a kids' game. Originally 6 of the 13
+    // Memory Match animals; a later variety pass considered CraftPix's
+    // dedicated tower-defense monster packs but rejected them after
+    // actually viewing sample sprites (see ASSET_TRIAGE.md's "Tower
+    // Defense Variety" section) - one is a sharp-fanged insectoid that
+    // clashes badly with this game's soft round style, the other (Cat
+    // Defense kit) matches the tone but ships its enemies as Spine
+    // skeletal-rig atlases, not simple images. The remaining 7 Memory
+    // Match animals were sitting unused and already match perfectly, so
+    // the variety pass used those instead - zero new asset work, same
+    // art style, just more stat profiles.
     private static readonly EnemyType RabbitEnemy = new("rabbit", "images/memory/animals/rabbit.png", 25, 1.6, 4, 1);
     private static readonly EnemyType DuckEnemy = new("duck", "images/memory/animals/duck.png", 40, 1.1, 5, 1);
+    private static readonly EnemyType ChickEnemy = new("chick", "images/memory/animals/chick.png", 18, 1.8, 3, 1);
+    private static readonly EnemyType FrogEnemy = new("frog", "images/memory/animals/frog.png", 32, 1.45, 4, 1);
     private static readonly EnemyType PigEnemy = new("pig", "images/memory/animals/pig.png", 55, 1.0, 6, 1);
     private static readonly EnemyType DogEnemy = new("dog", "images/memory/animals/dog.png", 45, 1.35, 6, 1);
+    private static readonly EnemyType CowEnemy = new("cow", "images/memory/animals/cow.png", 60, 0.95, 7, 1);
+    private static readonly EnemyType MonkeyEnemy = new("monkey", "images/memory/animals/monkey.png", 48, 1.25, 6, 1);
     private static readonly EnemyType BearEnemy = new("bear", "images/memory/animals/bear.png", 100, 0.75, 10, 2);
+    private static readonly EnemyType OwlEnemy = new("owl", "images/memory/animals/owl.png", 85, 0.85, 9, 2);
+    private static readonly EnemyType GiraffeEnemy = new("giraffe", "images/memory/animals/giraffe.png", 110, 0.7, 12, 2);
     private static readonly EnemyType ElephantEnemy = new("elephant", "images/memory/animals/elephant.png", 220, 0.5, 25, 3);
+    private static readonly EnemyType PandaEnemy = new("panda", "images/memory/animals/panda.png", 180, 0.55, 20, 3);
 
     // ---- Grid / levels ---------------------------------------------------
 
@@ -554,9 +570,13 @@
         nextWaveCountdownMs = 0;
     }
 
-    /// <summary>Weighted pick across the six animal enemy types - Rabbit/Duck
-    /// dominate early waves, Pig/Dog ramp in from wave 2, Bear from wave 3,
-    /// and Elephant (a rare mini-boss) only starts appearing from wave 5.
+    /// <summary>Weighted pick across thirteen animal enemy types in four
+    /// tiers - Rabbit/Duck/Chick/Frog (weak/fast) are always available,
+    /// Pig/Dog/Cow/Monkey (mid) ramp in from wave 1, Bear/Owl/Giraffe
+    /// (tanky) from wave 2-3, and Elephant/Panda (rare mini-bosses) only
+    /// from wave 4. Each tier's per-type weight is lower than the original
+    /// 6-enemy version since there are now more options splitting the same
+    /// share - more variety within a tier, not more overall difficulty.
     /// Uses the run's total cleared-wave count (not the current level's),
     /// so difficulty keeps climbing across level transitions instead of
     /// resetting each time a new level starts.</summary>
@@ -564,12 +584,19 @@
     {
         var options = new (EnemyType Type, double Weight)[]
         {
-            (RabbitEnemy, 3.0),
-            (DuckEnemy, 3.0),
-            (PigEnemy, Math.Min(2.5, 0.5 + wave * 0.3)),
-            (DogEnemy, wave >= 1 ? Math.Min(2.5, wave * 0.4) : 0),
-            (BearEnemy, wave >= 2 ? Math.Min(2.0, (wave - 1) * 0.35) : 0),
-            (ElephantEnemy, wave >= 4 ? Math.Min(0.8, (wave - 3) * 0.2) : 0),
+            (RabbitEnemy, 2.2),
+            (DuckEnemy, 2.2),
+            (ChickEnemy, 2.0),
+            (FrogEnemy, 2.0),
+            (PigEnemy, Math.Min(1.8, 0.4 + wave * 0.22)),
+            (DogEnemy, wave >= 1 ? Math.Min(1.8, wave * 0.3) : 0),
+            (CowEnemy, wave >= 1 ? Math.Min(1.8, 0.3 + wave * 0.25) : 0),
+            (MonkeyEnemy, wave >= 1 ? Math.Min(1.8, wave * 0.3) : 0),
+            (BearEnemy, wave >= 2 ? Math.Min(1.3, (wave - 1) * 0.24) : 0),
+            (OwlEnemy, wave >= 2 ? Math.Min(1.3, (wave - 1) * 0.22) : 0),
+            (GiraffeEnemy, wave >= 3 ? Math.Min(1.1, (wave - 2) * 0.22) : 0),
+            (ElephantEnemy, wave >= 4 ? Math.Min(0.6, (wave - 3) * 0.15) : 0),
+            (PandaEnemy, wave >= 4 ? Math.Min(0.6, (wave - 3) * 0.15) : 0),
         };
 
         var total = options.Sum(o => o.Weight);
