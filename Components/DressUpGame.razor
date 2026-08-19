@@ -18,6 +18,7 @@
     Optional:
         <DressUpGame PlayerName="Riley" OnComplete="HandleGameComplete" />
 *@
+@using System.Text.Json
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
@@ -228,6 +229,47 @@
                 </div>
             </div>
         }
+
+        @if (galleryOpen)
+        {
+            <div class="du-gallery-overlay game-result-overlay" @onclick="CloseGallery">
+                <div class="du-gallery-panel game-result-panel" @onclick:stopPropagation>
+                    <div class="du-gallery-header">
+                        <h2>🖼️ My Looks</h2>
+                        <button class="du-restart-btn" @onclick="CloseGallery">✕ Close</button>
+                    </div>
+
+                    @if (savedLooks.Count == 0)
+                    {
+                        <p class="muted">No saved looks yet - tap "Save Picture" while dressing up a character to add one here.</p>
+                    }
+                    else
+                    {
+                        <div class="du-gallery-grid">
+                            @foreach (var look in savedLooks.AsEnumerable().Reverse())
+                            {
+                                <button @key="look.Id" class="du-gallery-thumb" @onclick="() => viewingLook = look">
+                                    <img src="@look.DataUrl" alt="Saved look of @look.Character" />
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (viewingLook is { } viewing)
+        {
+            <div class="du-lightbox-overlay game-result-overlay" @onclick="() => viewingLook = null">
+                <div class="du-lightbox-panel" @onclick:stopPropagation>
+                    <img src="@viewing.DataUrl" alt="Saved look of @viewing.Character" />
+                    <div class="du-lightbox-actions game-result-actions">
+                        <button class="du-restart-btn" @onclick="() => DeleteSavedLookAsync(viewing)">🗑️ Delete</button>
+                        <button class="du-start-btn game-primary-action" @onclick="() => viewingLook = null">Close</button>
+                    </div>
+                </div>
+            </div>
+        }
     }
 
 </div>
@@ -239,6 +281,9 @@
 
     /// <summary>Optional display name, e.g. from the active kid profile.</summary>
     [Parameter] public string? PlayerName { get; set; }
+
+    /// <summary>Active kid profile id, used to scope the saved-looks gallery per profile.</summary>
+    [Parameter] public string? ProfileId { get; set; }
 
     /// <summary>Fired when the kid taps "Done!" on a dressed-up character.</summary>
     [Parameter] public EventCallback<DressUpResult> OnComplete { get; set; }
@@ -259,6 +304,20 @@
         PushHud();
     }
 
+    private void CloseActionMenu()
+    {
+        actionMenuOpen = false;
+        PushHud();
+    }
+
+    private async Task OpenGalleryAsync()
+    {
+        actionMenuOpen = false;
+        await LoadSavedLooksAsync();
+        galleryOpen = true;
+        PushHud();
+    }
+
     private RenderFragment HudFragment =>
         @<div class="du-hud">
             <span class="du-character-title">@selectedCharacter!.Name</span>
@@ -268,9 +327,11 @@
 
             @if (actionMenuOpen)
             {
+                <div class="du-menu-backdrop" @onclick="CloseActionMenu"></div>
                 <div class="du-action-menu">
                     <button class="du-restart-btn" @onclick="AbandonDressUp">← Change Character</button>
                     <button class="du-restart-btn" @onclick="ExportOutfitAsync">💾 Save Picture</button>
+                    <button class="du-restart-btn" @onclick="OpenGalleryAsync">🖼️ My Looks</button>
                     <button class="du-restart-btn" @onclick="ResetOutfit">Reset Outfit</button>
                 </div>
             }
@@ -617,6 +678,23 @@
     private bool celebrate;
     private bool drawerOpen;
     private bool actionMenuOpen;
+
+    // ---- Saved-looks gallery ---------------------------------------------
+    //
+    // Kept in its own localStorage key (rather than folded into
+    // AppDataService's single shared blob) so a large gallery of PNG data
+    // URLs can never blow the quota out for profiles/game-access/personal-
+    // best data that every other part of the app depends on.
+
+    public record SavedLook(string Id, string DataUrl, string Character, string SavedAtUtc);
+
+    private const int MaxSavedLooks = 12;
+    private List<SavedLook> savedLooks = new();
+    private bool galleryOpen;
+    private SavedLook? viewingLook;
+    private bool savedLooksLoaded;
+
+    private string SavedLooksStorageKey => $"kgl_dressup_looks_{ProfileId ?? "default"}";
 
     private ElementReference stageRef;
     private ElementReference baseImageRef;
@@ -1282,7 +1360,90 @@
             .ToArray();
         var filename = $"dress-up-{selectedCharacter!.Name.ToLowerInvariant()}.png";
 
-        await _module.InvokeVoidAsync("exportOutfit", stageRef, baseImageRef, emojiStickers, canvasRef, filename, selectedScene.ImagePath, selectedScene.Aligned);
+        var dataUrl = await _module.InvokeAsync<string>("exportOutfit", stageRef, baseImageRef, emojiStickers, canvasRef, filename, selectedScene.ImagePath, selectedScene.Aligned);
+
+        if (!string.IsNullOrEmpty(dataUrl))
+        {
+            await AddSavedLookAsync(dataUrl);
+        }
+    }
+
+    // ---- Saved-looks gallery persistence ---------------------------------
+
+    private async Task LoadSavedLooksAsync()
+    {
+        if (savedLooksLoaded) return;
+
+        var json = await JS.InvokeAsync<string?>("localStorage.getItem", SavedLooksStorageKey);
+        if (!string.IsNullOrWhiteSpace(json))
+        {
+            try
+            {
+                savedLooks = JsonSerializer.Deserialize<List<SavedLook>>(json) ?? new();
+            }
+            catch (JsonException)
+            {
+                savedLooks = new();
+            }
+        }
+
+        savedLooksLoaded = true;
+    }
+
+    private async Task PersistSavedLooksAsync()
+    {
+        var json = JsonSerializer.Serialize(savedLooks);
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", SavedLooksStorageKey, json);
+        }
+        catch (JSException)
+        {
+            // Quota exceeded or similar - drop the oldest half and retry
+            // once rather than losing the picture the kid just saved.
+            if (savedLooks.Count > 1)
+            {
+                savedLooks.RemoveRange(0, savedLooks.Count / 2);
+                try
+                {
+                    await JS.InvokeVoidAsync("localStorage.setItem", SavedLooksStorageKey, JsonSerializer.Serialize(savedLooks));
+                }
+                catch (JSException) { /* give up silently - the downloaded PNG still succeeded */ }
+            }
+        }
+    }
+
+    private async Task AddSavedLookAsync(string dataUrl)
+    {
+        await LoadSavedLooksAsync();
+
+        savedLooks.Add(new SavedLook(
+            Id: Guid.NewGuid().ToString(),
+            DataUrl: dataUrl,
+            Character: selectedCharacter?.Name ?? "",
+            SavedAtUtc: DateTime.UtcNow.ToString("O")));
+
+        while (savedLooks.Count > MaxSavedLooks)
+        {
+            savedLooks.RemoveAt(0);
+        }
+
+        await PersistSavedLooksAsync();
+    }
+
+    private async Task DeleteSavedLookAsync(SavedLook look)
+    {
+        savedLooks.Remove(look);
+        if (viewingLook == look) viewingLook = null;
+        await PersistSavedLooksAsync();
+        PushHud();
+    }
+
+    private void CloseGallery()
+    {
+        galleryOpen = false;
+        viewingLook = null;
+        PushHud();
     }
 
     private static string? ImagePathFor(string stickerId) =>

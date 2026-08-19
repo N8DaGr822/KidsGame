@@ -1,0 +1,524 @@
+@*
+    MiniGolf.razor
+    A short procedurally-generated mini golf course - built on the same
+    Services/Physics2D.cs layer as Air Hockey/Pool, the "reconsider now
+    that Physics2D exists" item from GAMES_ROADMAP.md's deferred physics
+    subsection: wall bounce is exactly what the engine already does, so
+    this only needed a hole-capture check and a friction-per-surface zone
+    (a sand trap, roughly half of holes) added on top - true sloped
+    terrain is still deferred, a sand trap's flat extra-drag zone covers
+    "surface variety" without needing gradient/slope vector math.
+
+    Each hole is generated fresh: ball starts at the bottom, the hole is
+    placed randomly in the upper part of the green, and about half the
+    time a sand trap (higher drag while the ball's inside it) sits
+    somewhere between them. Drag back from the ball and release to putt -
+    same "pull back opposite your shot" convention as Pool/TankDuel/
+    Archery/Basketball. The ball only sinks if it reaches the hole slow
+    enough (real mini golf: hit it too hard and it lips out rather than
+    dropping in) - it just rolls past otherwise, no redirect physics. A
+    per-hole stroke cap force-advances a hole nobody should get stuck on
+    forever. Personal best tracks fewest total strokes across the whole
+    course, per difficulty (which also sets hole count: 3/5/7).
+
+    Usage:
+        <MiniGolf OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using System.Numerics
+@using KidsGameLauncher.Services
+
+<div class="mg-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="mg-setup game-setup-panel">
+            <h2>⛳ Mini Golf</h2>
+            <p>Drag back from the ball and let go to putt - sink each hole in as few strokes as you can. Watch out for sand traps, and don't hit it too hard near the cup!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="mg-diff-name">@DifficultyName(diff)</span>
+                            <span class="mg-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="mg-title">Mini Golf</span>
+            <span class="game-stat">⛳ Hole @Math.Min(holeIndex + 1, totalHoles)/@totalHoles</span>
+            <span class="game-stat">🎯 Strokes @totalStrokes</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="mg-field" @ref="fieldRef"
+             @onpointerdown="OnFieldPointerDown" @onpointermove="OnFieldPointerMove"
+             @onpointerup="OnFieldPointerUp" @onpointercancel="OnFieldPointerUp">
+            <div class="mg-green"></div>
+
+            @if (sandTrapPosition is { } sand)
+            {
+                <div class="mg-sand" style="left:@((sand.X * 100f / TableWidth).ToString(Inv))%; top:@((sand.Y * 100f / TableHeight).ToString(Inv))%;"></div>
+            }
+
+            <div class="mg-hole" style="left:@((holePosition.X * 100f / TableWidth).ToString(Inv))%; top:@((holePosition.Y * 100f / TableHeight).ToString(Inv))%;"></div>
+            <span class="mg-flag" style="left:@((holePosition.X * 100f / TableWidth).ToString(Inv))%; top:@((holePosition.Y * 100f / TableHeight).ToString(Inv))%;">🚩</span>
+
+            @if (previewPoints.Count > 0)
+            {
+                @foreach (var p in previewPoints)
+                {
+                    <span class="mg-preview-dot" style="left:@((p.X * 100f / TableWidth).ToString(Inv))%; top:@((p.Y * 100f / TableHeight).ToString(Inv))%;"></span>
+                }
+            }
+
+            @if (!sunk)
+            {
+                <span class="mg-ball" style="left:@((ball.Position.X * 100f / TableWidth).ToString(Inv))%; top:@((ball.Position.Y * 100f / TableHeight).ToString(Inv))%;"></span>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="mg-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🏆 Course Complete!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@totalHoles holes in @totalStrokes strokes!</p>
+                    <PersonalBestBadge Value="@(bestStrokes is { } bs ? $"{bs} strokes" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<MiniGolfResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest total strokes for the whole course) - null skips
+    /// recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    // Physics-space table units, not pixels or percent - portrait like a
+    // real hole is longer than it is wide, ball starts near the bottom.
+    private const float TableWidth = 110f;
+    private const float TableHeight = 170f;
+    private const float BallRadius = 3.5f;
+    private const float HoleRadius = 6f;
+    private const float HoleMarginX = 18f;
+    private const float SandTrapRadius = 16f;
+    private const float WallRestitution = 0.85f;
+    private const float BallDragPerSecond = 0.9f;
+    private const float SandDragPerSecond = 6f;
+    private const float MinDragDistance = 5f;
+    private const float MaxDragDistance = 65f;
+    private const float MinShotSpeed = 22f;
+    private const float MaxShotSpeed = 135f;
+    // A putt has to arrive slower than this to drop - too fast and it
+    // rolls straight over the cup instead, same as a real green.
+    private const float SinkSpeedThreshold = 55f;
+    private const int MaxStrokesPerHole = 8;
+    private const float FixedDt = 1f / 120f;
+    private const int MaxSubstepsPerFrame = 8;
+    private const int FrameDelayMs = 16;
+    private const float MaxShotResolveSeconds = 6f;
+    private const float RestVelocityEpsilon = 0.6f;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int HolesFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 3,
+        Difficulty.Medium => 5,
+        _ => 7,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int totalHoles = 3;
+    private int holeIndex;
+    private int totalStrokes;
+    private int strokesThisHole;
+    private string roundMessage = "";
+    private int? bestStrokes;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    private PhysicsBody ball = new() { Radius = BallRadius };
+    private Vector2 holePosition;
+    private Vector2? sandTrapPosition;
+    private bool sunk;
+    private bool resolving;
+
+    private ElementReference fieldRef;
+    private double fieldLeft, fieldTop, fieldWidth, fieldHeight;
+    private bool isDragging;
+    private long? activeFieldPointerId;
+    private readonly List<Vector2> previewPoints = new();
+
+    private CancellationTokenSource? _loopCts;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        totalHoles = HolesFor(selectedDifficulty);
+        holeIndex = 0;
+        totalStrokes = 0;
+        roundMessage = "";
+        bestStrokes = null;
+        isNewBest = false;
+        isDragging = false;
+        activeFieldPointerId = null;
+        previewPoints.Clear();
+
+        GenerateHole();
+
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    // Ball always starts bottom-center; the hole is placed randomly in
+    // the upper ~55% of the green so there's always meaningful distance
+    // to cover, and about half of holes get a sand trap somewhere along
+    // the way (offset from the direct line, not blocking it outright).
+    private void GenerateHole()
+    {
+        ball = new PhysicsBody { Radius = BallRadius, Position = new Vector2(TableWidth / 2f, TableHeight - 16f) };
+        holePosition = new Vector2(
+            HoleMarginX + (float)rng.NextDouble() * (TableWidth - 2 * HoleMarginX),
+            18f + (float)rng.NextDouble() * (TableHeight * 0.55f));
+
+        if (rng.NextDouble() < 0.5)
+        {
+            var mid = Vector2.Lerp(ball.Position, holePosition, 0.35f + (float)rng.NextDouble() * 0.3f);
+            var offset = new Vector2((float)(rng.NextDouble() - 0.5) * 34f, (float)(rng.NextDouble() - 0.5) * 24f);
+            var candidate = mid + offset;
+            sandTrapPosition = new Vector2(
+                Math.Clamp(candidate.X, SandTrapRadius, TableWidth - SandTrapRadius),
+                Math.Clamp(candidate.Y, SandTrapRadius, TableHeight - SandTrapRadius));
+        }
+        else
+        {
+            sandTrapPosition = null;
+        }
+
+        sunk = false;
+        strokesThisHole = 0;
+        roundMessage = "";
+    }
+
+    private async Task ExitToSetup()
+    {
+        _loopCts?.Cancel();
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MiniGolfResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                HolesPlayed: holeIndex,
+                TotalHoles: totalHoles,
+                TotalStrokes: totalStrokes,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task OnFieldPointerDown(PointerEventArgs e)
+    {
+        if (phase != Phase.Playing || resolving) return;
+
+        activeFieldPointerId = e.PointerId;
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        var rect = await _module.InvokeAsync<FieldRect>("getBoundingRect", fieldRef);
+        fieldLeft = rect.Left;
+        fieldTop = rect.Top;
+        fieldWidth = rect.Width;
+        fieldHeight = rect.Height;
+
+        await _module.InvokeVoidAsync("setPointerCapture", fieldRef, e.PointerId);
+
+        if (activeFieldPointerId != e.PointerId) return;
+
+        isDragging = true;
+        UpdateAimPreview(e.ClientX, e.ClientY);
+    }
+
+    private void OnFieldPointerMove(PointerEventArgs e)
+    {
+        if (!isDragging) return;
+        UpdateAimPreview(e.ClientX, e.ClientY);
+    }
+
+    private async Task OnFieldPointerUp(PointerEventArgs e)
+    {
+        activeFieldPointerId = null;
+        if (!isDragging) return;
+        isDragging = false;
+
+        var (hasShot, direction, power) = ResolveAim(e.ClientX, e.ClientY);
+        previewPoints.Clear();
+
+        if (!hasShot)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        await Putt(direction, power);
+    }
+
+    private void UpdateAimPreview(double clientX, double clientY)
+    {
+        var (hasShot, direction, _) = ResolveAim(clientX, clientY);
+        previewPoints.Clear();
+
+        if (hasShot)
+        {
+            previewPoints.AddRange(ComputeAimPreview(ball.Position, direction));
+        }
+
+        StateHasChanged();
+    }
+
+    private (bool HasShot, Vector2 Direction, float Power) ResolveAim(double clientX, double clientY)
+    {
+        if (fieldWidth <= 0 || fieldHeight <= 0) return (false, Vector2.Zero, 0);
+
+        var pointerPos = new Vector2(
+            (float)((clientX - fieldLeft) / fieldWidth * TableWidth),
+            (float)((clientY - fieldTop) / fieldHeight * TableHeight));
+
+        var pull = pointerPos - ball.Position;
+        var pullDistance = pull.Length();
+        if (pullDistance < MinDragDistance) return (false, Vector2.Zero, 0);
+
+        var direction = -Vector2.Normalize(pull);
+        var clampedDrag = Math.Clamp(pullDistance, MinDragDistance, MaxDragDistance);
+        var t = (clampedDrag - MinDragDistance) / (MaxDragDistance - MinDragDistance);
+        var power = MinShotSpeed + t * (MaxShotSpeed - MinShotSpeed);
+
+        return (true, direction, power);
+    }
+
+    private static List<Vector2> ComputeAimPreview(Vector2 origin, Vector2 direction)
+    {
+        const float previewLength = 40f;
+        const int steps = 8;
+        var points = new List<Vector2>();
+        for (var i = 1; i <= steps; i++)
+        {
+            var p = origin + direction * (previewLength * i / steps);
+            if (p.X < 0 || p.X > TableWidth || p.Y < 0 || p.Y > TableHeight) break;
+            points.Add(p);
+        }
+        return points;
+    }
+
+    private async Task Putt(Vector2 direction, float power)
+    {
+        resolving = true;
+        roundMessage = "";
+        ball.Velocity = direction * power;
+        strokesThisHole++;
+        totalStrokes++;
+        StateHasChanged();
+
+        _loopCts?.Cancel();
+        _loopCts = new CancellationTokenSource();
+        await ResolveShotAsync(_loopCts.Token);
+    }
+
+    // Same fixed-timestep-with-capped-substeps shape as Pool's shot
+    // resolution: run until the ball is at rest, sunk, or a safety time
+    // cap trips, then hand back control for the next putt.
+    private async Task ResolveShotAsync(CancellationToken ct)
+    {
+        var lastTick = DateTime.UtcNow;
+        var elapsedTotal = 0f;
+        var accumulator = 0f;
+
+        while (elapsedTotal < MaxShotResolveSeconds && !sunk)
+        {
+            try
+            {
+                await Task.Delay(FrameDelayMs, ct);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            var elapsed = (float)(now - lastTick).TotalSeconds;
+            lastTick = now;
+            elapsedTotal += elapsed;
+
+            accumulator += elapsed;
+            var substeps = 0;
+            while (accumulator >= FixedDt && substeps < MaxSubstepsPerFrame && !sunk)
+            {
+                StepPhysics();
+                accumulator -= FixedDt;
+                substeps++;
+            }
+            if (substeps >= MaxSubstepsPerFrame) accumulator = 0f;
+
+            StateHasChanged();
+
+            if (sunk || ball.Velocity.LengthSquared() < RestVelocityEpsilon * RestVelocityEpsilon) break;
+        }
+
+        ball.Velocity = Vector2.Zero;
+        resolving = false;
+
+        if (sunk) await PlaySoundAsync("playMatchSound");
+        else if (strokesThisHole >= MaxStrokesPerHole) roundMessage = "That one's tricky - moving on!";
+
+        await AfterShotAsync();
+    }
+
+    private void StepPhysics()
+    {
+        ball.Position += ball.Velocity * FixedDt;
+
+        var inSand = sandTrapPosition is { } sand && Vector2.DistanceSquared(ball.Position, sand) < SandTrapRadius * SandTrapRadius;
+        Physics2D.ApplyDrag(ball, FixedDt, inSand ? SandDragPerSecond : BallDragPerSecond);
+
+        Physics2D.ResolveWallCollisionX(ball, TableWidth, WallRestitution);
+        Physics2D.ResolveWallCollisionY(ball, TableHeight, WallRestitution);
+
+        if (!sunk && Vector2.DistanceSquared(ball.Position, holePosition) < HoleRadius * HoleRadius
+            && ball.Velocity.LengthSquared() < SinkSpeedThreshold * SinkSpeedThreshold)
+        {
+            sunk = true;
+            ball.Position = holePosition;
+            ball.Velocity = Vector2.Zero;
+        }
+    }
+
+    private async Task AfterShotAsync()
+    {
+        if (!sunk && strokesThisHole < MaxStrokesPerHole)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        if (holeIndex + 1 >= totalHoles)
+        {
+            StateHasChanged();
+            await FinishGame();
+            return;
+        }
+
+        await Task.Delay(700);
+        holeIndex++;
+        GenerateHole();
+        StateHasChanged();
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+        await PlaySoundAsync("playMatchSound");
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"fewest-strokes-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestStrokes = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.MiniGolf, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.MiniGolf, key, totalStrokes, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MiniGolfResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                HolesPlayed: totalHoles,
+                TotalHoles: totalHoles,
+                TotalStrokes: totalStrokes,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3 holes",
+        Difficulty.Medium => "5 holes",
+        _ => "7 holes",
+    };
+
+    private record FieldRect(double Left, double Top, double Width, double Height);
+
+    public async ValueTask DisposeAsync()
+    {
+        _loopCts?.Cancel();
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record MiniGolfResult(string Difficulty, int HolesPlayed, int TotalHoles, int TotalStrokes, int ElapsedSeconds);
+}

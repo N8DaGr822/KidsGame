@@ -73,7 +73,7 @@
 
             @foreach (var item in items)
             {
-                <span @key="item.Id" class="cg-item @(item.IsBomb ? "bomb" : "")" style="@ItemStyle(item)">@item.Symbol</span>
+                <span @key="item.Id" class="cg-item @(item.IsBomb ? "bomb" : "") @(item.Caught ? "caught" : "")" style="@ItemStyle(item)">@item.Symbol</span>
             }
 
             <div class="cg-basket" style="@BasketStyle()">🧺</div>
@@ -153,6 +153,7 @@
         public bool IsBomb;
         public int ElapsedMs;
         public bool Resolved;
+        public bool Caught;
     }
 
     private const int TickMs = 100;
@@ -256,7 +257,8 @@
             if (pct >= CatchZonePct && pct < 100 && item.Lane == basketLane)
             {
                 item.Resolved = true;
-                await ResolveCatch(item);
+                item.Caught = true;
+                _ = ResolveCatchAsync(item);
             }
             else if (pct >= 100)
             {
@@ -265,7 +267,7 @@
             }
         }
 
-        items.RemoveAll(i => i.Resolved);
+        items.RemoveAll(i => i.Resolved && !i.Caught);
 
         if (strikes >= config.MaxStrikes)
         {
@@ -287,7 +289,7 @@
         });
     }
 
-    private async Task ResolveCatch(FallingItem item)
+    private async Task ResolveCatchAsync(FallingItem item)
     {
         if (item.IsBomb)
         {
@@ -304,6 +306,13 @@
             score += 10 * CurrentMultiplier;
             await PlaySoundAsync("playCatchSound");
         }
+
+        // Keep the caught item on screen briefly so its catch-pop
+        // animation can play instead of vanishing the instant it's caught.
+        StateHasChanged();
+        await Task.Delay(300);
+        items.Remove(item);
+        StateHasChanged();
     }
 
     private string ItemStyle(FallingItem item)

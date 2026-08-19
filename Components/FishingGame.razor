@@ -99,6 +99,13 @@
             }
 
             <div class="fg-water">
+                <img class="fg-decor fg-decor-stone-1" src="images/fishing/stone-1.png" alt="" />
+                <img class="fg-decor fg-decor-stone-2" src="images/fishing/stone-2.png" alt="" />
+                <img class="fg-decor fg-decor-seaweed-1" src="images/fishing/seaweed-1.png" alt="" />
+                <img class="fg-decor fg-decor-seaweed-2" src="images/fishing/seaweed-2.png" alt="" />
+                <span class="fg-bubble fg-bubble-1"></span>
+                <span class="fg-bubble fg-bubble-2"></span>
+                <span class="fg-bubble fg-bubble-3"></span>
                 @foreach (var fish in fishes)
                 {
                     <button @key="fish.Id" class="fg-fish @(fish.IsCaught ? "caught" : "") @(fish.IsMissed ? "missed" : "") @(fish.SwimsRightToLeft ? "reverse" : "")"

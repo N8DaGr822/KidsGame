@@ -360,8 +360,13 @@
 }
 
 .td-boom.big {
-    width: 26%;
-    animation-duration: 0.7s;
+    width: 32%;
+    border-radius: 0;
+    background: none;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    animation: td-boom-sprite 0.7s linear forwards;
 }
 
 @keyframes td-boom-pop {
@@ -376,6 +381,25 @@
         transform: translate(-50%, -50%) scale(1.7);
         opacity: 0;
     }
+}
+
+/* Fusion-moment "boom" - a real 10-frame explosion sprite (Kenney/CraftPix
+   explosion pack, see GAMES_ROADMAP.md's asset triage) instead of the CSS
+   radial-gradient ring the small Mega-tower splash-hit boom above still
+   uses. Frame-flip via keyframes rather than steps()+spritesheet since the
+   source pack ships one PNG per frame, not a laid-out atlas. */
+@keyframes td-boom-sprite {
+    0%   { opacity: 1; transform: translate(-50%, -50%) scale(0.6); background-image: url('images/effects/fusion-boom/frame-01.png'); }
+    10%  { background-image: url('images/effects/fusion-boom/frame-02.png'); }
+    20%  { transform: translate(-50%, -50%) scale(0.85); background-image: url('images/effects/fusion-boom/frame-03.png'); }
+    30%  { background-image: url('images/effects/fusion-boom/frame-04.png'); }
+    40%  { transform: translate(-50%, -50%) scale(1); background-image: url('images/effects/fusion-boom/frame-05.png'); }
+    50%  { background-image: url('images/effects/fusion-boom/frame-06.png'); }
+    60%  { background-image: url('images/effects/fusion-boom/frame-07.png'); }
+    70%  { background-image: url('images/effects/fusion-boom/frame-08.png'); }
+    80%  { background-image: url('images/effects/fusion-boom/frame-09.png'); }
+    90%  { background-image: url('images/effects/fusion-boom/frame-10.png'); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); background-image: url('images/effects/fusion-boom/frame-10.png'); }
 }
 
 .td-enemy {

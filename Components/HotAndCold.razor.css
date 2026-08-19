@@ -1,0 +1,79 @@
+.hc-game {
+    width: min(460px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.75rem;
+}
+
+.hc-diff-name {
+    font-weight: 900;
+}
+
+.hc-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.hc-title {
+    font-weight: 900;
+}
+
+.hc-status {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+    margin: 0;
+}
+
+.hc-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--hc-size), 1fr);
+    gap: 3px;
+    width: min(380px, 100%);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    padding: 4px;
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+}
+
+.hc-cell {
+    border: none;
+    border-radius: 3px;
+    background: var(--panel-bg);
+    display: grid;
+    place-items: center;
+    font-size: clamp(0.5rem, 3.2cqw, 0.85rem);
+    transition: background-color 0.15s ease;
+}
+
+.hc-cell:not(:disabled):hover {
+    background: var(--control-bg-subtle);
+}
+
+.hc-cell.found {
+    background: #ffd60a;
+}
+
+.hc-cell.scorching {
+    background: #e63946;
+}
+
+.hc-cell.hot {
+    background: #fb8500;
+}
+
+.hc-cell.warm {
+    background: #ffb84d;
+}
+
+.hc-cell.cold {
+    background: #4ecdc4;
+}
+
+.hc-cell.freezing {
+    background: #3a86ff;
+}

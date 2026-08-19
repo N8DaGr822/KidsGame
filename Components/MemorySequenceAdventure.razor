@@ -1,0 +1,342 @@
+@*
+    MemorySequenceAdventure.razor
+    Simon Says' exact sequence-and-replay mechanic (see
+    Components/SimonSays.razor), reskinned per GAMES_ROADMAP.md Section 5
+    as "a character travels through doors" instead of 4 colored pads: a
+    little traveler hops above whichever door is active during playback,
+    then the player taps the doors back in the same order to guide the
+    next leg of the adventure. Same round-growth/mistake-tolerance rules
+    as Simon Says (Easy never ends, Medium allows 3 mistakes, Hard ends
+    on the first), same personal-best shape (longest sequence reached,
+    per difficulty) - the mechanic is deliberately unchanged, only the
+    presentation differs.
+
+    Usage:
+        <MemorySequenceAdventure OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+
+<div class="ma-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="ma-setup game-setup-panel">
+            <h2>🧭 Memory Sequence Adventure</h2>
+            <p>Watch which doors your traveler visits, then tap them in the same order to guide the next leg of the journey. Each round adds one more door!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="ma-diff-name">@DifficultyName(diff)</span>
+                            <span class="ma-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="ma-title">Memory Sequence Adventure</span>
+            <span class="ma-round">Round @Math.Max(sequence.Count, 1)</span>
+            <span class="ma-mistakes">@MistakesText()</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="ma-status">@StatusText()</div>
+
+        <div class="ma-scene">
+            <span class="ma-traveler" style="@TravelerStyle()">🧭</span>
+            <div class="ma-door-grid">
+                @for (var i = 0; i < 4; i++)
+                {
+                    var idx = i;
+                    <button class="ma-door @(activeIndex == idx ? "open" : "") @(pressedIndex == idx ? "pressed" : "")"
+                            disabled="@(phase != Phase.Listening)"
+                            @onclick="() => OnDoorTap(idx)"
+                            aria-label="@DoorName(idx)">
+                        <span class="ma-door-icon">@(activeIndex == idx ? "🚪✨" : "🚪")</span>
+                        <span class="ma-door-label">@DoorName(idx)</span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        @if (phase == Phase.RoundEnd)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🏁 Adventure Over</h2>
+                    <p>Your traveler made it @roundsReached doors deep!</p>
+                    <PersonalBestBadge Value="@((bestRounds ?? roundsReached).ToString())" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<MemorySequenceAdventureResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (longest sequence reached per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestRounds;
+    private bool isNewBest;
+
+    private enum Phase { Setup, Watching, Listening, RoundEnd }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Medium;
+    private readonly List<int> sequence = new();
+    private int playerStep;
+    private int activeIndex = -1;
+    private int pressedIndex = -1;
+    private int roundsReached;
+    private int mistakesMade;
+    private DateTime startedAtUtc;
+    private readonly Random rng = new();
+    private IJSObjectReference? _module;
+    private CancellationTokenSource? playbackCts;
+
+    private static readonly string[] DoorNames = { "Garden Door", "Cave Door", "Tower Door", "Harbor Door" };
+
+    private static int MaxMistakes(Difficulty d) => d switch
+    {
+        Difficulty.Easy => int.MaxValue,
+        Difficulty.Medium => 3,
+        _ => 1,
+    };
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        sequence.Clear();
+        sequence.Add(rng.Next(4));
+        roundsReached = 0;
+        mistakesMade = 0;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        _ = PlaybackAsync();
+    }
+
+    private async Task ExitToSetup()
+    {
+        if ((phase == Phase.Watching || phase == Phase.Listening) && OnComplete.HasDelegate)
+        {
+            await RecordBestIfNeededAsync();
+            await OnComplete.InvokeAsync(new MemorySequenceAdventureResult(
+                RoundsReached: roundsReached,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task RecordBestIfNeededAsync()
+    {
+        if (roundsReached <= 0 || string.IsNullOrEmpty(ProfileId)) return;
+
+        var key = $"rounds:{DifficultyName(selectedDifficulty)}";
+        bestRounds = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.MemorySequenceAdventure, key);
+        isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.MemorySequenceAdventure, key, roundsReached, lowerIsBetter: false);
+    }
+
+    private async Task PlaybackAsync()
+    {
+        playbackCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        playbackCts = cts;
+
+        phase = Phase.Watching;
+        playerStep = 0;
+        StateHasChanged();
+        await Task.Delay(500, CancellationToken.None);
+
+        var stepDelay = Math.Max(320, 750 - sequence.Count * 20);
+
+        foreach (var step in sequence)
+        {
+            if (cts.IsCancellationRequested) return;
+
+            activeIndex = step;
+            StateHasChanged();
+            await PlaySoundAsync("playSimonTone", step);
+            await Task.Delay(stepDelay, CancellationToken.None);
+            if (cts.IsCancellationRequested) return;
+
+            activeIndex = -1;
+            StateHasChanged();
+            await Task.Delay(Math.Max(140, stepDelay / 3), CancellationToken.None);
+        }
+
+        if (cts.IsCancellationRequested) return;
+
+        phase = Phase.Listening;
+        StateHasChanged();
+    }
+
+    private bool isHandlingTap;
+
+    private async Task OnDoorTap(int index)
+    {
+        if (phase != Phase.Listening || isHandlingTap) return;
+        isHandlingTap = true;
+
+        try
+        {
+            pressedIndex = index;
+            activeIndex = index;
+            StateHasChanged();
+            await PlaySoundAsync("playSimonTone", index);
+            await Task.Delay(200);
+            pressedIndex = -1;
+            activeIndex = -1;
+            StateHasChanged();
+
+            if (sequence[playerStep] != index)
+            {
+                mistakesMade++;
+                StateHasChanged();
+                if (mistakesMade >= MaxMistakes(selectedDifficulty))
+                {
+                    await EndRoundAsync();
+                    return;
+                }
+
+                await PlaySoundAsync("playSimonErrorSound", null);
+                await Task.Delay(600);
+                await PlaybackAsync();
+                return;
+            }
+
+            playerStep++;
+            if (playerStep == sequence.Count)
+            {
+                roundsReached = sequence.Count;
+                await Task.Delay(500);
+                sequence.Add(rng.Next(4));
+                await PlaybackAsync();
+            }
+        }
+        finally
+        {
+            isHandlingTap = false;
+        }
+    }
+
+    private async Task EndRoundAsync()
+    {
+        phase = Phase.RoundEnd;
+        await RecordBestIfNeededAsync();
+        StateHasChanged();
+        await PlaySoundAsync("playSimonErrorSound", null);
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MemorySequenceAdventureResult(
+                RoundsReached: roundsReached,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    // Hops the traveler emoji to sit above whichever door is currently
+    // active (lit during playback, or just-tapped during listening),
+    // or a centered "resting" spot between doors otherwise - the one
+    // bit of literal motion behind this reskin's "travels through
+    // doors" framing.
+    private string TravelerStyle()
+    {
+        var slot = activeIndex >= 0 ? activeIndex : -1;
+        var leftPct = slot >= 0 ? (slot * 25 + 12.5) : 50;
+        return $"left:{leftPct.ToString(System.Globalization.CultureInfo.InvariantCulture)}%;";
+    }
+
+    private string StatusText() => phase switch
+    {
+        Phase.Watching => "Watch where the traveler goes...",
+        Phase.Listening => "Your turn - lead the way!",
+        Phase.RoundEnd => "Adventure over",
+        _ => "",
+    };
+
+    private static string DoorName(int index) => DoorNames[index];
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Practice - can't fail",
+        Difficulty.Medium => "3 mistakes allowed",
+        _ => "No mistakes allowed",
+    };
+
+    private string MistakesText() => selectedDifficulty switch
+    {
+        Difficulty.Easy => "Practice mode",
+        Difficulty.Medium => $"Mistakes: {mistakesMade}/{MaxMistakes(Difficulty.Medium)}",
+        _ => "No mistakes allowed",
+    };
+
+    private async Task PlaySoundAsync(string fn, int? arg = null)
+    {
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+            if (arg is int i) await _module.InvokeVoidAsync(fn, i);
+            else await _module.InvokeVoidAsync(fn);
+        }
+        catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        playbackCts?.Cancel();
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record MemorySequenceAdventureResult(int RoundsReached, int ElapsedSeconds);
+}

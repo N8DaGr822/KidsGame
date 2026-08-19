@@ -1,0 +1,325 @@
+@*
+    TreasureHunt.razor
+    A room-to-room navigation cousin of Hot and Cold's grid-hunt (see
+    Components/HotAndCold.razor) - genuinely different mechanic, not a
+    reskin: there you can tap any cell on the whole grid at any time; here
+    you physically walk one room at a time (only orthogonally-adjacent
+    rooms to your current position are tappable), and each room you enter
+    reveals how close it is to the hidden treasure. Visited rooms keep
+    their reading visible so backtracking is informed, not blind. A fixed
+    3-treasure session; personal best tracks fewest total moves across
+    the whole session, per difficulty (which sets grid size).
+
+    Usage:
+        <TreasureHunt OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+
+<div class="th-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="th-setup game-setup-panel">
+            <h2>🗺️ Treasure Hunt</h2>
+            <p>Tap a room next to you to step into it - each room tells you how close the treasure is. Find it in as few steps as you can!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="th-diff-name">@DifficultyName(diff)</span>
+                            <span class="th-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="th-title">Treasure Hunt</span>
+            <span class="game-stat">💰 Treasure @Math.Min(roundIndex + 1, SessionSize)/@SessionSize</span>
+            <span class="game-stat">👣 Moves @totalMoves</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <p class="th-status">@roundMessage</p>
+
+        <div class="th-grid" style="--th-size:@gridSize;">
+            @for (var r = 0; r < gridSize; r++)
+            {
+                for (var c = 0; c < gridSize; c++)
+                {
+                    var idx = r * gridSize + c;
+                    var revealed = visitedTiers.TryGetValue(idx, out var tier);
+                    var isPlayer = idx == playerIdx;
+                    <button class="th-cell @(revealed ? tier : "") @(isPlayer ? "player" : "") @(IsAdjacentToPlayer(idx) ? "reachable" : "")"
+                            disabled="@(phase != Phase.Playing || !IsAdjacentToPlayer(idx))"
+                            @onclick="() => OnRoomTap(idx)">
+                        @if (isPlayer)
+                        {
+                            @:🧍
+                        }
+                        else if (revealed)
+                        {
+                            @TierEmoji(tier!)
+                        }
+                    </button>
+                }
+            }
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🏆 All Treasures Found!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")found all @SessionSize treasures in @totalMoves steps!</p>
+                    <PersonalBestBadge Value="@(bestMoves is { } bm ? $"{bm} steps" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<TreasureHuntResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest total moves for the session) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int SessionSize = 3;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int GridSizeFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 4,
+        Difficulty.Medium => 5,
+        _ => 6,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int gridSize = 4;
+    private int playerIdx;
+    private int treasureIdx;
+    private int roundIndex;
+    private int totalMoves;
+    private string roundMessage = "";
+    private readonly Dictionary<int, string> visitedTiers = new();
+    private int? bestMoves;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        gridSize = GridSizeFor(selectedDifficulty);
+        roundIndex = 0;
+        totalMoves = 0;
+        bestMoves = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        LoadRound();
+    }
+
+    private void LoadRound()
+    {
+        playerIdx = 0; // always start top-left - the map itself is what's new each round, not the entry point
+        visitedTiers.Clear();
+
+        // Keep the treasure meaningfully far from the start so every
+        // round takes real exploration, not a lucky first guess.
+        var minDist = Math.Max(2, gridSize / 2);
+        do
+        {
+            treasureIdx = rng.Next(gridSize * gridSize);
+        } while (Chebyshev(treasureIdx, playerIdx, gridSize) < minDist);
+
+        visitedTiers[playerIdx] = TierFor(Chebyshev(playerIdx, treasureIdx, gridSize), gridSize - 1);
+        roundMessage = "Step into a room next to you to explore!";
+    }
+
+    private bool IsAdjacentToPlayer(int idx)
+    {
+        if (idx == playerIdx) return false;
+        var (pr, pc) = (playerIdx / gridSize, playerIdx % gridSize);
+        var (r, c) = (idx / gridSize, idx % gridSize);
+        return (Math.Abs(pr - r) == 1 && pc == c) || (Math.Abs(pc - c) == 1 && pr == r);
+    }
+
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new TreasureHuntResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                TreasuresFound: roundIndex,
+                SessionSize: SessionSize,
+                TotalMoves: totalMoves,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task OnRoomTap(int idx)
+    {
+        if (phase != Phase.Playing || !IsAdjacentToPlayer(idx)) return;
+
+        playerIdx = idx;
+        totalMoves++;
+
+        if (idx == treasureIdx)
+        {
+            roundMessage = "Treasure found! 💰";
+            StateHasChanged();
+            await PlaySoundAsync("playMatchSound");
+            await Task.Delay(900);
+
+            roundIndex++;
+            if (roundIndex >= SessionSize)
+            {
+                await FinishGame();
+                return;
+            }
+
+            LoadRound();
+            StateHasChanged();
+            return;
+        }
+
+        var tier = TierFor(Chebyshev(idx, treasureIdx, gridSize), gridSize - 1);
+        visitedTiers[idx] = tier;
+        roundMessage = TierMessage(tier);
+        await PlaySoundAsync(tier is "scorching" or "hot" ? "playImpactSound" : "playCatchSound");
+        StateHasChanged();
+    }
+
+    private static int Chebyshev(int a, int b, int size)
+    {
+        var (ar, ac) = (a / size, a % size);
+        var (br, bc) = (b / size, b % size);
+        return Math.Max(Math.Abs(ar - br), Math.Abs(ac - bc));
+    }
+
+    private static string TierFor(int dist, int maxDist)
+    {
+        var frac = maxDist == 0 ? 0 : (double)dist / maxDist;
+        if (frac <= 0.2) return "scorching";
+        if (frac <= 0.4) return "hot";
+        if (frac <= 0.6) return "warm";
+        if (frac <= 0.8) return "cold";
+        return "freezing";
+    }
+
+    private static string TierEmoji(string tier) => tier switch
+    {
+        "scorching" => "🔥🔥🔥",
+        "hot" => "🔥🔥",
+        "warm" => "🔥",
+        "cold" => "🧊",
+        _ => "🧊🧊",
+    };
+
+    private static string TierMessage(string tier) => tier switch
+    {
+        "scorching" => "Scorching! It's so close!",
+        "hot" => "Hot!",
+        "warm" => "Warm...",
+        "cold" => "Cold...",
+        _ => "Freezing! Way off.",
+    };
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"fewest-moves-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestMoves = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.TreasureHunt, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.TreasureHunt, key, totalMoves, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new TreasureHuntResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                TreasuresFound: SessionSize,
+                SessionSize: SessionSize,
+                TotalMoves: totalMoves,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "4x4 map",
+        Difficulty.Medium => "5x5 map",
+        _ => "6x6 map",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record TreasureHuntResult(string Difficulty, int TreasuresFound, int SessionSize, int TotalMoves, int ElapsedSeconds);
+}

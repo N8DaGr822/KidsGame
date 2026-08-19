@@ -66,10 +66,16 @@
         <div class="bp-field">
             @foreach (var item in items)
             {
-                <button @key="item.Id" class="bp-item @(item.Popped ? "popped" : "")"
+                <button @key="item.Id" class="bp-item @(item.Popped ? (item.Correct ? "popped correct" : "popped wrong") : "")"
                         style="@ItemStyle(item)"
                         disabled="@(phase != Phase.Playing)"
-                        @onclick="() => PopItem(item)">@(selectedMode.Name == "Colors" ? "" : item.Symbol)</button>
+                        @onclick="() => PopItem(item)">
+                    @(selectedMode.Name == "Colors" ? "" : item.Symbol)
+                    @if (item.Popped && !item.Correct)
+                    {
+                        <span class="bp-wrong-mark" aria-hidden="true">✕</span>
+                    }
+                </button>
             }
         </div>
 
@@ -151,6 +157,7 @@
         public string Id { get; } = Guid.NewGuid().ToString();
         public string Symbol = "";
         public bool Popped;
+        public bool Correct;
         public double StartXPct;
         public double WobblePct;
         public int DurationMs;
@@ -271,8 +278,9 @@
         if (phase != Phase.Playing || item.Popped) return;
 
         item.Popped = true;
+        item.Correct = item.Symbol == target;
 
-        if (item.Symbol == target)
+        if (item.Correct)
         {
             popped++;
             streak++;
@@ -297,7 +305,7 @@
         }
 
         StateHasChanged();
-        await Task.Delay(150);
+        await Task.Delay(300);
         items.Remove(item);
         StateHasChanged();
     }

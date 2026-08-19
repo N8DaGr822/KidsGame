@@ -13,6 +13,7 @@
 *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject AppDataService Data
 
 <div class="wa-game">
 
@@ -79,6 +80,7 @@
                         <div><span class="wa-stat-label game-stat-label">Hits</span><span class="wa-stat-value game-stat-value">@hits</span></div>
                         <div><span class="wa-stat-label game-stat-label">Best streak</span><span class="wa-stat-value game-stat-value">@bestStreak</span></div>
                     </div>
+                    <PersonalBestBadge Value="@((bestScore ?? score).ToString())" IsNew="isNewBest" />
                     <div class="wa-win-actions game-result-actions">
                         <button class="wa-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="wa-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
@@ -98,6 +100,13 @@
     /// from the admin panel; when set, the picker is replaced with a
     /// locked note and that difficulty is used.</summary>
     [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (high score per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestScore;
+    private bool isNewBest;
 
     private enum Phase { Setup, Playing, Finished }
     public enum Difficulty { Easy, Medium, Hard }
@@ -159,6 +168,7 @@
         misses = 0;
         streak = 0;
         bestStreak = 0;
+        isNewBest = false;
         remainingMs = config.RoundSeconds * 1000;
         nextSpawnInMs = rng.Next(config.MinSpawnMs, config.MaxSpawnMs + 1);
         phase = Phase.Playing;
@@ -267,6 +277,14 @@
     {
         StopTimer();
         phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"score:{DifficultyName(selectedDifficulty)}";
+            bestScore = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.WhackAMole, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.WhackAMole, key, score, lowerIsBetter: false);
+        }
+
         StateHasChanged();
 
         if (OnComplete.HasDelegate)

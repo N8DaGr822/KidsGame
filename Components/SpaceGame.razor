@@ -1,0 +1,666 @@
+@*
+    SpaceGame.razor
+    An Asteroids-style survival shooter - the first game in this app to use
+    a genuine continuous real-time loop + collision physics for player
+    movement, rather than the turn-based/analytic-single-arc/discrete-tick
+    patterns every other game here uses. Modeled directly on AirHockey's
+    proven loop shape (fixed 1/120s timestep with a capped substep count
+    per rendered frame, a CancellationTokenSource so the loop always stops
+    cleanly on exit/dispose, pointer-capture drag for touch input) rather
+    than inventing a new one - see GAMES_ROADMAP.md's "Arcade, racing, and
+    platforming" section for why this whole category was deferred until
+    now.
+
+    Controls are deliberately simplified from "real" Asteroids (whose
+    momentum-heavy keyboard controls are notoriously hard to master even
+    for adults): drag anywhere and the ship continuously accelerates
+    toward your finger, coasting to a gentle stop via drag when you let
+    go. The ship always faces its current direction of travel and
+    auto-fires a laser on a fixed cadence - steering *is* aiming, so
+    there's no separate fire control to learn. Both the ship and
+    asteroids wrap around the field edges rather than bouncing off walls
+    (asteroids also bounce off each other via Services/Physics2D.cs's
+    circle/circle resolver, same as Air Hockey/Pool). Asteroid count and
+    speed escalate the longer you survive. Colliding with an asteroid
+    costs a life and a brief invulnerability window; three lives lost
+    ends the run. Personal best tracks high score, per difficulty.
+
+    Usage:
+        <SpaceGame OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using System.Numerics
+@using KidsGameLauncher.Services
+
+<div class="sg-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="sg-setup game-setup-panel">
+            <h2>🚀 Space Survival</h2>
+            <p>Drag anywhere to fly - your ship auto-fires at whatever's ahead of it. Dodge or blast the asteroids. You've got 3 lives - survive as long as you can!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="sg-diff-name">@DifficultyName(diff)</span>
+                            <span class="sg-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="sg-title">Space Survival</span>
+            <div class="sg-lives">
+                @for (var i = 0; i < MaxLives; i++)
+                {
+                    <span class="sg-life-pip @(i < lives ? "" : "spent")">🚀</span>
+                }
+            </div>
+            <span class="game-stat">⭐ @score</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="sg-field" @ref="fieldRef"
+             @onpointerdown="OnFieldPointerDown" @onpointermove="OnFieldPointerMove"
+             @onpointerup="OnFieldPointerUp" @onpointercancel="OnFieldPointerUp">
+
+            @foreach (var star in stars)
+            {
+                <img class="sg-star" src="images/space/@(star.Small ? "star-small.png" : "star-tiny.png")"
+                     style="left:@((star.X * 100f / FieldWidth).ToString(Inv))%; top:@((star.Y * 100f / FieldHeight).ToString(Inv))%;" />
+            }
+
+            @foreach (var meteor in meteors)
+            {
+                <img @key="meteor.Id" class="sg-meteor @(meteor.Large ? "large" : "small") @(meteor.Dying ? "dying" : "")"
+                     src="images/space/@(meteor.Large ? "meteor-large.png" : "meteor-small.png")"
+                     style="left:@((meteor.Body.Position.X * 100f / FieldWidth).ToString(Inv))%; top:@((meteor.Body.Position.Y * 100f / FieldHeight).ToString(Inv))%; transform:translate(-50%,-50%) rotate(@(meteor.RotationDeg.ToString(Inv))deg);" />
+            }
+
+            @foreach (var laser in lasers)
+            {
+                <span @key="laser.Id" class="sg-laser"
+                      style="left:@((laser.Position.X * 100f / FieldWidth).ToString(Inv))%; top:@((laser.Position.Y * 100f / FieldHeight).ToString(Inv))%; transform:translate(-50%,-50%) rotate(@(laser.FacingDeg.ToString(Inv))deg);"></span>
+            }
+
+            @if (phase == Phase.Playing || phase == Phase.Finished)
+            {
+                <div class="sg-ship @(thrusting ? "thrusting" : "") @(invulnerableUntil > DateTime.UtcNow ? "invulnerable" : "")"
+                     style="left:@((ship.Position.X * 100f / FieldWidth).ToString(Inv))%; top:@((ship.Position.Y * 100f / FieldHeight).ToString(Inv))%; transform:translate(-50%,-50%) rotate(@(ShipCssAngle().ToString(Inv))deg);">
+                    <img class="sg-thrust" src="images/space/thrust.png" alt="" />
+                    <img class="sg-ship-img" src="images/space/ship.png" alt="Your ship" />
+                </div>
+            }
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>💥 Run Over!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")you survived @FormatTime(elapsedSeconds)!</p>
+                    <div class="game-result-stats">
+                        <div><span class="game-stat-label">Score</span><span class="game-stat-value">@score</span></div>
+                        <div><span class="game-stat-label">Time</span><span class="game-stat-value">@FormatTime(elapsedSeconds)</span></div>
+                    </div>
+                    <PersonalBestBadge Value="@(bestScore is { } bs ? $"{bs} score" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<SpaceGameResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (high score, per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    private enum Difficulty { Easy, Medium, Hard }
+
+    // Physics-space field units - not pixels or percent, same convention
+    // as AirHockey's TableWidth/TableHeight. Render position is just
+    // Position/FieldSize as a percentage of the field box, which is
+    // CSS-constrained to this same aspect ratio.
+    private const float FieldWidth = 100f;
+    private const float FieldHeight = 140f;
+    private const float ShipRadius = 4.5f;
+    private const float LargeMeteorRadius = 7f;
+    private const float SmallMeteorRadius = 4f;
+    private const float LaserRadius = 1f;
+    private const float LaserSpeed = 90f;
+    private const float LaserLifetimeSec = 1.6f;
+    private const float ShipMaxSpeed = 45f;
+    private const float ShipAcceleration = 140f;
+    private const float ShipDragPerSecond = 1.2f;
+    private const float MeteorRestitution = 0.95f;
+    private const int MaxLives = 3;
+    private const double InvulnerabilityMs = 1500;
+    private const double FireCooldownMs = 450;
+    private const int ScorePerMeteor = 10;
+    private const float FixedDt = 1f / 120f;
+    private const int MaxSubstepsPerFrame = 8;
+    private const int FrameDelayMs = 16;
+    private const double MeteorDyingMs = 220;
+    private const float EscalationIntervalSec = 18f;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int BaseMeteorCount(Difficulty d) => d switch { Difficulty.Easy => 3, Difficulty.Medium => 4, _ => 5 };
+    private static int MaxMeteorCap(Difficulty d) => d switch { Difficulty.Easy => 6, Difficulty.Medium => 8, _ => 10 };
+    private static (float Min, float Max) MeteorSpeedRange(Difficulty d) => d switch
+    {
+        Difficulty.Easy => (8f, 15f),
+        Difficulty.Medium => (11f, 20f),
+        _ => (15f, 27f),
+    };
+    private static float SpawnIntervalSec(Difficulty d) => d switch { Difficulty.Easy => 3.2f, Difficulty.Medium => 2.4f, _ => 1.7f };
+
+    private class MeteorState
+    {
+        public int Id;
+        public PhysicsBody Body = new();
+        public bool Large;
+        public float RotationDeg;
+        public float SpinDegPerSec;
+        public bool Dying;
+        public DateTime RemoveAtUtc;
+    }
+
+    private class LaserState
+    {
+        public int Id;
+        public Vector2 Position;
+        public Vector2 Velocity;
+        public float FacingDeg;
+        public float LifeRemainingSec;
+    }
+
+    private record StarState(float X, float Y, bool Small);
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+
+    private PhysicsBody ship = new() { Radius = ShipRadius };
+    private float shipFacingDeg = -90f; // pointing "up" - matches the ship art's default orientation
+    private bool thrusting;
+    private readonly List<MeteorState> meteors = new();
+    private readonly List<LaserState> lasers = new();
+    private readonly List<StarState> stars = new();
+
+    // One shared counter for both meteors and lasers, not two independent
+    // zero-based ones - meteors and lasers render as adjacent @key'd
+    // @foreach blocks under the same parent (.sg-field), and Blazor's
+    // key-diffing can conflate keys across adjacent keyed loops (a
+    // meteor #0 and a laser #0 alive at the same time threw "More than
+    // one sibling ... has the same key value, '0'" even though they're
+    // different lists) - a single shared id space makes that impossible.
+    private int nextEntityId;
+
+    private int lives;
+    private int score;
+    private int elapsedSeconds;
+    private DateTime invulnerableUntil;
+    private DateTime nextFireAtUtc;
+    private float spawnTimerSec;
+    private int? bestScore;
+    private bool isNewBest;
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    private ElementReference fieldRef;
+    private double fieldLeft, fieldTop, fieldWidth, fieldHeight;
+    private long? activeFieldPointerId;
+    private Vector2? pointerTarget;
+
+    private CancellationTokenSource? _loopCts;
+    private float accumulator;
+    private readonly Random rng = new();
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        ship = new PhysicsBody { Radius = ShipRadius, Position = new Vector2(FieldWidth / 2f, FieldHeight / 2f) };
+        shipFacingDeg = -90f;
+        thrusting = false;
+        pointerTarget = null;
+        meteors.Clear();
+        lasers.Clear();
+        stars.Clear();
+        lives = MaxLives;
+        score = 0;
+        elapsedSeconds = 0;
+        spawnTimerSec = 0;
+        invulnerableUntil = DateTime.UtcNow;
+        nextFireAtUtc = DateTime.UtcNow;
+        bestScore = null;
+        isNewBest = false;
+
+        for (var i = 0; i < 40; i++)
+        {
+            stars.Add(new StarState((float)(rng.NextDouble() * FieldWidth), (float)(rng.NextDouble() * FieldHeight), rng.Next(3) == 0));
+        }
+
+        for (var i = 0; i < BaseMeteorCount(selectedDifficulty); i++)
+        {
+            SpawnMeteor();
+        }
+
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+
+        _loopCts?.Cancel();
+        _loopCts = new CancellationTokenSource();
+        _ = RunLoopAsync(_loopCts.Token);
+    }
+
+    private async Task ExitToSetup()
+    {
+        _loopCts?.Cancel();
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SpaceGameResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                ElapsedSeconds: elapsedSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    // Same shape as AirHockey's loop: fixed-timestep physics with a capped
+    // substep count per real frame (so a slow/backgrounded tab can't try
+    // to simulate a huge gap in one jump and tunnel a laser through a
+    // meteor), wrapped in try/catch so one bad frame skips instead of
+    // silently freezing the whole run.
+    private async Task RunLoopAsync(CancellationToken ct)
+    {
+        var lastTick = DateTime.UtcNow;
+
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(FrameDelayMs, ct);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            try
+            {
+                var now = DateTime.UtcNow;
+                var elapsed = (float)(now - lastTick).TotalSeconds;
+                lastTick = now;
+
+                accumulator += elapsed;
+                var substeps = 0;
+                while (accumulator >= FixedDt && substeps < MaxSubstepsPerFrame)
+                {
+                    StepPhysics(FixedDt);
+                    accumulator -= FixedDt;
+                    substeps++;
+                }
+                if (substeps >= MaxSubstepsPerFrame) accumulator = 0f;
+
+                elapsedSeconds = (int)(now - startedAtUtc).TotalSeconds;
+
+                if (lives <= 0 && phase == Phase.Playing)
+                {
+                    await FinishGame();
+                    return;
+                }
+
+                StateHasChanged();
+            }
+            catch (Exception) when (!ct.IsCancellationRequested)
+            {
+                accumulator = 0f;
+            }
+        }
+    }
+
+    private void StepPhysics(float dt)
+    {
+        UpdateShip(dt);
+        UpdateMeteors(dt);
+        UpdateLasers(dt);
+        TryAutoFire();
+        TrySpawnMeteor(dt);
+        CheckLaserMeteorCollisions();
+        CheckShipMeteorCollision();
+        AgeOutDyingMeteors();
+    }
+
+    private void UpdateShip(float dt)
+    {
+        if (pointerTarget is { } target)
+        {
+            var toTarget = target - ship.Position;
+            if (toTarget.LengthSquared() > 0.25f)
+            {
+                var dir = Vector2.Normalize(toTarget);
+                ship.Velocity += dir * ShipAcceleration * dt;
+                thrusting = true;
+            }
+        }
+        else
+        {
+            thrusting = false;
+        }
+
+        if (ship.Velocity.LengthSquared() > ShipMaxSpeed * ShipMaxSpeed)
+        {
+            ship.Velocity = Vector2.Normalize(ship.Velocity) * ShipMaxSpeed;
+        }
+
+        Physics2D.ApplyDrag(ship, dt, ShipDragPerSecond);
+        ship.Position = Wrap(ship.Position + ship.Velocity * dt);
+
+        if (ship.Velocity.LengthSquared() > 4f)
+        {
+            shipFacingDeg = MathF.Atan2(ship.Velocity.Y, ship.Velocity.X) * 180f / MathF.PI;
+        }
+    }
+
+    private void UpdateMeteors(float dt)
+    {
+        foreach (var m in meteors)
+        {
+            if (m.Dying) continue;
+            m.Body.Position = Wrap(m.Body.Position + m.Body.Velocity * dt);
+            m.RotationDeg = (m.RotationDeg + m.SpinDegPerSec * dt) % 360f;
+        }
+
+        for (var i = 0; i < meteors.Count; i++)
+        {
+            if (meteors[i].Dying) continue;
+            for (var j = i + 1; j < meteors.Count; j++)
+            {
+                if (meteors[j].Dying) continue;
+                Physics2D.ResolveCircleCollision(meteors[i].Body, meteors[j].Body, MeteorRestitution);
+            }
+        }
+    }
+
+    private void UpdateLasers(float dt)
+    {
+        for (var i = lasers.Count - 1; i >= 0; i--)
+        {
+            var laser = lasers[i];
+            laser.Position += laser.Velocity * dt;
+            laser.LifeRemainingSec -= dt;
+            if (laser.LifeRemainingSec <= 0) lasers.RemoveAt(i);
+        }
+    }
+
+    private void TryAutoFire()
+    {
+        if (phase != Phase.Playing) return;
+        var now = DateTime.UtcNow;
+        if (now < nextFireAtUtc) return;
+        nextFireAtUtc = now.AddMilliseconds(FireCooldownMs);
+
+        var rad = shipFacingDeg * MathF.PI / 180f;
+        var dir = new Vector2(MathF.Cos(rad), MathF.Sin(rad));
+        lasers.Add(new LaserState
+        {
+            Id = nextEntityId++,
+            Position = ship.Position + dir * (ShipRadius + 1f),
+            Velocity = dir * LaserSpeed,
+            FacingDeg = ShipCssAngle(),
+            LifeRemainingSec = LaserLifetimeSec,
+        });
+    }
+
+    private void TrySpawnMeteor(float dt)
+    {
+        var cap = MaxMeteorCap(selectedDifficulty);
+        var aliveCount = meteors.Count(m => !m.Dying);
+        if (aliveCount >= EffectiveMeteorTarget(cap)) return;
+
+        spawnTimerSec -= dt;
+        if (spawnTimerSec > 0) return;
+        spawnTimerSec = SpawnIntervalSec(selectedDifficulty);
+        SpawnMeteor();
+    }
+
+    // The longer a run lasts, the more meteors are allowed on screen at
+    // once (up to the difficulty's cap) - an escalating-difficulty
+    // endless mode, same spirit as Tower Defense's wave escalation.
+    private int EffectiveMeteorTarget(int cap)
+    {
+        var bonus = (int)(elapsedSeconds / EscalationIntervalSec);
+        return Math.Min(cap, BaseMeteorCount(selectedDifficulty) + bonus);
+    }
+
+    private void SpawnMeteor()
+    {
+        // Spawn just outside a random edge, heading roughly inward with
+        // some random spread, so new meteors don't immediately fly back
+        // off-field before the player can react.
+        var edge = rng.Next(4);
+        Vector2 pos = edge switch
+        {
+            0 => new Vector2((float)(rng.NextDouble() * FieldWidth), -LargeMeteorRadius),
+            1 => new Vector2(FieldWidth + LargeMeteorRadius, (float)(rng.NextDouble() * FieldHeight)),
+            2 => new Vector2((float)(rng.NextDouble() * FieldWidth), FieldHeight + LargeMeteorRadius),
+            _ => new Vector2(-LargeMeteorRadius, (float)(rng.NextDouble() * FieldHeight)),
+        };
+
+        var center = new Vector2(FieldWidth / 2f, FieldHeight / 2f);
+        var inward = Vector2.Normalize(center - pos + new Vector2((float)(rng.NextDouble() - 0.5) * 30f, (float)(rng.NextDouble() - 0.5) * 30f));
+        var (min, max) = MeteorSpeedRange(selectedDifficulty);
+        var speed = min + (float)rng.NextDouble() * (max - min);
+        var large = rng.Next(2) == 0;
+
+        meteors.Add(new MeteorState
+        {
+            Id = nextEntityId++,
+            Body = new PhysicsBody { Position = pos, Velocity = inward * speed, Radius = large ? LargeMeteorRadius : SmallMeteorRadius, Mass = large ? 2.5f : 1f },
+            Large = large,
+            SpinDegPerSec = (float)(rng.NextDouble() - 0.5) * 90f,
+        });
+    }
+
+    private void CheckLaserMeteorCollisions()
+    {
+        for (var li = lasers.Count - 1; li >= 0; li--)
+        {
+            var laser = lasers[li];
+            var hit = false;
+            foreach (var m in meteors)
+            {
+                if (m.Dying) continue;
+                if ((laser.Position - m.Body.Position).LengthSquared() > (m.Body.Radius + LaserRadius) * (m.Body.Radius + LaserRadius)) continue;
+
+                KillMeteor(m);
+                score += ScorePerMeteor;
+                _ = PlaySoundAsync("playExplosionSound");
+                hit = true;
+                break;
+            }
+            if (hit) lasers.RemoveAt(li);
+        }
+    }
+
+    private void CheckShipMeteorCollision()
+    {
+        if (DateTime.UtcNow < invulnerableUntil) return;
+
+        foreach (var m in meteors)
+        {
+            if (m.Dying) continue;
+            if ((ship.Position - m.Body.Position).LengthSquared() > (m.Body.Radius + ship.Radius) * (m.Body.Radius + ship.Radius)) continue;
+
+            KillMeteor(m);
+            lives--;
+            invulnerableUntil = DateTime.UtcNow.AddMilliseconds(InvulnerabilityMs);
+            ship.Position = new Vector2(FieldWidth / 2f, FieldHeight / 2f);
+            ship.Velocity = Vector2.Zero;
+            _ = PlaySoundAsync("playImpactSound");
+            break;
+        }
+    }
+
+    private void KillMeteor(MeteorState m)
+    {
+        m.Dying = true;
+        m.RemoveAtUtc = DateTime.UtcNow.AddMilliseconds(MeteorDyingMs);
+    }
+
+    private void AgeOutDyingMeteors()
+    {
+        var now = DateTime.UtcNow;
+        meteors.RemoveAll(m => m.Dying && now >= m.RemoveAtUtc);
+    }
+
+    private static Vector2 Wrap(Vector2 p) => new(
+        ((p.X % FieldWidth) + FieldWidth) % FieldWidth,
+        ((p.Y % FieldHeight) + FieldHeight) % FieldHeight);
+
+    // Ship art points "up" (negative Y) at rotate(0deg); shipFacingDeg is
+    // a standard atan2(vy, vx) angle (0 = pointing right). +90 aligns them.
+    private float ShipCssAngle() => shipFacingDeg + 90f;
+
+    private async Task OnFieldPointerDown(PointerEventArgs e)
+    {
+        if (phase != Phase.Playing) return;
+
+        activeFieldPointerId = e.PointerId;
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        var rect = await _module.InvokeAsync<FieldRect>("getBoundingRect", fieldRef);
+        fieldLeft = rect.Left;
+        fieldTop = rect.Top;
+        fieldWidth = rect.Width;
+        fieldHeight = rect.Height;
+
+        await _module.InvokeVoidAsync("setPointerCapture", fieldRef, e.PointerId);
+
+        if (activeFieldPointerId != e.PointerId) return;
+        UpdatePointerTarget(e.ClientX, e.ClientY);
+    }
+
+    private void OnFieldPointerMove(PointerEventArgs e)
+    {
+        if (activeFieldPointerId != e.PointerId) return;
+        UpdatePointerTarget(e.ClientX, e.ClientY);
+    }
+
+    private void OnFieldPointerUp(PointerEventArgs e)
+    {
+        if (activeFieldPointerId != e.PointerId) return;
+        activeFieldPointerId = null;
+        pointerTarget = null;
+    }
+
+    private void UpdatePointerTarget(double clientX, double clientY)
+    {
+        if (fieldWidth <= 0 || fieldHeight <= 0) return;
+        var xPct = (clientX - fieldLeft) / fieldWidth;
+        var yPct = (clientY - fieldTop) / fieldHeight;
+        pointerTarget = new Vector2((float)(xPct * FieldWidth), (float)(yPct * FieldHeight));
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        _loopCts?.Cancel();
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"high-score-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestScore = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.SpaceGame, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.SpaceGame, key, score, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SpaceGameResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.Minutes > 0 ? $"{ts.Minutes}:{ts.Seconds:D2}" : $"{ts.Seconds}s";
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Fewer, slower asteroids",
+        Difficulty.Medium => "A steady asteroid field",
+        _ => "Fast and crowded",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        _loopCts?.Cancel();
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    private record FieldRect(double Left, double Top, double Width, double Height);
+
+    public record SpaceGameResult(string Difficulty, int Score, int ElapsedSeconds);
+}

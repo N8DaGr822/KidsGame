@@ -77,3 +77,34 @@
     color: var(--text-muted);
     min-height: 1.4rem;
 }
+
+/* Pocket-sink explosion pop - real 10-frame sprite (see GAMES_ROADMAP.md's
+   explosion-pack asset triage), one PNG per frame rather than a laid-out
+   spritesheet, so frames are swapped via keyframes rather than
+   steps()+background-position. */
+.pb-pocket-fx {
+    position: absolute;
+    width: 16%;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    pointer-events: none;
+    z-index: 4;
+    animation: pb-pocket-flash 0.7s linear forwards;
+}
+
+@keyframes pb-pocket-flash {
+    0%   { opacity: 1; background-image: url('images/effects/pocket-pop/frame-01.png'); }
+    10%  { background-image: url('images/effects/pocket-pop/frame-02.png'); }
+    20%  { background-image: url('images/effects/pocket-pop/frame-03.png'); }
+    30%  { background-image: url('images/effects/pocket-pop/frame-04.png'); }
+    40%  { background-image: url('images/effects/pocket-pop/frame-05.png'); }
+    50%  { background-image: url('images/effects/pocket-pop/frame-06.png'); }
+    60%  { background-image: url('images/effects/pocket-pop/frame-07.png'); }
+    70%  { background-image: url('images/effects/pocket-pop/frame-08.png'); }
+    80%  { background-image: url('images/effects/pocket-pop/frame-09.png'); }
+    90%  { background-image: url('images/effects/pocket-pop/frame-10.png'); }
+    100% { opacity: 0; background-image: url('images/effects/pocket-pop/frame-10.png'); }
+}

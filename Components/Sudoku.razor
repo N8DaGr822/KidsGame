@@ -19,6 +19,7 @@
 *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject AppDataService Data
 
 <div class="sk-game">
 
@@ -52,7 +53,8 @@
     else if (phase == Phase.Generating)
     {
         <div class="sk-setup game-setup-panel">
-            <p class="muted">Building your puzzle…</p>
+            <span class="sk-spinner" aria-hidden="true"></span>
+            <p class="muted sk-generating-text">Building your puzzle…</p>
         </div>
     }
     else
@@ -94,6 +96,7 @@
                 <div class="sk-win-panel game-result-panel">
                     <h2>🎉 Sudoku Solved!</h2>
                     <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") - solved in @FormatTime(elapsedSeconds)!</p>
+                    <PersonalBestBadge Value="@FormatTime(bestSeconds ?? elapsedSeconds)" IsNew="isNewBest" />
                     <div class="sk-win-actions game-result-actions">
                         <button class="sk-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="sk-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
@@ -113,6 +116,13 @@
     /// from the admin panel; when set, the picker is replaced with a
     /// locked note and that difficulty is used.</summary>
     [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fastest solve per grid size) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestSeconds;
+    private bool isNewBest;
 
     private enum Phase { Setup, Generating, Playing, Won }
     public enum Difficulty { Easy, Medium, Hard }
@@ -169,12 +179,13 @@
         (size, boxRows, boxCols, var targetClues) = ConfigFor(selectedDifficulty);
 
         solution = GenerateSolvedGrid(size, boxRows, boxCols);
-        var puzzle = CarvePuzzle(solution, size, boxRows, boxCols, targetClues);
+        var puzzle = await CarvePuzzleAsync(solution, size, boxRows, boxCols, targetClues);
 
         playerGrid = (int[])puzzle.Clone();
         isGiven = puzzle.Select(v => v != 0).ToArray();
         selectedIndex = null;
         elapsedSeconds = 0;
+        isNewBest = false;
 
         phase = Phase.Playing;
         StartTimer();
@@ -248,6 +259,13 @@
 
     private async Task InvokeCompleteAsync()
     {
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"solve:{size}";
+            bestSeconds = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Sudoku, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Sudoku, key, elapsedSeconds, lowerIsBetter: true);
+        }
+
         StateHasChanged();
 
         if (OnComplete.HasDelegate)
@@ -298,7 +316,13 @@
         return false;
     }
 
-    private int[] CarvePuzzle(int[] solved, int size, int boxRows, int boxCols, int targetClues)
+    // Blazor WASM has no background thread to offload this CPU-bound carving
+    // pass to (see the comment on StartGame above) - the uniqueness check
+    // per removal attempt is the slow part, especially on Hard's 9x9 grid.
+    // Yielding after every attempt turns one long blocking call into many
+    // short ones, so the browser can actually repaint the spinner and the
+    // tab stays responsive instead of appearing frozen.
+    private async Task<int[]> CarvePuzzleAsync(int[] solved, int size, int boxRows, int boxCols, int targetClues)
     {
         var puzzle = (int[])solved.Clone();
         var positions = Enumerable.Range(0, size * size).ToArray();
@@ -321,6 +345,8 @@
             {
                 puzzle[pos] = backup;
             }
+
+            await Task.Yield();
         }
 
         return puzzle;

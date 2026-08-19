@@ -1,0 +1,300 @@
+@*
+    AnimalSoundGuessingGame.razor
+    Zero-asset by design: rather than shipping animal sound clips, this
+    reuses the Web Speech API narration already wired up in
+    wwwroot/js/interop.js (`speak`, built for MannersGarden's spoken
+    dialogue lines) to read an animal's sound onomatopoeia aloud each
+    round ("Moooo!", "Ribbit ribbit!"), with the same text also shown on
+    screen so the round is still fully playable on a browser without
+    speech synthesis support - `speak` already no-ops safely there rather
+    than erroring. Pick which animal made that sound from a multiple-
+    choice set; difficulty scales the choice count (3/4/5). A fixed
+    8-round session, forgiving scoring (a wrong guess just reveals the
+    right answer and moves on, same shape as OddOneOut/ColorMatch rather
+    than a run-ending streak game). Personal best tracks high score, per
+    difficulty.
+
+    Usage:
+        <AnimalSoundGuessingGame OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+
+<div class="as-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="as-setup game-setup-panel">
+            <h2>🔊 Animal Sound Guessing</h2>
+            <p>Listen to the sound (and read along) - then tap the animal that made it!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="as-diff-name">@DifficultyName(diff)</span>
+                            <span class="as-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="as-title">Animal Sounds</span>
+            <span class="game-stat">Round @Math.Min(roundIndex + 1, SessionSize)/@SessionSize</span>
+            <span class="game-stat">⭐ @score</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="as-sound-card">
+            <p class="as-sound-text">🔊 "@CurrentAnimal.Sound"</p>
+            <button class="as-replay-btn game-secondary-action" @onclick="ReplaySoundAsync" disabled="@(roundState != RoundState.Guessing)">🔁 Hear it again</button>
+        </div>
+
+        <div class="as-choice-grid">
+            @foreach (var choice in currentChoices)
+            {
+                var isCorrectChoice = choice == CurrentAnimal;
+                var revealed = roundState == RoundState.Revealed;
+                <button class="as-choice-btn @(revealed && isCorrectChoice ? "correct" : "") @(revealed && choice == pickedAnimal && !isCorrectChoice ? "wrong" : "")"
+                        disabled="@(roundState != RoundState.Guessing)"
+                        @onclick="() => OnGuess(choice)">
+                    <span class="as-choice-emoji">@choice.Emoji</span>
+                    <span class="as-choice-name">@choice.Name</span>
+                </button>
+            }
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🎉 All Done!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great listening" : PlayerName + ", great listening")!</p>
+                    <div class="game-result-stats">
+                        <div><span class="game-stat-label">Score</span><span class="game-stat-value">@score/@SessionSize</span></div>
+                    </div>
+                    <PersonalBestBadge Value="@(bestScore is { } bs ? $"{bs}/{SessionSize}" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<AnimalSoundGuessingGameResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (high score, per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    private enum RoundState { Guessing, Revealed }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int SessionSize = 8;
+
+    private record AnimalDef(string Name, string Emoji, string Sound);
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static readonly AnimalDef[] Animals =
+    {
+        new("Cow", "🐄", "Moooo!"),
+        new("Dog", "🐶", "Woof woof!"),
+        new("Cat", "🐱", "Meow!"),
+        new("Frog", "🐸", "Ribbit ribbit!"),
+        new("Duck", "🦆", "Quack quack!"),
+        new("Pig", "🐷", "Oink oink!"),
+        new("Sheep", "🐑", "Baa!"),
+        new("Horse", "🐴", "Neigh!"),
+        new("Lion", "🦁", "Roar!"),
+        new("Owl", "🦉", "Hoot hoot!"),
+        new("Bird", "🐦", "Tweet tweet!"),
+        new("Bee", "🐝", "Buzzzz!"),
+        new("Rooster", "🐓", "Cock-a-doodle-doo!"),
+        new("Snake", "🐍", "Hisss!"),
+        new("Elephant", "🐘", "Pawoo!"),
+    };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int ChoiceCountFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 3,
+        Difficulty.Medium => 4,
+        _ => 5,
+    };
+
+    private Phase phase = Phase.Setup;
+    private RoundState roundState = RoundState.Guessing;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private List<AnimalDef> sessionAnimals = new();
+    private int roundIndex;
+    private AnimalDef CurrentAnimal => sessionAnimals[roundIndex];
+    private List<AnimalDef> currentChoices = new();
+    private AnimalDef? pickedAnimal;
+    private int score;
+    private int? bestScore;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        sessionAnimals = Animals.OrderBy(_ => rng.Next()).Take(SessionSize).ToList();
+        roundIndex = 0;
+        score = 0;
+        bestScore = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        _ = LoadRoundAsync();
+    }
+
+    private async Task LoadRoundAsync()
+    {
+        roundState = RoundState.Guessing;
+        pickedAnimal = null;
+
+        var choiceCount = ChoiceCountFor(selectedDifficulty);
+        var distractors = Animals.Where(a => a != CurrentAnimal).OrderBy(_ => rng.Next()).Take(choiceCount - 1);
+        currentChoices = distractors.Append(CurrentAnimal).OrderBy(_ => rng.Next()).ToList();
+
+        StateHasChanged();
+        await SpeakAsync(CurrentAnimal.Sound);
+    }
+
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new AnimalSoundGuessingGameResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                SessionSize: SessionSize,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task OnGuess(AnimalDef choice)
+    {
+        if (roundState != RoundState.Guessing) return;
+
+        pickedAnimal = choice;
+        roundState = RoundState.Revealed;
+        var correct = choice == CurrentAnimal;
+        if (correct) score++;
+        StateHasChanged();
+        await PlaySoundAsync(correct ? "playMatchSound" : "playMismatchSound");
+        await Task.Delay(1300);
+
+        roundIndex++;
+        if (roundIndex >= SessionSize)
+        {
+            await FinishGame();
+        }
+        else
+        {
+            await LoadRoundAsync();
+        }
+    }
+
+    private async Task ReplaySoundAsync() => await SpeakAsync(CurrentAnimal.Sound);
+
+    private async Task SpeakAsync(string text)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync("speak", text);
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"high-score-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestScore = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.AnimalSoundGuessingGame, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.AnimalSoundGuessingGame, key, score, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new AnimalSoundGuessingGameResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                SessionSize: SessionSize,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3 choices",
+        Difficulty.Medium => "4 choices",
+        _ => "5 choices",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("stopSpeaking");
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record AnimalSoundGuessingGameResult(string Difficulty, int Score, int SessionSize, int ElapsedSeconds);
+}

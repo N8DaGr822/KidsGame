@@ -36,6 +36,64 @@
     color: var(--text-muted);
 }
 
+.uno-section-title {
+    margin: 0.4rem 0 0;
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.uno-difficulty-locked {
+    margin: 0;
+    padding: 0.6rem 0.9rem;
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--line);
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.uno-difficulty-select {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 0.7rem;
+    width: 100%;
+}
+
+.uno-diff-btn {
+    min-height: 86px;
+    padding: 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    gap: 0.25rem;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.uno-diff-btn:hover {
+    transform: translateY(-2px);
+    background: var(--control-bg-hover);
+}
+
+.uno-diff-btn.selected {
+    border-color: rgba(78, 205, 196, 0.75);
+    background: var(--selected-bg);
+}
+
+.uno-diff-name {
+    font-weight: 900;
+}
+
+.uno-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
 .uno-start-btn,
 .uno-restart-btn {
     min-height: 48px;
@@ -101,6 +159,29 @@
 .uno-opponent.current {
     border-color: var(--accent);
     background: rgba(255, 255, 255, 0.06);
+}
+
+.uno-opponent {
+    position: relative;
+}
+
+.uno-bot-reaction {
+    position: absolute;
+    top: -1.6rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1.5rem;
+    line-height: 1;
+    animation: uno-reaction-pop 0.9s ease forwards;
+    pointer-events: none;
+}
+
+@keyframes uno-reaction-pop {
+    0% { transform: translate(-50%, 6px) scale(0.4); opacity: 0; }
+    25% { transform: translate(-50%, -4px) scale(1.2); opacity: 1; }
+    40% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+    80% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+    100% { transform: translate(-50%, -8px) scale(0.9); opacity: 0; }
 }
 
 .uno-opponent-name {
@@ -193,6 +274,16 @@
     color: #fff;
     box-shadow: var(--shadow-sm);
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.uno-card-landing {
+    animation: uno-card-land 0.32s cubic-bezier(0.2, 0.8, 0.3, 1.1);
+}
+
+@keyframes uno-card-land {
+    0% { transform: translateY(-46px) rotate(-18deg) scale(0.5); opacity: 0; }
+    70% { transform: translateY(4px) rotate(4deg) scale(1.05); opacity: 1; }
+    100% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
 }
 
 .uno-red { background: linear-gradient(160deg, #ff6b6b, #d43b3b); }

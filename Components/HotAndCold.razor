@@ -1,0 +1,301 @@
+@*
+    HotAndCold.razor
+    A grid-hunt deduction game: tap any cell and it reveals how close you
+    are to the hidden target (Chebyshev distance, scaled to the grid size
+    so the tiers feel the same at every difficulty) instead of the exact
+    location - narrow it down and find it in as few taps as possible.
+    Revealed cells stay lit with their temperature so the board fills in
+    with information as you search, same "the board itself becomes your
+    notes" feel as Minesweeper/Battleships. A fixed 5-target session;
+    personal best tracks fewest total taps across the whole session, per
+    difficulty (which sets grid size).
+
+    Usage:
+        <HotAndCold OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+
+<div class="hc-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="hc-setup game-setup-panel">
+            <h2>🔥 Hot and Cold</h2>
+            <p>Tap a tile to see how close you are to the hidden target - scorching means you're right next to it, freezing means you're way off. Find it in as few taps as you can!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="hc-diff-name">@DifficultyName(diff)</span>
+                            <span class="hc-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="hc-title">Hot and Cold</span>
+            <span class="game-stat">🎯 Target @Math.Min(roundIndex + 1, SessionSize)/@SessionSize</span>
+            <span class="game-stat">👆 Taps @totalTaps</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <p class="hc-status">@roundMessage</p>
+
+        <div class="hc-grid" style="--hc-size:@gridSize;">
+            @for (var r = 0; r < gridSize; r++)
+            {
+                for (var c = 0; c < gridSize; c++)
+                {
+                    var idx = r * gridSize + c;
+                    var revealed = revealedTiers.TryGetValue(idx, out var tier);
+                    <button class="hc-cell @(revealed ? tier : "")"
+                            disabled="@(revealed || phase != Phase.Playing)"
+                            @onclick="() => OnCellTap(idx)">
+                        @(revealed ? TierEmoji(tier!) : "")
+                    </button>
+                }
+            }
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🏆 All Found!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")found all @SessionSize targets in @totalTaps taps!</p>
+                    <PersonalBestBadge Value="@(bestTaps is { } bt ? $"{bt} taps" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<HotAndColdResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest total taps for the session) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int SessionSize = 5;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int GridSizeFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 5,
+        Difficulty.Medium => 7,
+        _ => 9,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int gridSize = 5;
+    private int targetIdx;
+    private int roundIndex;
+    private int totalTaps;
+    private string roundMessage = "";
+    private readonly Dictionary<int, string> revealedTiers = new();
+    private int? bestTaps;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        gridSize = GridSizeFor(selectedDifficulty);
+        roundIndex = 0;
+        totalTaps = 0;
+        bestTaps = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        LoadRound();
+    }
+
+    private void LoadRound()
+    {
+        targetIdx = rng.Next(gridSize * gridSize);
+        revealedTiers.Clear();
+        roundMessage = "Tap a tile to start searching!";
+    }
+
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new HotAndColdResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                TargetsFound: roundIndex,
+                SessionSize: SessionSize,
+                TotalTaps: totalTaps,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task OnCellTap(int idx)
+    {
+        if (phase != Phase.Playing || revealedTiers.ContainsKey(idx)) return;
+
+        totalTaps++;
+
+        if (idx == targetIdx)
+        {
+            revealedTiers[idx] = "found";
+            roundMessage = "Found it! 🎉";
+            StateHasChanged();
+            await PlaySoundAsync("playMatchSound");
+            await Task.Delay(900);
+
+            roundIndex++;
+            if (roundIndex >= SessionSize)
+            {
+                await FinishGame();
+                return;
+            }
+
+            LoadRound();
+            StateHasChanged();
+            return;
+        }
+
+        var dist = Chebyshev(idx, targetIdx, gridSize);
+        var maxDist = gridSize - 1;
+        var tier = TierFor(dist, maxDist);
+        revealedTiers[idx] = tier;
+        roundMessage = TierMessage(tier);
+        await PlaySoundAsync(tier is "scorching" or "hot" ? "playImpactSound" : "playCatchSound");
+        StateHasChanged();
+    }
+
+    private static int Chebyshev(int a, int b, int size)
+    {
+        var (ar, ac) = (a / size, a % size);
+        var (br, bc) = (b / size, b % size);
+        return Math.Max(Math.Abs(ar - br), Math.Abs(ac - bc));
+    }
+
+    private static string TierFor(int dist, int maxDist)
+    {
+        var frac = maxDist == 0 ? 0 : (double)dist / maxDist;
+        if (frac <= 0.2) return "scorching";
+        if (frac <= 0.4) return "hot";
+        if (frac <= 0.6) return "warm";
+        if (frac <= 0.8) return "cold";
+        return "freezing";
+    }
+
+    private static string TierEmoji(string tier) => tier switch
+    {
+        "found" => "🎯",
+        "scorching" => "🔥🔥🔥",
+        "hot" => "🔥🔥",
+        "warm" => "🔥",
+        "cold" => "🧊",
+        _ => "🧊🧊",
+    };
+
+    private static string TierMessage(string tier) => tier switch
+    {
+        "scorching" => "Scorching! You're right next to it!",
+        "hot" => "Hot!",
+        "warm" => "Warm...",
+        "cold" => "Cold...",
+        _ => "Freezing! Way off.",
+    };
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"fewest-taps-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestTaps = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.HotAndCold, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.HotAndCold, key, totalTaps, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new HotAndColdResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                TargetsFound: SessionSize,
+                SessionSize: SessionSize,
+                TotalTaps: totalTaps,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "5x5 grid",
+        Difficulty.Medium => "7x7 grid",
+        _ => "9x9 grid",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record HotAndColdResult(string Difficulty, int TargetsFound, int SessionSize, int TotalTaps, int ElapsedSeconds);
+}

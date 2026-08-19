@@ -99,6 +99,11 @@
                     <span class="pb-ball @(ball.IsCueBall ? "cue" : "")" style="left:@((ball.Body.Position.X * 100f / TableWidth).ToString(Inv))%; top:@((ball.Body.Position.Y * 100f / TableHeight).ToString(Inv))%; background:@(ball.IsCueBall ? "#f5f5f0" : ball.Color);"></span>
                 }
             }
+
+            @foreach (var fx in pocketEffects)
+            {
+                <span @key="fx.Id" class="pb-pocket-fx" style="left:@((fx.X * 100f / TableWidth).ToString(Inv))%; top:@((fx.Y * 100f / TableHeight).ToString(Inv))%;"></span>
+            }
         </div>
 
         @if (!string.IsNullOrEmpty(roundMessage))
@@ -182,6 +187,7 @@
     private const int FrameDelayMs = 16;
     private const float MaxShotResolveSeconds = 12f;
     private const float RestVelocityEpsilon = 0.6f;
+    private const int PocketFxMs = 700;
 
     private static readonly string[] BallColors =
     {
@@ -192,6 +198,16 @@
     private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
 
     private record PocketDef(Vector2 Position, float CaptureRadius);
+
+    /// <summary>A one-shot explosion-sprite pop at the pocket a ball just
+    /// sank into - see GAMES_ROADMAP.md's explosion-pack asset triage.</summary>
+    private class PocketFx
+    {
+        public string Id { get; } = Guid.NewGuid().ToString();
+        public float X;
+        public float Y;
+        public int RemainingMs;
+    }
 
     private static readonly PocketDef[] Pockets =
     {
@@ -238,6 +254,7 @@
     private bool isDragging;
     private long? activeFieldPointerId;
     private readonly List<Vector2> previewPoints = new();
+    private readonly List<PocketFx> pocketEffects = new();
 
     private CancellationTokenSource? _loopCts;
 
@@ -260,6 +277,7 @@
         isDragging = false;
         activeFieldPointerId = null;
         previewPoints.Clear();
+        pocketEffects.Clear();
 
         balls = BuildRack(BallCountFor(selectedDifficulty));
 
@@ -456,6 +474,12 @@
             lastTick = now;
             elapsedTotal += elapsed;
 
+            for (var i = pocketEffects.Count - 1; i >= 0; i--)
+            {
+                pocketEffects[i].RemainingMs -= (int)(elapsed * 1000);
+                if (pocketEffects[i].RemainingMs <= 0) pocketEffects.RemoveAt(i);
+            }
+
             accumulator += elapsed;
             var substeps = 0;
             while (accumulator >= FixedDt && substeps < MaxSubstepsPerFrame)
@@ -470,6 +494,8 @@
 
             if (AllBallsAtRest()) break;
         }
+
+        pocketEffects.Clear();
 
         foreach (var ball in balls.Where(b => !b.IsSunk))
         {
@@ -507,6 +533,9 @@
                 }
                 continue;
             }
+
+            var pocket = Pockets.First(p => Vector2.DistanceSquared(ball.Body.Position, p.Position) < p.CaptureRadius * p.CaptureRadius);
+            pocketEffects.Add(new PocketFx { X = pocket.Position.X, Y = pocket.Position.Y, RemainingMs = PocketFxMs });
 
             if (ball.IsCueBall)
             {

@@ -14,8 +14,10 @@
     Usage:
         <UnoGame OnComplete="HandleGameComplete" />
 *@
+@using KidsGameLauncher.Services
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject AppDataService Data
 
 <div class="uno-game">
 
@@ -28,6 +30,25 @@
                 <li>🔁 <strong>Reverse</strong> - play switches direction.</li>
                 <li>+2 / +4 - the next player draws extra cards, then plays as normal.</li>
             </ul>
+
+            <h3 class="uno-section-title game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="uno-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="uno-difficulty-select game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="uno-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="uno-diff-name">@DifficultyName(diff)</span>
+                            <span class="uno-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
             <button class="uno-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
         </GameSetupPanel>
     }
@@ -44,6 +65,10 @@
                 @foreach (var bot in players.Skip(1))
                 {
                     <div class="uno-opponent @(IsCurrent(bot) ? "current" : "")">
+                        @if (reactingBot == bot)
+                        {
+                            <span @key="reactionKey" class="uno-bot-reaction">@reactionEmoji</span>
+                        }
                         <span class="uno-opponent-name">@bot.Name</span>
                         <div class="uno-opponent-hand">
                             @for (var i = 0; i < Math.Min(bot.Hand.Count, 10); i++)
@@ -65,7 +90,7 @@
                 <div class="uno-discard-pile">
                     @if (TopDiscard is { } top)
                     {
-                        <span class="uno-card @CardColorClass(currentColor)">@CardLabel(top)</span>
+                        <span @key="top.Id" class="uno-card uno-card-landing @CardColorClass(currentColor)">@CardLabel(top)</span>
                     }
                 </div>
 
@@ -107,6 +132,10 @@
             <GameOverlay PanelClass="uno-win-panel">
                 <h2>@(winner == players[0] ? "🎉 You win!" : $"{winner?.Name} wins!")</h2>
                 <p>@(winner == players[0] ? "Great playing" + (string.IsNullOrWhiteSpace(PlayerName) ? "!" : $", {PlayerName}!") : "Better luck next hand!")</p>
+                @if (winner == players[0])
+                {
+                    <PersonalBestBadge Value="@((bestTurns ?? turnsPlayed).ToString())" IsNew="isNewBest" />
+                }
                 <div class="uno-win-actions game-result-actions">
                     <button class="uno-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
                     <button class="uno-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
@@ -122,6 +151,45 @@
 
     [Parameter] public string? PlayerName { get; set; }
     [Parameter] public EventCallback<UnoResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest turns to win, per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestTurns;
+    private bool isNewBest;
+
+    private static readonly GameAi.Difficulty[] Difficulties =
+        { GameAi.Difficulty.Easy, GameAi.Difficulty.Medium, GameAi.Difficulty.Hard };
+
+    private GameAi.Difficulty? LockedDifficulty =>
+        Enum.TryParse<GameAi.Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private GameAi.Difficulty selectedDifficulty = GameAi.Difficulty.Easy;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private static string DifficultyName(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "Easy",
+        GameAi.Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "Bots play random cards",
+        GameAi.Difficulty.Medium => "Bots play sensibly",
+        _ => "Bots play to win - watch out for +2/+4",
+    };
 
     // ---- Card model ----------------------------------------------------------
 
@@ -149,6 +217,9 @@
     private CardColor currentColor;
     private UnoPlayer? winner;
     private UnoCard? pendingWildCard;
+    private UnoPlayer? reactingBot;
+    private string reactionEmoji = "";
+    private int reactionKey;
     private int turnsPlayed;
     private DateTime startedAtUtc;
     private readonly Random rng = new();
@@ -172,7 +243,8 @@
                 Won: false,
                 CardsRemaining: players[0].Hand.Count,
                 TurnsPlayed: turnsPlayed,
-                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds,
+                Difficulty: DifficultyName(selectedDifficulty)));
         }
         phase = Phase.Setup;
     }
@@ -193,6 +265,7 @@
         direction = 1;
         winner = null;
         turnsPlayed = 0;
+        isNewBest = false;
         startedAtUtc = DateTime.UtcNow;
 
         foreach (var player in players)
@@ -347,6 +420,7 @@
             return;
         }
 
+        Advance();
         await EndHumanTurnAsync();
     }
 
@@ -412,6 +486,79 @@
         }
     }
 
+    // Predicts whose turn is next if this card were played right now,
+    // without mutating direction/currentPlayerIndex - mirrors Advance()'s
+    // own stepping rules (Reverse flips direction before one step, Skip
+    // takes two steps in the *current* direction) so Hard-tier bots can
+    // target the human specifically.
+    private int PeekNextIndexIfPlayed(UnoCard card)
+    {
+        var dir = card.Kind == CardKind.Reverse ? -direction : direction;
+        var steps = card.Kind == CardKind.Skip ? 2 : 1;
+        var idx = currentPlayerIndex;
+        for (var s = 0; s < steps; s++) idx = (idx + dir + players.Count) % players.Count;
+        return idx;
+    }
+
+    // Easy bots play a random legal card (including wilds) with no
+    // strategy. Medium plays the same "first non-wild playable, else
+    // first playable" heuristic the game originally always used. Hard
+    // adds real strategy: prioritize attack cards aimed at the human
+    // (especially once they're close to emptying their hand), otherwise
+    // prefer thinning out its most-held color and hold wilds in reserve.
+    private UnoCard ChooseCpuCard(UnoPlayer bot, List<UnoCard> playable)
+    {
+        if (selectedDifficulty == GameAi.Difficulty.Easy)
+        {
+            return playable[rng.Next(playable.Count)];
+        }
+
+        if (selectedDifficulty == GameAi.Difficulty.Medium)
+        {
+            return playable.FirstOrDefault(c => c.Kind is not (CardKind.Wild or CardKind.WildDrawFour))
+                ?? playable[0];
+        }
+
+        var humanClose = players[0].Hand.Count <= 4;
+        var offensiveAtHuman = playable
+            .Where(c => c.Kind is CardKind.Skip or CardKind.DrawTwo or CardKind.WildDrawFour)
+            .Where(c => PeekNextIndexIfPlayed(c) == 0 && humanClose)
+            .ToList();
+        if (offensiveAtHuman.Count > 0) return offensiveAtHuman[0];
+
+        var anyAction = playable.Where(c => c.Kind is CardKind.Skip or CardKind.Reverse or CardKind.DrawTwo).ToList();
+        if (anyAction.Count > 0) return anyAction[0];
+
+        var numberCards = playable.Where(c => c.Kind == CardKind.Number).ToList();
+        if (numberCards.Count > 0)
+        {
+            var colorCounts = bot.Hand
+                .Where(c => c.Color != CardColor.Wild)
+                .GroupBy(c => c.Color)
+                .ToDictionary(g => g.Key, g => g.Count());
+            return numberCards.OrderByDescending(c => colorCounts.GetValueOrDefault(c.Color)).First();
+        }
+
+        return playable[0];
+    }
+
+    private CardColor ChooseWildColorForBot(UnoPlayer bot, UnoCard wildCard)
+    {
+        var remaining = bot.Hand.Where(c => c != wildCard && c.Color != CardColor.Wild).ToList();
+
+        if (selectedDifficulty == GameAi.Difficulty.Easy)
+        {
+            var colors = new[] { CardColor.Red, CardColor.Yellow, CardColor.Green, CardColor.Blue };
+            return colors[rng.Next(colors.Length)];
+        }
+
+        return remaining
+            .GroupBy(c => c.Color)
+            .OrderByDescending(g => g.Count())
+            .Select(g => g.Key)
+            .FirstOrDefault(CardColor.Red);
+    }
+
     private async Task EndHumanTurnAsync()
     {
         phase = Phase.Busy;
@@ -430,8 +577,7 @@
             var bot = players[currentPlayerIndex];
             var playable = bot.Hand.Where(IsPlayable).ToList();
 
-            UnoCard? choice = playable.FirstOrDefault(c => c.Kind is not (CardKind.Wild or CardKind.WildDrawFour))
-                ?? playable.FirstOrDefault();
+            UnoCard? choice = playable.Count > 0 ? ChooseCpuCard(bot, playable) : null;
 
             if (choice is null)
             {
@@ -454,16 +600,20 @@
             CardColor? chosen = null;
             if (choice.Kind is CardKind.Wild or CardKind.WildDrawFour)
             {
-                var remaining = bot.Hand.Where(c => c != choice).ToList();
-                chosen = remaining
-                    .Where(c => c.Color != CardColor.Wild)
-                    .GroupBy(c => c.Color)
-                    .OrderByDescending(g => g.Count())
-                    .Select(g => g.Key)
-                    .FirstOrDefault(CardColor.Red);
+                chosen = ChooseWildColorForBot(bot, choice);
             }
 
             PlayCard(bot, choice, chosen);
+
+            if (choice.Kind is CardKind.Skip or CardKind.Reverse or CardKind.DrawTwo or CardKind.WildDrawFour)
+            {
+                reactingBot = bot;
+                reactionEmoji = ReactionEmoji(choice.Kind);
+                reactionKey++;
+                StateHasChanged();
+                await Task.Delay(900);
+                reactingBot = null;
+            }
         }
 
         if (phase != Phase.RoundEnd)
@@ -475,6 +625,13 @@
 
     private async Task HandleRoundEndAsync()
     {
+        if (winner == players[0] && !string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"turns:{DifficultyName(selectedDifficulty)}";
+            bestTurns = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Uno, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Uno, key, turnsPlayed, lowerIsBetter: true);
+        }
+
         StateHasChanged();
         await PlaySoundAsync(winner == players[0] ? "playMatchSound" : "playMismatchSound");
 
@@ -484,11 +641,21 @@
                 Won: winner == players[0],
                 CardsRemaining: players[0].Hand.Count,
                 TurnsPlayed: turnsPlayed,
-                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds,
+                Difficulty: DifficultyName(selectedDifficulty)));
         }
     }
 
     // ---- Rendering helpers ---------------------------------------------------
+
+    private static string ReactionEmoji(CardKind kind) => kind switch
+    {
+        CardKind.Skip => "😏",
+        CardKind.Reverse => "🔄",
+        CardKind.DrawTwo => "😈",
+        CardKind.WildDrawFour => "🔥",
+        _ => "",
+    };
 
     private static string CardColorClass(CardColor color) => color switch
     {
@@ -529,5 +696,5 @@
         }
     }
 
-    public record UnoResult(bool Won, int CardsRemaining, int TurnsPlayed, int ElapsedSeconds);
+    public record UnoResult(bool Won, int CardsRemaining, int TurnsPlayed, int ElapsedSeconds, string Difficulty);
 }

@@ -12,6 +12,7 @@
 *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject AppDataService Data
 
 <div class="rt-game">
 
@@ -90,6 +91,7 @@
                         <div><span class="game-stat-label">Average</span><span class="game-stat-value">@(Math.Round(results.Average()))ms</span></div>
                         <div><span class="game-stat-label">Rounds</span><span class="game-stat-value">@config.Rounds</span></div>
                     </div>
+                    <PersonalBestBadge Value="@($"{bestMs ?? results.Min()}ms")" IsNew="isNewBest" />
                     <div class="rt-win-actions game-result-actions">
                         <button class="rt-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="rt-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
@@ -109,6 +111,14 @@
     /// from the admin panel; when set, the picker is replaced with a
     /// locked note and that difficulty is used.</summary>
     [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fastest single-round reaction time, across all difficulties) -
+    /// null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestMs;
+    private bool isNewBest;
 
     private enum Phase { Setup, Waiting, Go, TooSoon, Finished }
     public enum Difficulty { Easy, Medium, Hard }
@@ -152,6 +162,7 @@
         config = ConfigFor(selectedDifficulty);
         round = 0;
         results.Clear();
+        isNewBest = false;
         startedAtUtc = DateTime.UtcNow;
         BeginWaiting();
     }
@@ -253,6 +264,14 @@
     {
         waitCts?.Cancel();
         phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "best-ms";
+            bestMs = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.ReactionTimer, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.ReactionTimer, key, results.Min(), lowerIsBetter: true);
+        }
+
         StateHasChanged();
 
         if (OnComplete.HasDelegate)

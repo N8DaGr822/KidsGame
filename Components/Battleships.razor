@@ -113,7 +113,14 @@
                     <button class="bs-cell @(cell.Shot ? (cell.HasShip ? "hit" : "miss") : "")"
                             disabled="@(cell.Shot || turn != Turn.Player || phase != Phase.Playing)"
                             @onclick="() => FireAt(row, col)">
-                        @(cell.Shot ? (cell.HasShip ? "🔥" : "💧") : "")
+                        @if (cell.Shot && cell.HasShip)
+                        {
+                            <img class="bs-hit-icon" src="images/battleships/hit-fire.png" alt="" />
+                        }
+                        else if (cell.Shot)
+                        {
+                            @:💧
+                        }
                     </button>
                 }
             }
@@ -135,7 +142,14 @@
                     {
                         var cell = playerBoard[r, c];
                         <span class="bs-cell bs-own-cell @(cell.Shot ? (cell.HasShip ? "hit" : "miss") : "")">
-                            @(cell.Shot ? (cell.HasShip ? "🔥" : "💧") : "")
+                            @if (cell.Shot && cell.HasShip)
+                            {
+                                <img class="bs-hit-icon" src="images/battleships/hit-fire.png" alt="" />
+                            }
+                            else if (cell.Shot)
+                            {
+                                @:💧
+                            }
                         </span>
                     }
                 }

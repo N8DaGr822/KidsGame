@@ -25,6 +25,49 @@ do not leave blank UI.
   anyway because it's a great resource).
 - `dressup/*.png` - see git history/commit messages for provenance if adding
   more from the same source.
+- `racing/*.png` (added 2026-08-18) are from a second user-provided batch
+  dropped in `Downloads/Assets/RaceCar/` (33 UUID-named PNGs across two
+  drops that same day - no pack metadata, source/license unknown, same
+  situation as the Checkers-Chess batch above). Each file was viewed
+  individually before renaming/copying, same discipline as that batch.
+  Used by `Components/RacingGame.razor` and (added 2026-08-18)
+  `Components/TimeTrialRacer.razor`, both consuming the shared track/car
+  layout in `Services/RaceTrack.cs` rather than duplicating file paths:
+  - `car-*.png` (15 files: silver, navygold, yellow, blue, red, green,
+    phoenix, shadow, patriot, sunset, sky, police, nightpatrol, rally,
+    f1) are the full player-selectable car roster - all confirmed
+    nose-up at their native orientation before wiring the CSS rotation
+    formula. Raw pixel dimensions vary a lot between them (some near-
+    square crops, some wide - likely different padding/perspective in
+    how each was originally rendered), handled with `object-fit:
+    contain` in a fixed-aspect box rather than assuming uniform source
+    dimensions. One near-duplicate navy/gold car was found during
+    cataloging and deliberately left uncopied (kept in Downloads only).
+  - `tile-corner.png`, `tile-straight-h.png`, `tile-straight-v.png` are
+    the road tiles the track is built from - a hand-laid 4x6 grid, one
+    curve image reused at all four corners via CSS rotation (worked out
+    by hand which edges the source art connects: the corner tile
+    connects its West and North edges at `rotate(0deg)`, so the other
+    three corners each need one more 90-degree clockwise turn to
+    connect their own two track neighbors - see the component's
+    `TrackTiles` comment for the derivation, not a guess-and-check).
+  - `tire-stack.png` and `grandstand.png` are infield decoration (purely
+    cosmetic, `pointer-events: none`). `finish-strip.png` is the start/
+    finish banner and `checkered-flag.png` is used as the result
+    overlay's title icon in place of an emoji.
+  - Not used: a red/white traffic-cone-and-barrier set, a second curve-
+    tile variant, a coin icon, and a stopwatch icon - none needed for
+    this game's placement-race shape (no currency, no on-track
+    obstacles in v1, and the HUD shows lap/placement rather than a
+    running timer). Worth a look if Time Trial Racer gets built later.
+- `space/*.png` (added 2026-08-18) are `ship_H.png`, `meteor_detailedLarge.png`,
+  `meteor_detailedSmall.png`, `effect_yellow.png`, `star_tiny.png`, and
+  `star_small.png` from [Kenney](https://kenney.nl)'s "Simple Space" pack
+  (`kenney_simple-space.zip`), CC0. Used by `Components/SpaceGame.razor` -
+  the ship is oriented purely via CSS `rotate()` (verified it points "up"
+  by default before wiring the rotation formula), no animation pipeline
+  needed. Renamed for clarity: `ship.png`, `meteor-large.png`,
+  `meteor-small.png`, `thrust.png`, `star-tiny.png`, `star-small.png`.
 - `tower-defense/*.png` (towers + coin only) are from
   [Kenney](https://kenney.nl) ("Tower Defense (top-down) Pack"), CC0. Pulled
   from `kenney_tower-defense-top-down.zip`'s 300 generically-numbered tiles
@@ -39,6 +82,82 @@ do not leave blank UI.
   `enemy-tank-tough.png`, since removed) to `memory/animals/*.png` - reads
   friendlier for a kids' game and reuses art already in the project instead
   of adding more.
+- `effects/fusion-boom/frame-*.png`, `effects/goal-flash/frame-*.png`, and
+  `effects/pocket-pop/frame-*.png` (10 frames each, renamed from
+  `Explosion1.png`.."10.png" and equivalents for numeric-frame ordering)
+  are three of the eleven 256x256 animation sets in
+  [CraftPix](https://craftpix.net)'s free "11 Pixel Art Explosion Sprites"
+  pack (`craftpix-net-270676-11-free-pixel-art-explosion-sprites.zip`),
+  used under CraftPix's free-file license (see
+  `https://craftpix.net/file-licenses/` bundled in the zip) - free to use
+  in a project like this, not to be redistributed as standalone source
+  assets. `fusion-boom` (the plain orange "Explosion" set) plays on Tower
+  Defense's Mega-tower merge; `goal-flash` (`Explosion_blue_circle`, an icy
+  blue burst matching the rink) plays on an Air Hockey goal; `pocket-pop`
+  (`Circle_explosion`, a tighter orange radial burst) plays when Pool sinks
+  a ball. All three swap frames via CSS `@keyframes` background-image
+  changes rather than `steps()` + a spritesheet, since the source pack
+  ships one PNG per frame instead of a laid-out atlas.
+- `tanks/tank-body-desert.png` and `tanks/tank-body-navy.png` (added
+  2026-08-18) are `tanks_tankDesert_body1.png`/`tanks_tankNavy_body1.png`
+  from the same [Kenney](https://kenney.nl) "Tanks" pack as the existing
+  green/grey bodies (`kenney_tanks.zip`) - confirmed identical 83x49
+  dimensions to the existing bodies before wiring them into
+  `Components/TankDuel.razor`'s new tank-color picker. Both pair with the
+  existing `tank-barrel-grey.png` rather than the pack's third barrel
+  color (`tanks_barrelRed.png`, not pulled in) - checked visually first,
+  red clashed with both new hull colors.
+- `fishing/seaweed-{1,2}.png`, `fishing/stone-{1,2}.png`, and
+  `fishing/bubble-{1,2,3}.png` (added 2026-08-18) are `Seaweed_1.png`/
+  `Seaweed_2.png`/`Stone_1.png`/`Stone_4.png`/`Bubble_1.png`/`Bubble_2.png`/
+  `Bubble_3.png` from [CraftPix](https://craftpix.net)'s free "Underwater
+  World 2D Game Objects" pack (`craftpix-901245-free-underwater-world-2d-
+  game-objects.zip`), used under CraftPix's free-file license. Purely
+  decorative background dressing in `Components/FishingGame.razor`'s
+  `.fg-water` scene - the fish sprites themselves (`fishing/fish-*.png`)
+  were deliberately left untouched since their color is the actual
+  gameplay signal in Colors mode, not just decoration.
+- `battleships/hit-fire.png` (added 2026-08-18) is `Fire4.png` from the
+  same CraftPix "11 Pixel Art Explosion Sprites" pack already used for
+  `effects/fusion-boom`/`goal-flash`/`pocket-pop` above
+  (`craftpix-net-270676-11-free-pixel-art-explosion-sprites.zip`) - the
+  pack's `Fire/` set (6 frames) hadn't been used yet. Only one frame was
+  pulled in (not the full animated set like the other three effects)
+  since a Battleships hit is permanent board state for the rest of the
+  game, not a transient burst - a static "ship on fire" icon replacing
+  the plain 🔥 emoji, rather than a looping animation that would keep
+  playing on every hit cell simultaneously as they accumulate.
+- `checkers/*.png` and `chess/*.png` are from a user-provided batch dropped
+  in `Downloads/Assets/Checkers-Chess` on 2026-08-18 (33 UUID-named PNGs,
+  no pack metadata - source/license unknown, unlike the Kenney/CraftPix
+  packs above). Each file was viewed individually (not batched - a batched
+  read previously shuffled sticker art against its filenames during Dress
+  Up work, see git history) before being renamed and copied, so the
+  mapping below is verified by eye, not by the original filename:
+  - `checkers/black-piece.png`/`black-king.png` and `red-piece.png`/
+    `red-king.png` are the plain/king pieces for a classic black-vs-red
+    checkers set (flame emblem = plain, crown emblem = king, per color).
+    `checkers/tile-dark.png`/`tile-light.png` are plain wood/cream board
+    squares.
+  - `chess/*-pawn-{1,2,3}.png` (3 face variants per color, for visual
+    variety across 8 pawns), `*-rook.png`, `*-knight.png`,
+    `*-queen-{1,2}.png` (2 face variants per color), and `*-king.png`
+    are a full cute cartoon set for white and black - **except no bishop
+    art exists in this batch for either color**.
+    `Components/ChessPuzzles.razor` renders the bishop as a styled Unicode
+    glyph (♗/♝) sized to match the other piece art rather than leaving it
+    blank or mismatching the art style further - swap in real bishop PNGs
+    here (`chess/white-bishop.png`/`chess/black-bishop.png`) if matching
+    art turns up later. `chess/tile-dark.png`/`tile-light.png` are a more
+    ornate carved-wood/marble board pair (kept visually distinct from
+    checkers' plainer tiles). `chess/selected-glow.png` is a teal magic
+    rune ring used as the selected-square/legal-move highlight.
+  - Not used, left in `Downloads/Assets/Checkers-Chess`: three fantasy
+    miniature figures (elf archer, goblin warrior, griffin-mounted knight -
+    only one of each, can't fill both color slots of a piece type), a red
+    "X" icon, a third "wood-brown" king color, and two plain side-view
+    duplicate checkers pieces (black/red) that render the same piece from
+    a different angle.
 - `medals/best.png` is `PNG/shaded_medal6.png` from
   [Kenney](https://kenney.nl) ("Medals"), CC0 - the gold-and-blue ribbon
   read best as a generic "personal best" icon among the pack's 9 color

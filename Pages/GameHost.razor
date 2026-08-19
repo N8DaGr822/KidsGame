@@ -32,7 +32,7 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.DressUp)
             {
-                <DressUpGame PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleDressUpComplete" HudSlot="_hudSlot" />
+                <DressUpGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" OnComplete="HandleDressUpComplete" HudSlot="_hudSlot" />
             }
             else if (_game.LaunchTarget == BuiltInGames.MannersGarden)
             {
@@ -44,11 +44,11 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.Uno)
             {
-                <UnoGame PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleUnoComplete" />
+                <UnoGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleUnoComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.SimonSays)
             {
-                <SimonSays PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSimonSaysComplete" />
+                <SimonSays PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSimonSaysComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.SlidingPuzzle)
             {
@@ -60,15 +60,15 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.Minesweeper)
             {
-                <Minesweeper PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMinesweeperComplete" />
+                <Minesweeper PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMinesweeperComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Sudoku)
             {
-                <Sudoku PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSudokuComplete" />
+                <Sudoku PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSudokuComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.WhackAMole)
             {
-                <WhackAMole PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWhackAMoleComplete" />
+                <WhackAMole PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWhackAMoleComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.CatchGame)
             {
@@ -84,7 +84,7 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.ReactionTimer)
             {
-                <ReactionTimer PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleReactionTimerComplete" />
+                <ReactionTimer PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleReactionTimerComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.RedLightGreenLight)
             {
@@ -242,6 +242,58 @@
             {
                 <PoolBilliards PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandlePoolBilliardsComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.FollowTheCups)
+            {
+                <FollowTheCups PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleFollowTheCupsComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.Checkers)
+            {
+                <Checkers PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCheckersComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.ChessPuzzles)
+            {
+                <ChessPuzzles PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleChessPuzzlesComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.ChessGame)
+            {
+                <ChessGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleChessGameComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.SpaceGame)
+            {
+                <SpaceGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSpaceGameComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.RacingGame)
+            {
+                <RacingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRacingGameComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.TimeTrialRacer)
+            {
+                <TimeTrialRacer PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTimeTrialRacerComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.MiniGolf)
+            {
+                <MiniGolf PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMiniGolfComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.CopyThePattern)
+            {
+                <CopyThePattern PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCopyThePatternComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.MemorySequenceAdventure)
+            {
+                <MemorySequenceAdventure PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMemorySequenceAdventureComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.HotAndCold)
+            {
+                <HotAndCold PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleHotAndColdComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.TreasureHunt)
+            {
+                <TreasureHunt PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTreasureHuntComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.AnimalSoundGuessingGame)
+            {
+                <AnimalSoundGuessingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleAnimalSoundGuessingGameComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -371,8 +423,8 @@
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
-            Theme = result.Won ? "Victory" : "Defeat",
-            Difficulty = $"{result.CardsRemaining} cards left",
+            Theme = result.Difficulty,
+            Difficulty = result.Won ? "Victory" : "Defeat",
             Moves = result.TurnsPlayed,
             ElapsedSeconds = result.ElapsedSeconds,
         });
@@ -1109,6 +1161,199 @@
             Theme = result.Difficulty,
             Difficulty = result.Cleared ? $"Cleared in {result.ShotsTaken} shots" : $"Sank {result.BallsSunk}, {result.ShotsTaken} shots",
             Moves = result.ShotsTaken,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleFollowTheCupsComplete(FollowTheCups.FollowTheCupsResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Won {result.RoundsWon}/{result.SessionSize}",
+            Moves = result.RoundsWon,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleCheckersComplete(Checkers.CheckersResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Won ? $"Won {result.RedCount}-{result.BlackCount}" : $"Lost {result.RedCount}-{result.BlackCount}",
+            Moves = result.PlayerTurnsTaken,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleChessPuzzlesComplete(ChessPuzzles.ChessPuzzlesResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Solved {result.PuzzlesSolved}/{result.SessionSize}",
+            Moves = result.PuzzlesSolved,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleChessGameComplete(ChessGame.ChessGameResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Won ? "Won" : "Lost",
+            Moves = result.PlayerTurnsTaken,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleSpaceGameComplete(SpaceGame.SpaceGameResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Score {result.Score}",
+            Moves = result.Score,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleRacingGameComplete(RacingGame.RacingGameResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Won ? "Won the race" : $"Finished {result.Placement}",
+            Moves = result.Placement,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleTimeTrialRacerComplete(TimeTrialRacer.TimeTrialRacerResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Finished ? "Finished" : "Exited early",
+            Moves = result.Finished ? 1 : 0,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleMiniGolfComplete(MiniGolf.MiniGolfResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"{result.TotalStrokes} strokes, {result.HolesPlayed}/{result.TotalHoles} holes",
+            Moves = result.TotalStrokes,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleCopyThePatternComplete(CopyThePattern.CopyThePatternResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Difficulty = $"Reached pattern of {result.RoundsReached}",
+            Moves = result.RoundsReached,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleMemorySequenceAdventureComplete(MemorySequenceAdventure.MemorySequenceAdventureResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Difficulty = $"Reached round {result.RoundsReached}",
+            Moves = result.RoundsReached,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleHotAndColdComplete(HotAndCold.HotAndColdResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Found {result.TargetsFound}/{result.SessionSize} in {result.TotalTaps} taps",
+            Moves = result.TotalTaps,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleTreasureHuntComplete(TreasureHunt.TreasureHuntResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Found {result.TreasuresFound}/{result.SessionSize} in {result.TotalMoves} steps",
+            Moves = result.TotalMoves,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleAnimalSoundGuessingGameComplete(AnimalSoundGuessingGame.AnimalSoundGuessingGameResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Scored {result.Score}/{result.SessionSize}",
+            Moves = result.Score,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

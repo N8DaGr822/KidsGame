@@ -25,6 +25,16 @@
     @if (phase == Phase.Setup)
     {
         <GameSetupPanel Class="tk-setup" Title="🎯 Tank Duel" Description="Drag anywhere on the battlefield to aim - the dotted line shows exactly where your shot will land. Let go to fire! Five hits and a tank is out. Watch out for the crate wall in the middle - you'll need a real arc to clear it, and every battle you win makes the walls taller, trickier to line up, and eventually more than one.">
+            <h3 class="tk-section-title game-section-title">Choose your tank</h3>
+            <div class="tk-color-select game-option-grid">
+                @foreach (var color in TankColors)
+                {
+                    <button class="tk-color-btn game-option-button @(color == selectedPlayerColor ? "selected" : "")" @onclick="() => selectedPlayerColor = color">
+                        <img class="tk-color-swatch" src="images/tanks/tank-body-@(ColorSlug(color)).png" alt="" />
+                        <span class="tk-color-name">@ColorName(color)</span>
+                    </button>
+                }
+            </div>
             <button class="tk-start-btn game-primary-action" @onclick="StartNewCampaign">▶️ Start Battle</button>
         </GameSetupPanel>
     }
@@ -84,8 +94,8 @@
             }
 
             <div class="tk-tank tk-tank-player" style="left:@(PlayerX.ToString(Inv))%; top:@(GroundY.ToString(Inv))%;">
-                <img class="tk-tank-body" src="images/tanks/tank-body-green.png" alt="Your tank" />
-                <img class="tk-tank-barrel" src="images/tanks/tank-barrel-green.png" alt=""
+                <img class="tk-tank-body" src="images/tanks/tank-body-@(ColorSlug(selectedPlayerColor)).png" alt="Your tank" />
+                <img class="tk-tank-barrel" src="images/tanks/tank-barrel-@(BarrelSlug(selectedPlayerColor)).png" alt=""
                      style="transform:rotate(@(BarrelCssAngle(playerBarrelAngleDeg).ToString(Inv))deg);" />
             </div>
 
@@ -183,6 +193,29 @@
     // ---- Game state ------------------------------------------------------
 
     private enum Phase { Setup, PlayerAiming, Busy, RoundEnd }
+    private enum TankColor { Green, Desert, Navy }
+
+    private static readonly TankColor[] TankColors = { TankColor.Green, TankColor.Desert, TankColor.Navy };
+    private TankColor selectedPlayerColor = TankColor.Green;
+
+    private static string ColorSlug(TankColor c) => c switch
+    {
+        TankColor.Desert => "desert",
+        TankColor.Navy => "navy",
+        _ => "green",
+    };
+
+    private static string ColorName(TankColor c) => c switch
+    {
+        TankColor.Desert => "Desert",
+        TankColor.Navy => "Navy",
+        _ => "Green",
+    };
+
+    // kenney_tanks.zip only ships Green/Grey/Red barrels - Desert and Navy
+    // pair with the neutral grey barrel since the bright red one clashes
+    // with both new body colors, and green obviously keeps its own.
+    private static string BarrelSlug(TankColor c) => c == TankColor.Green ? "green" : "grey";
 
     private Phase phase = Phase.Setup;
     private readonly Random rng = new();

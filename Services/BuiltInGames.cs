@@ -66,6 +66,19 @@ public static class BuiltInGames
     public const string FlagGuessingGame = "flag-guessing-game";
     public const string AirHockey = "air-hockey";
     public const string PoolBilliards = "pool-billiards";
+    public const string FollowTheCups = "follow-the-cups";
+    public const string Checkers = "checkers";
+    public const string ChessPuzzles = "chess-puzzles";
+    public const string ChessGame = "chess";
+    public const string SpaceGame = "space-survival";
+    public const string RacingGame = "top-down-racing";
+    public const string TimeTrialRacer = "time-trial-racer";
+    public const string MiniGolf = "mini-golf";
+    public const string CopyThePattern = "copy-the-pattern";
+    public const string MemorySequenceAdventure = "memory-sequence-adventure";
+    public const string HotAndCold = "hot-and-cold";
+    public const string TreasureHunt = "treasure-hunt";
+    public const string AnimalSoundGuessingGame = "animal-sound-guessing-game";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -124,5 +137,18 @@ public static class BuiltInGames
         new BuiltInGame("Flag Guessing Game", "🚩", FlagGuessingGame, MinAge: 7, MaxAge: 13),
         new BuiltInGame("Air Hockey", "🏒", AirHockey, MinAge: 7, MaxAge: 14),
         new BuiltInGame("Pool / Billiards", "🎱", PoolBilliards, MinAge: 8, MaxAge: 14),
+        new BuiltInGame("Follow the Cups", "🎩", FollowTheCups, MinAge: 5, MaxAge: 11),
+        new BuiltInGame("Checkers", "🔴", Checkers, "images/checkers/red-king.png", MinAge: 6, MaxAge: 13),
+        new BuiltInGame("Chess Puzzles", "♟️", ChessPuzzles, "images/chess/white-knight.png", MinAge: 8, MaxAge: 14),
+        new BuiltInGame("Chess", "♞", ChessGame, "images/chess/white-king.png", MinAge: 8, MaxAge: 14),
+        new BuiltInGame("Space Survival", "🚀", SpaceGame, "images/space/ship.png", MinAge: 6, MaxAge: 13),
+        new BuiltInGame("Top-Down Racing", "🏁", RacingGame, "images/racing/car-red.png", MinAge: 7, MaxAge: 14),
+        new BuiltInGame("Time Trial Racer", "⏱️", TimeTrialRacer, "images/racing/car-f1.png", MinAge: 6, MaxAge: 13),
+        new BuiltInGame("Mini Golf", "⛳", MiniGolf, MinAge: 6, MaxAge: 13),
+        new BuiltInGame("Copy the Pattern", "🧩", CopyThePattern, MinAge: 4, MaxAge: 9),
+        new BuiltInGame("Memory Sequence Adventure", "🧭", MemorySequenceAdventure, MinAge: 4, MaxAge: 9),
+        new BuiltInGame("Hot and Cold", "🔥", HotAndCold, MinAge: 5, MaxAge: 11),
+        new BuiltInGame("Treasure Hunt", "🗺️", TreasureHunt, MinAge: 5, MaxAge: 11),
+        new BuiltInGame("Animal Sound Guessing", "🔊", AnimalSoundGuessingGame, MinAge: 3, MaxAge: 8),
     };
 }

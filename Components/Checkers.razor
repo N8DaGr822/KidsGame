@@ -1,0 +1,407 @@
+@*
+    Checkers.razor
+    Standard English/American draughts vs a CPU on an 8x8 board, using
+    only the 32 dark squares. Real rules, not a simplified variant:
+    captures are mandatory whenever any of your pieces has one available
+    (tap-selectable pieces are limited to just the capturing ones when
+    that's the case), a capturing piece must keep jumping until no
+    further jump is available for it, and reaching the far row promotes
+    a man to a king (which can move/capture in all four diagonal
+    directions) - promoting ends the turn immediately even if another
+    jump would have been possible, a real rule, not a bug. Tap a
+    highlighted piece, then tap a highlighted destination; mid-jump-chain
+    the same piece stays selected and only its further jumps light up.
+    AI logic lives in Services/GameAi.cs (CheckersLegalTurns/CheckersMove/
+    CheckersApplyHop), searching whole turns (a full forced-capture chain
+    counts as one ply, matching how a turn actually plays out) with the
+    same alpha-beta minimax shape as Reversi/Connect Four. Personal best
+    tracks fewest turns to win, per difficulty.
+
+    Usage:
+        <Checkers OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="ck-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="ck-setup game-setup-panel">
+            <h2>🔴 Checkers</h2>
+            <p>Jump the CPU's pieces to capture them - a capture is mandatory whenever one is available! Reach the far row to crown a king.</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="ck-diff-name">@DifficultyName(diff)</span>
+                            <span class="ck-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="ck-title">Checkers</span>
+            <span class="game-stat">🔴 You @redCount</span>
+            <span class="game-stat">⚫ CPU @blackCount</span>
+            <span class="game-stat">Turn @playerTurnsTaken</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="ck-board">
+            @for (var r = 0; r < GameAi.CheckersSize; r++)
+            {
+                for (var c = 0; c < GameAi.CheckersSize; c++)
+                {
+                    var row = r; var col = c;
+                    var cell = board[row, col];
+                    var dark = GameAi.CheckersIsDarkSquare(row, col);
+                    // A legal origin stays tap-able even while a different
+                    // piece is selected (lets you change your mind), unless
+                    // a forced multi-jump has committed to one piece.
+                    var isSelected = selectedOrigin == (row, col);
+                    var canSelect = turn == Turn.Player && phase == Phase.Playing && !midChain && !isSelected && legalOrigins.Contains((row, col));
+                    var isDestination = selectedOrigin is not null && legalDestinations.Contains((row, col));
+
+                    <button class="ck-cell @(dark ? "dark" : "light")"
+                            style="background-image:url('images/checkers/@(dark ? "tile-dark.png" : "tile-light.png")')"
+                            disabled="@(!dark || turn != Turn.Player || phase != Phase.Playing || !(canSelect || isSelected || isDestination))"
+                            @onclick="() => HandleTap(row, col)">
+                        @if (cell != GameAi.CheckersEmpty)
+                        {
+                            <img class="ck-piece @(isSelected ? "selected" : "") @(canSelect ? "can-move" : "")" src="images/checkers/@PieceImage(cell)" alt="" />
+                        }
+                        else if (isDestination)
+                        {
+                            <span class="ck-hint"></span>
+                        }
+                    </button>
+                }
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="ck-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(won ? "🎉 You Win!" : "🤖 CPU Wins")</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")final score: @redCount to @blackCount.</p>
+                    <PersonalBestBadge Value="@(bestTurns is { } bt ? $"{bt} turns" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<CheckersResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest turns to win, per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    private enum Turn { Player, Cpu }
+
+    private static readonly GameAi.Difficulty[] Difficulties = { GameAi.Difficulty.Easy, GameAi.Difficulty.Medium, GameAi.Difficulty.Hard };
+
+    private GameAi.Difficulty? LockedDifficulty =>
+        Enum.TryParse<GameAi.Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private Phase phase = Phase.Setup;
+    private GameAi.Difficulty selectedDifficulty = GameAi.Difficulty.Easy;
+    private Turn turn = Turn.Player;
+    private int[,] board = new int[GameAi.CheckersSize, GameAi.CheckersSize];
+    private HashSet<(int Row, int Col)> legalOrigins = new();
+    private HashSet<(int Row, int Col)> legalDestinations = new();
+    private (int Row, int Col)? selectedOrigin;
+    private int redCount = 12;
+    private int blackCount = 12;
+    private int playerTurnsTaken;
+    private bool won;
+    private string roundMessage = "";
+    private int? bestTurns;
+    private bool isNewBest;
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        board = new int[GameAi.CheckersSize, GameAi.CheckersSize];
+        for (var r = 0; r < GameAi.CheckersSize; r++)
+        {
+            for (var c = 0; c < GameAi.CheckersSize; c++)
+            {
+                if (!GameAi.CheckersIsDarkSquare(r, c)) continue;
+                if (r <= 2) board[r, c] = GameAi.CheckersBlackMan;
+                else if (r >= 5) board[r, c] = GameAi.CheckersRedMan;
+            }
+        }
+
+        turn = Turn.Player;
+        selectedOrigin = null;
+        legalDestinations = new();
+        roundMessage = "";
+        won = false;
+        playerTurnsTaken = 0;
+        bestTurns = null;
+        isNewBest = false;
+        UpdateCounts();
+        legalOrigins = GameAi.CheckersLegalOrigins(board, 1).ToHashSet();
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new CheckersResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                RedCount: redCount,
+                BlackCount: blackCount,
+                PlayerTurnsTaken: playerTurnsTaken,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task HandleTap(int row, int col)
+    {
+        if (phase != Phase.Playing || turn != Turn.Player) return;
+
+        if (selectedOrigin is null)
+        {
+            if (!legalOrigins.Contains((row, col))) return;
+            SelectOrigin(row, col);
+            return;
+        }
+
+        var origin = selectedOrigin.Value;
+
+        if (legalDestinations.Contains((row, col)))
+        {
+            await ApplyPlayerHopAsync(origin.Row, origin.Col, row, col);
+            return;
+        }
+
+        // Tapping the selected piece again (or another legal origin, when
+        // not mid forced-chain) reselects rather than doing nothing - a
+        // mid-chain piece can't be deselected, matching the mandatory
+        // continuation rule.
+        if (!midChain && legalOrigins.Contains((row, col)))
+        {
+            SelectOrigin(row, col);
+        }
+    }
+
+    private bool midChain;
+
+    private void SelectOrigin(int row, int col)
+    {
+        selectedOrigin = (row, col);
+        var mustCapture = GameAi.CheckersHasAnyCapture(board, 1);
+        legalDestinations = (mustCapture
+            ? GameAi.CheckersCaptureHopsFor(board, row, col).Select(h => (h.ToRow, h.ToCol))
+            : GameAi.CheckersSimpleMovesFor(board, row, col)).ToHashSet();
+    }
+
+    private async Task ApplyPlayerHopAsync(int fromRow, int fromCol, int toRow, int toCol)
+    {
+        // legalDestinations was built from either the capture set or the
+        // simple-move set (never both) when the origin was selected, so
+        // whichever set actually contains this destination tells us which
+        // kind of hop it is. Cast to a nullable tuple first so "not found"
+        // is a real null instead of FirstOrDefault's ambiguous all-zero
+        // default value tuple, which could be confused with a genuine
+        // capture landing at (0, 0).
+        int? capRow = null;
+        int? capCol = null;
+        var captureHop = GameAi.CheckersCaptureHopsFor(board, fromRow, fromCol)
+            .Cast<(int ToRow, int ToCol, int CapRow, int CapCol)?>()
+            .FirstOrDefault(h => h!.Value.ToRow == toRow && h.Value.ToCol == toCol);
+        if (captureHop is { } hop)
+        {
+            capRow = hop.CapRow;
+            capCol = hop.CapCol;
+        }
+
+        var (wasCapture, justPromoted) = GameAi.CheckersApplyHop(board, fromRow, fromCol, toRow, toCol, capRow, capCol);
+        UpdateCounts();
+        await PlaySoundAsync(wasCapture ? "playImpactSound" : "playMatchSound");
+        StateHasChanged();
+
+        if (wasCapture && !justPromoted && GameAi.CheckersCaptureHopsFor(board, toRow, toCol).Count > 0)
+        {
+            midChain = true;
+            selectedOrigin = (toRow, toCol);
+            legalDestinations = GameAi.CheckersCaptureHopsFor(board, toRow, toCol).Select(h => (h.ToRow, h.ToCol)).ToHashSet();
+            roundMessage = "Keep jumping!";
+            return;
+        }
+
+        midChain = false;
+        selectedOrigin = null;
+        legalDestinations = new();
+        roundMessage = "";
+        playerTurnsTaken++;
+        turn = Turn.Cpu;
+        StateHasChanged();
+        await RunCpuTurnAsync();
+    }
+
+    private async Task RunCpuTurnAsync()
+    {
+        await Task.Delay(500);
+        var cpuTurn = GameAi.CheckersMove(board, 2, 1, selectedDifficulty);
+        if (cpuTurn is null)
+        {
+            // CPU has no legal turn (no pieces, or every piece is blocked) -
+            // checkers has no "pass," so that's an immediate loss for it.
+            won = true;
+            await FinishGame();
+            return;
+        }
+
+        foreach (var hop in cpuTurn)
+        {
+            var (wasCapture, _) = GameAi.CheckersApplyHop(board, hop.FromRow, hop.FromCol, hop.ToRow, hop.ToCol, hop.CapRow, hop.CapCol);
+            UpdateCounts();
+            await PlaySoundAsync(wasCapture ? "playImpactSound" : "playMatchSound");
+            StateHasChanged();
+            await Task.Delay(450);
+        }
+
+        turn = Turn.Player;
+        legalOrigins = GameAi.CheckersLegalOrigins(board, 1).ToHashSet();
+        if (legalOrigins.Count == 0)
+        {
+            won = false;
+            await FinishGame();
+            return;
+        }
+        StateHasChanged();
+    }
+
+    private void UpdateCounts()
+    {
+        redCount = 0;
+        blackCount = 0;
+        for (var r = 0; r < GameAi.CheckersSize; r++)
+        {
+            for (var c = 0; c < GameAi.CheckersSize; c++)
+            {
+                var owner = GameAi.CheckersOwner(board[r, c]);
+                if (owner == 1) redCount++;
+                else if (owner == 2) blackCount++;
+            }
+        }
+    }
+
+    private static string PieceImage(int cell) => cell switch
+    {
+        GameAi.CheckersRedMan => "red-piece.png",
+        GameAi.CheckersRedKing => "red-king.png",
+        GameAi.CheckersBlackMan => "black-piece.png",
+        _ => "black-king.png",
+    };
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"fewest-turns-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestTurns = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Checkers, key);
+            if (won)
+            {
+                isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Checkers, key, playerTurnsTaken, lowerIsBetter: true);
+            }
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new CheckersResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: won,
+                RedCount: redCount,
+                BlackCount: blackCount,
+                PlayerTurnsTaken: playerTurnsTaken,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "Easy",
+        GameAi.Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "CPU moves randomly (still obeys forced captures)",
+        GameAi.Difficulty.Medium => "CPU plans a few moves ahead",
+        _ => "CPU plans several moves ahead + real strategy",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record CheckersResult(string Difficulty, bool Won, int RedCount, int BlackCount, int PlayerTurnsTaken, int ElapsedSeconds);
+}

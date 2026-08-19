@@ -56,11 +56,17 @@
             @for (var c = 0; c < GameAi.ConnectFourCols; c++)
             {
                 var col = c;
-                <button class="c4-column" disabled="@(phase != Phase.Playing || aiThinking)" @onclick="() => PlayerMove(col)" aria-label="Drop in column @(col + 1)">
+                var previewRow = phase == Phase.Playing && !aiThinking && col == hoverColumn ? GameAi.DropRow(board, col) : null;
+                <button class="c4-column" disabled="@(phase != Phase.Playing || aiThinking)" @onclick="() => PlayerMove(col)"
+                        @onmouseenter="() => hoverColumn = col" @onmouseleave="() => hoverColumn = -1"
+                        aria-label="Drop in column @(col + 1)">
                     @for (var r = GameAi.ConnectFourRows - 1; r >= 0; r--)
                     {
-                        var cell = board[col, r];
-                        <span class="c4-slot @(cell == 1 ? "red" : "") @(cell == 2 ? "yellow" : "")"></span>
+                        var row = r;
+                        var cell = board[col, row];
+                        var isGhost = cell == 0 && previewRow == row;
+                        <span @key="(col, row, cell)"
+                              class="c4-slot @(cell == 1 ? "red drop" : "") @(cell == 2 ? "yellow drop" : "") @(isGhost ? "ghost" : "")"></span>
                     }
                 </button>
             }
@@ -125,6 +131,7 @@
     private GameAi.Difficulty selectedDifficulty = GameAi.Difficulty.Easy;
     private int[,] board = new int[GameAi.ConnectFourCols, GameAi.ConnectFourRows];
     private bool aiThinking;
+    private int hoverColumn = -1;
     private string outcome = "";
     private int wins;
     private int losses;
@@ -142,6 +149,7 @@
         board = new int[GameAi.ConnectFourCols, GameAi.ConnectFourRows];
         phase = Phase.Playing;
         aiThinking = false;
+        hoverColumn = -1;
         startedAtUtc = DateTime.UtcNow;
     }
 

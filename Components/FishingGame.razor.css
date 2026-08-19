@@ -243,6 +243,61 @@
         linear-gradient(180deg, #75d3e8, #176d9c);
 }
 
+/* Purely decorative underwater dressing - sits behind the fish (default
+   source-order stacking, fish are added after in markup) and never
+   intercepts a tap, so it can't interfere with the catch mechanic. */
+.fg-decor {
+    position: absolute;
+    bottom: 0;
+    pointer-events: none;
+    opacity: 0.9;
+}
+
+.fg-decor-stone-1 {
+    left: 4%;
+    width: clamp(70px, 14vw, 110px);
+}
+
+.fg-decor-stone-2 {
+    right: 6%;
+    width: clamp(50px, 10vw, 80px);
+    opacity: 0.75;
+}
+
+.fg-decor-seaweed-1 {
+    left: 22%;
+    width: clamp(90px, 18vw, 140px);
+}
+
+.fg-decor-seaweed-2 {
+    right: 24%;
+    width: clamp(70px, 14vw, 110px);
+    opacity: 0.85;
+}
+
+.fg-bubble {
+    position: absolute;
+    bottom: -10%;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.25) 60%, rgba(255, 255, 255, 0.1));
+    pointer-events: none;
+    animation: fg-bubble-rise linear infinite;
+}
+
+.fg-bubble-1 { left: 14%; width: 10px; height: 10px; animation-duration: 7s; animation-delay: 0s; }
+.fg-bubble-2 { left: 52%; width: 16px; height: 16px; animation-duration: 9s; animation-delay: 2.5s; }
+.fg-bubble-3 { left: 78%; width: 12px; height: 12px; animation-duration: 8s; animation-delay: 5s; }
+
+@keyframes fg-bubble-rise {
+    0% { bottom: -5%; opacity: 0; transform: translateX(0); }
+    10% { opacity: 0.85; }
+    50% { transform: translateX(6px); }
+    90% { opacity: 0.7; }
+    100% { bottom: 105%; opacity: 0; transform: translateX(-4px); }
+}
+
 .fg-fish {
     position: absolute;
     left: 0;

@@ -1,0 +1,88 @@
+.ma-game {
+    width: min(440px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.75rem;
+}
+
+.ma-diff-name {
+    font-weight: 900;
+}
+
+.ma-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.ma-title {
+    font-weight: 900;
+}
+
+.ma-round,
+.ma-mistakes {
+    font-weight: 800;
+    color: var(--text-muted);
+}
+
+.ma-status {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+}
+
+.ma-scene {
+    position: relative;
+    padding-top: 2.6rem;
+}
+
+.ma-traveler {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    font-size: 2rem;
+    line-height: 1;
+    transition: left 0.25s ease;
+    pointer-events: none;
+}
+
+.ma-door-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+}
+
+.ma-door {
+    display: grid;
+    place-items: center;
+    gap: 0.3rem;
+    padding: 1rem 0.4rem;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    box-shadow: var(--shadow-sm);
+    transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.ma-door:not(:disabled):hover {
+    transform: translateY(-2px);
+}
+
+.ma-door.open,
+.ma-door.pressed {
+    background: #4ecdc4;
+}
+
+.ma-door-icon {
+    font-size: 1.8rem;
+    line-height: 1;
+}
+
+.ma-door-label {
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-align: center;
+    color: var(--text-muted);
+}

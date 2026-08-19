@@ -26,6 +26,23 @@
     color: var(--text-muted);
 }
 
+.tk-section-title {
+    margin-bottom: 0;
+}
+
+.tk-color-select {
+    width: 100%;
+}
+
+.tk-color-swatch {
+    width: 64px;
+    height: auto;
+}
+
+.tk-color-name {
+    font-weight: 900;
+}
+
 .tk-start-btn,
 .tk-restart-btn {
     min-height: 48px;

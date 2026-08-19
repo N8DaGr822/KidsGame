@@ -1,0 +1,62 @@
+.cp-game {
+    width: min(420px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.75rem;
+}
+
+.cp-diff-name {
+    font-weight: 900;
+}
+
+.cp-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.cp-title {
+    font-weight: 900;
+}
+
+.cp-status {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+    margin: 0;
+}
+
+.cp-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--cp-size), 1fr);
+    gap: 0.5rem;
+    width: min(340px, 100%);
+    aspect-ratio: 1;
+    margin: 0 auto;
+}
+
+.cp-cell {
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+    box-shadow: var(--shadow-sm);
+    transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.cp-cell:not(:disabled):hover {
+    transform: scale(0.97);
+}
+
+.cp-cell.shown {
+    background: #4ecdc4;
+}
+
+.cp-cell.found {
+    background: #2dc653;
+}
+
+.cp-cell.wrong {
+    background: #e63946;
+}

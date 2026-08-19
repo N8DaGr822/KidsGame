@@ -13,6 +13,7 @@
 *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject AppDataService Data
 
 <div class="ms-game">
 
@@ -86,6 +87,7 @@
                     {
                         <h2>🎉 Minefield Cleared!</h2>
                         <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") - cleared in @FormatTime(elapsedSeconds)!</p>
+                        <PersonalBestBadge Value="@FormatTime(bestSeconds ?? elapsedSeconds)" IsNew="isNewBest" />
                     }
                     else
                     {
@@ -111,6 +113,13 @@
     /// from the admin panel; when set, the picker is replaced with a
     /// locked note and that difficulty is used.</summary>
     [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fastest clear per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestSeconds;
+    private bool isNewBest;
 
     private enum Phase { Setup, Playing, Won, Lost }
     private enum TapMode { Reveal, Flag }
@@ -169,6 +178,7 @@
         revealedSafeCount = 0;
         elapsedSeconds = 0;
         tapMode = TapMode.Reveal;
+        isNewBest = false;
         StopTimer();
         phase = Phase.Playing;
     }
@@ -320,6 +330,13 @@
 
     private async Task InvokeCompleteAsync(bool won)
     {
+        if (won && !string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"clear:{DifficultyName(selectedDifficulty)}";
+            bestSeconds = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Minesweeper, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Minesweeper, key, elapsedSeconds, lowerIsBetter: true);
+        }
+
         StateHasChanged();
 
         if (OnComplete.HasDelegate)

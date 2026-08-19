@@ -52,13 +52,24 @@
             <button class="fs-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
-        <div class="fs-field">
+        <div class="fs-field" @ref="fieldRef">
             @foreach (var item in items)
             {
                 <button @key="item.Id" class="fs-item @(item.IsBomb ? "bomb" : "") @(item.Sliced ? "sliced" : "")"
                         style="@ItemStyle(item)"
-                        disabled="@(phase != Phase.Playing)"
-                        @onclick="() => SliceItem(item)">@item.Symbol</button>
+                        data-fs-id="@item.Id"
+                        disabled="@(phase != Phase.Playing)">
+                    @if (item.Sliced && !item.IsBomb)
+                    {
+                        <span class="fs-half fs-half-a" aria-hidden="true">@item.Symbol</span>
+                        <span class="fs-half fs-half-b" aria-hidden="true">@item.Symbol</span>
+                        <span class="fs-slash" aria-hidden="true"></span>
+                    }
+                    else
+                    {
+                        @item.Symbol
+                    }
+                </button>
             }
         </div>
 
@@ -140,12 +151,42 @@
     private readonly Random rng = new();
     private System.Threading.Timer? timer;
     private IJSObjectReference? _module;
+    private ElementReference fieldRef;
+    private DotNetObjectReference<FruitSlice>? _dotNetRef;
+    private bool trackingAttached;
 
     private int CurrentMultiplier => 1 + Math.Min(streak / 5, 3);
 
     protected override void OnInitialized()
     {
         if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    // Wires up JS-side swipe tracking (see attachSliceTracking in
+    // interop.js) once the play field first exists in the DOM, and leaves
+    // it attached across Playing<->Finished (the field stays mounted
+    // behind the result overlay) - only detached in ExitToSetup/dispose
+    // when the field itself unmounts.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (phase != Phase.Setup && !trackingAttached)
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            await _module.InvokeVoidAsync("attachSliceTracking", fieldRef, _dotNetRef);
+            trackingAttached = true;
+        }
+    }
+
+    // Called from JS when a swipe crosses an unsliced item (see
+    // attachSliceTracking in interop.js) - a tap alone never fires this,
+    // only a gesture that moved past the swipe threshold.
+    [JSInvokable]
+    public Task OnSwipeHit(string itemId)
+    {
+        if (phase != Phase.Playing) return Task.CompletedTask;
+        var item = items.FirstOrDefault(i => i.Id == itemId);
+        return item is null ? Task.CompletedTask : SliceItem(item);
     }
 
     private void StartGame()
@@ -181,6 +222,12 @@
         StopTimer();
         phase = Phase.Setup;
         items.Clear();
+
+        if (trackingAttached && _module is not null)
+        {
+            await _module.InvokeVoidAsync("detachSliceTracking", fieldRef);
+            trackingAttached = false;
+        }
     }
 
     private void Tick(object? _) => InvokeAsync(async () =>
@@ -252,7 +299,7 @@
         }
 
         StateHasChanged();
-        await Task.Delay(150);
+        await Task.Delay(300);
         items.Remove(item);
         StateHasChanged();
     }
@@ -325,9 +372,15 @@
 
         if (_module is not null)
         {
-            try { await _module.DisposeAsync(); }
+            try
+            {
+                if (trackingAttached) await _module.InvokeVoidAsync("detachSliceTracking", fieldRef);
+                await _module.DisposeAsync();
+            }
             catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
         }
+
+        _dotNetRef?.Dispose();
     }
 
     public record FruitSliceResult(string Difficulty, int Score, int Sliced, int BombsHit, int BestStreak, int ElapsedSeconds);

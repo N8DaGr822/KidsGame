@@ -315,12 +315,18 @@ export async function exportOutfit(stageEl, baseImageEl, emojiStickers, drawCanv
 
     ctx.drawImage(drawCanvas, 0, 0, width, height);
 
+    const dataUrl = outCanvas.toDataURL('image/png');
+
     const link = document.createElement('a');
     link.download = filename;
-    link.href = outCanvas.toDataURL('image/png');
+    link.href = dataUrl;
     document.body.appendChild(link);
     link.click();
     link.remove();
+
+    // Returned so the caller can also keep it in an in-app gallery of past
+    // looks, not just the one-off downloaded file.
+    return dataUrl;
 }
 
 // Shared by exportOutfit's behind/front sticker passes above.
@@ -372,6 +378,75 @@ function loadImage(src) {
         img.onerror = reject;
         img.src = src;
     });
+}
+
+// ---- Fruit Slice swipe-to-cut detection ---------------------------------
+//
+// A real slice needs a swipe crossing the fruit, not a tap - matches how
+// every fruit-ninja-style game actually plays. Item positions are driven
+// by a CSS arc animation (see FruitSlice.razor.css), not tracked in C#,
+// so hit-testing reads the real rendered position off the DOM via
+// elementsFromPoint rather than recomputing the arc - the browser is
+// already the source of truth for where an animating item currently sits.
+
+const sliceState = new WeakMap();
+const MIN_SWIPE_PX = 18;
+
+export function attachSliceTracking(fieldEl, dotNetRef) {
+    detachSliceTracking(fieldEl);
+
+    const state = { dragging: false, armed: false, startX: 0, startY: 0, hitIds: new Set() };
+
+    const pointerDown = (e) => {
+        state.dragging = true;
+        state.armed = false;
+        state.startX = e.clientX;
+        state.startY = e.clientY;
+        state.hitIds.clear();
+        fieldEl.setPointerCapture(e.pointerId);
+    };
+
+    const pointerMove = (e) => {
+        if (!state.dragging) return;
+        const dx = e.clientX - state.startX;
+        const dy = e.clientY - state.startY;
+        if (!state.armed) {
+            if (dx * dx + dy * dy < MIN_SWIPE_PX * MIN_SWIPE_PX) return;
+            state.armed = true;
+        }
+
+        for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
+            const item = el.closest ? el.closest('.fs-item') : null;
+            if (!item) continue;
+            const id = item.getAttribute('data-fs-id');
+            if (!id || state.hitIds.has(id)) continue;
+            state.hitIds.add(id);
+            dotNetRef.invokeMethodAsync('OnSwipeHit', id);
+        }
+    };
+
+    const pointerEnd = () => {
+        state.dragging = false;
+        state.armed = false;
+    };
+
+    fieldEl.addEventListener('pointerdown', pointerDown);
+    fieldEl.addEventListener('pointermove', pointerMove);
+    fieldEl.addEventListener('pointerup', pointerEnd);
+    fieldEl.addEventListener('pointercancel', pointerEnd);
+
+    state.handlers = { pointerDown, pointerMove, pointerEnd };
+    sliceState.set(fieldEl, state);
+}
+
+export function detachSliceTracking(fieldEl) {
+    const state = sliceState.get(fieldEl);
+    if (!state) return;
+    fieldEl.removeEventListener('pointerdown', state.handlers.pointerDown);
+    fieldEl.removeEventListener('pointermove', state.handlers.pointerMove);
+    fieldEl.removeEventListener('pointerup', state.handlers.pointerEnd);
+    fieldEl.removeEventListener('pointercancel', state.handlers.pointerEnd);
+    sliceState.delete(fieldEl);
 }
 
 // ---- Spoken narration (Web Speech API) --------------------------------

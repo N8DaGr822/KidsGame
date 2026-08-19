@@ -14,6 +14,7 @@
 *@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject AppDataService Data
 
 <div class="simon-game">
 
@@ -72,6 +73,7 @@
                 <div class="simon-win-panel game-result-panel">
                     <h2>Game Over</h2>
                     <p>You reached round @roundsReached!</p>
+                    <PersonalBestBadge Value="@((bestRounds ?? roundsReached).ToString())" IsNew="isNewBest" />
                     <div class="simon-win-actions game-result-actions">
                         <button class="simon-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="simon-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
@@ -91,6 +93,13 @@
     /// from the admin panel; when set, the picker is replaced with a
     /// locked note and that difficulty is used.</summary>
     [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (longest sequence reached per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestRounds;
+    private bool isNewBest;
 
     private enum Phase { Setup, Watching, Listening, RoundEnd }
     public enum Difficulty { Easy, Medium, Hard }
@@ -138,6 +147,7 @@
         sequence.Add(rng.Next(4));
         roundsReached = 0;
         mistakesMade = 0;
+        isNewBest = false;
         startedAtUtc = DateTime.UtcNow;
         _ = PlaybackAsync();
     }
@@ -155,11 +165,25 @@
     {
         if ((phase == Phase.Watching || phase == Phase.Listening) && OnComplete.HasDelegate)
         {
+            await RecordBestIfNeededAsync();
             await OnComplete.InvokeAsync(new SimonSaysResult(
                 RoundsReached: roundsReached,
                 ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
         }
         phase = Phase.Setup;
+    }
+
+    // Easy never reaches EndRoundAsync (MaxMistakes is int.MaxValue there),
+    // so ExitToSetup is the only place a session ever completes on that
+    // difficulty - both call this rather than duplicating the best-record
+    // logic inline.
+    private async Task RecordBestIfNeededAsync()
+    {
+        if (roundsReached <= 0 || string.IsNullOrEmpty(ProfileId)) return;
+
+        var key = $"rounds:{DifficultyName(selectedDifficulty)}";
+        bestRounds = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.SimonSays, key);
+        isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.SimonSays, key, roundsReached, lowerIsBetter: false);
     }
 
     private async Task PlaybackAsync()
@@ -258,6 +282,7 @@
     private async Task EndRoundAsync()
     {
         phase = Phase.RoundEnd;
+        await RecordBestIfNeededAsync();
         StateHasChanged();
         await PlaySoundAsync("playSimonErrorSound", null);
 

@@ -1,0 +1,450 @@
+@*
+    ChessPuzzles.razor
+    "Mate in 1" / "mate in 2" tactics puzzles instead of full chess - you
+    always play White against a hand-placed position and must find the
+    move (or two) that delivers checkmate. Real legal-move generation and
+    check/checkmate detection live in Services/ChessRules.cs (full piece
+    rules, but no castling or en passant - no puzzle in the bank needs
+    either, since every position is hand-placed rather than reached by
+    playing from the start). Any legal move that actually delivers
+    checkmate is accepted as correct, not just the one solution the
+    puzzle was composed around - a kid who finds a different mate
+    shouldn't be told they're wrong. For a mate-in-2 puzzle, your first
+    move must force exactly one legal reply from Black (checked
+    dynamically against whatever move you actually try, not a hardcoded
+    "correct" first move) - Black's forced reply is then played
+    automatically before you look for the mating second move. Wrong
+    attempts revert the position rather than penalizing you, and the
+    hint reveals itself after a couple of misses. No bishop art exists in
+    the checkers/chess asset batch this shipped with (see
+    wwwroot/images/README.md), so bishops render as a styled Unicode
+    glyph sized to match the other pieces. Personal best tracks fewest
+    wrong attempts across a full session, per difficulty.
+
+    Usage:
+        <ChessPuzzles OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="cp-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="cp-setup game-setup-panel">
+            <h2>♟️ Chess Puzzles</h2>
+            <p>You're always White. Find the move that checkmates the black king - any real mate counts, not just one "correct" answer!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="cp-diff-name">@DifficultyName(diff)</span>
+                            <span class="cp-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="cp-title">Chess Puzzles</span>
+            <span class="game-stat">Puzzle @Math.Min(puzzleIndex + 1, sessionPuzzles.Count)/@sessionPuzzles.Count</span>
+            <span class="game-stat">🏆 Solved @solvedCount</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <p class="cp-status">@statusText</p>
+
+        <div class="cp-board">
+            @for (var r = 0; r < ChessRules.Size; r++)
+            {
+                for (var c = 0; c < ChessRules.Size; c++)
+                {
+                    var row = r; var col = c;
+                    var cell = board[row, col];
+                    var light = (row + col) % 2 == 0;
+                    var isSelected = selectedSquare == (row, col);
+                    var isDestination = selectedSquare is not null && legalDestinations.Contains((row, col));
+                    var canSelect = phase == Phase.Playing && !animating && cell != ChessRules.Empty && ChessRules.IsWhite(cell);
+
+                    <button class="cp-cell @(light ? "light" : "dark")"
+                            style="background-image:url('images/chess/@(light ? "tile-light.png" : "tile-dark.png")')"
+                            disabled="@(animating || phase != Phase.Playing || !(canSelect || isDestination))"
+                            @onclick="() => HandleTap(row, col)">
+                        @if (cell != ChessRules.Empty)
+                        {
+                            if (ChessRules.PieceType(cell) == ChessRules.Bishop)
+                            {
+                                <span class="cp-piece cp-bishop-glyph @(ChessRules.IsWhite(cell) ? "white" : "black") @(isSelected ? "selected" : "")">@(ChessRules.IsWhite(cell) ? "♗" : "♝")</span>
+                            }
+                            else
+                            {
+                                <img class="cp-piece @(isSelected ? "selected" : "")" src="images/chess/@PieceImagePath(cell, row, col)" alt="" />
+                            }
+                        }
+                        else if (isDestination)
+                        {
+                            <span class="cp-hint"></span>
+                        }
+                    </button>
+                }
+            }
+        </div>
+
+        @if (showHint && !string.IsNullOrEmpty(CurrentPuzzle.Hint))
+        {
+            <p class="cp-hint-text">💡 @CurrentPuzzle.Hint</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>♟️ All Done!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")solved @solvedCount of @sessionPuzzles.Count!</p>
+                    <PersonalBestBadge Value="@(bestAttempts is { } ba ? $"{ba} wrong tries" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<ChessPuzzlesResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest wrong attempts across a session, per difficulty) - null
+    /// skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private record PuzzleDef(string Id, string[] Board, int MovesToMate, string Hint);
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    // Every position was verified with Services/ChessRules.cs before
+    // shipping (each mate-in-1 board actually reaches checkmate in one
+    // legal move, each mate-in-2 board forces exactly one Black reply
+    // after its intended first move and reaches checkmate on the second) -
+    // see the scratch validation harness used to compose these, not
+    // committed to the repo since it was a one-time authoring aid.
+    private static readonly PuzzleDef[] EasyPuzzles =
+    {
+        new("p1-backrank-rook",
+            new[] { "......k.", ".....ppp", "........", "........", "........", "........", ".......K", "...R...." },
+            1, "Slide your rook all the way down the open file to check the king along his own back rank - his pawns block every escape."),
+        new("p2-adjacent-queen",
+            new[] { ".......k", "Q.......", "......K.", "........", "........", "........", "........", "........" },
+            1, "Move your queen right next to the king on a square your own king protects - he can't capture her and has nowhere to run."),
+        new("p3-smothered-knight",
+            new[] { "......rk", "......pp", "...N....", "........", "........", "........", "........", "K......." },
+            1, "The king is boxed in by his own pieces in the corner - find the knight move that checks him with no escape square left."),
+    };
+
+    private static readonly PuzzleDef[] MediumPuzzles =
+    {
+        new("p4-king-assisted-rook",
+            new[] { "........", "........", "........", "k.K.....", "........", "........", "........", ".......R" },
+            1, "Your king already blocks three of his escape squares - bring your rook down the open file to check him and cover the rest."),
+        new("p5-two-rooks",
+            new[] { "k.......", "......R.", "........", "........", ".......R", "........", "........", "K......." },
+            1, "One rook already guards the row behind him - bring the second rook all the way to his own row to finish the job."),
+        new("p8-bishop-protected-rook",
+            new[] { ".......k", ".....Kpp", "......B.", "........", "........", "........", "........", ".......R" },
+            1, "Capture the pawn right next to the king with your rook - your king and bishop already watch the squares he'd need to escape to."),
+    };
+
+    private static readonly PuzzleDef[] HardPuzzles =
+    {
+        new("p6-knight-protected-queen",
+            new[] { ".......k", "......pp", ".....N..", "........", "........", "........", "........", "K......Q" },
+            1, "Capture the pawn next to the king with your queen - your knight already guards that exact square, so he can't take her back."),
+        new("p7-queen-diagonal-mate2",
+            new[] { "k.......", ".......R", "........", "........", "...Q....", "........", "........", ".......K" },
+            2, "Check along the open file first - the king only has one square to run to. Then swing your queen onto his back rank from the side."),
+    };
+
+    private static PuzzleDef[] PuzzlesFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => EasyPuzzles,
+        Difficulty.Medium => MediumPuzzles,
+        _ => HardPuzzles,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private List<PuzzleDef> sessionPuzzles = new();
+    private int puzzleIndex;
+    private PuzzleDef CurrentPuzzle => sessionPuzzles[puzzleIndex];
+    private int[,] board = new int[ChessRules.Size, ChessRules.Size];
+    private (int Row, int Col)? selectedSquare;
+    private HashSet<(int Row, int Col)> legalDestinations = new();
+    private bool animating;
+    private bool blackHasMovedOnce; // mate-in-2 progress: has the forced Black reply already been played?
+    private int wrongAttemptsThisPuzzle;
+    private int totalWrongAttempts;
+    private int solvedCount;
+    private bool showHint;
+    private string statusText = "";
+    private int? bestAttempts;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        sessionPuzzles = PuzzlesFor(selectedDifficulty).OrderBy(_ => rng.Next()).ToList();
+        puzzleIndex = 0;
+        solvedCount = 0;
+        totalWrongAttempts = 0;
+        bestAttempts = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        LoadPuzzle();
+    }
+
+    private void LoadPuzzle()
+    {
+        board = ChessRules.ParseBoard(CurrentPuzzle.Board);
+        selectedSquare = null;
+        legalDestinations = new();
+        blackHasMovedOnce = false;
+        wrongAttemptsThisPuzzle = 0;
+        showHint = false;
+        statusText = CurrentPuzzle.MovesToMate == 1 ? "Find checkmate in 1 move." : "Find checkmate in 2 moves - force the king first.";
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new ChessPuzzlesResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                PuzzlesSolved: solvedCount,
+                SessionSize: sessionPuzzles.Count,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private void HandleTap(int row, int col)
+    {
+        if (phase != Phase.Playing || animating) return;
+
+        if (selectedSquare is { } sel && legalDestinations.Contains((row, col)))
+        {
+            _ = ApplyPlayerMoveAsync(sel.Row, sel.Col, row, col);
+            return;
+        }
+
+        var cell = board[row, col];
+        if (cell != ChessRules.Empty && ChessRules.IsWhite(cell))
+        {
+            selectedSquare = (row, col);
+            legalDestinations = ChessRules.LegalMovesFor(board, row, col).Select(m => (m.ToRow, m.ToCol)).ToHashSet();
+        }
+        else
+        {
+            selectedSquare = null;
+            legalDestinations = new();
+        }
+    }
+
+    private async Task ApplyPlayerMoveAsync(int fromRow, int fromCol, int toRow, int toCol)
+    {
+        animating = true;
+        selectedSquare = null;
+        legalDestinations = new();
+
+        var move = new ChessRules.Move(fromRow, fromCol, toRow, toCol);
+        var beforeMove = (int[,])board.Clone();
+        ChessRules.ApplyMove(board, move);
+        StateHasChanged();
+
+        if (ChessRules.IsCheckmate(board, false))
+        {
+            await PlaySoundAsync("playMatchSound");
+            await Task.Delay(700);
+            await SolvePuzzleAsync();
+            return;
+        }
+
+        if (CurrentPuzzle.MovesToMate == 1 || blackHasMovedOnce)
+        {
+            // Wrong: either this was meant to be an outright mate-in-1 (or
+            // the mating second move of a mate-in-2) and it wasn't.
+            await RejectMoveAsync(beforeMove, "Not checkmate yet - try again!");
+            return;
+        }
+
+        // Mate-in-2, first move: it only counts as "on track" if it forces
+        // exactly one legal Black reply - anything else (multiple replies,
+        // or accidentally stalemating Black) doesn't set up a forced mate.
+        var blackReplies = ChessRules.LegalMovesForColor(board, false);
+        if (blackReplies.Count != 1)
+        {
+            var why = blackReplies.Count == 0 ? "That's a stalemate, not checkmate - try a different first move!" : "That doesn't force his next move - try again!";
+            await RejectMoveAsync(beforeMove, why);
+            return;
+        }
+
+        await PlaySoundAsync("playImpactSound");
+        StateHasChanged();
+        await Task.Delay(500);
+        ChessRules.ApplyMove(board, blackReplies[0]);
+        blackHasMovedOnce = true;
+        statusText = "Forced! Now find the checkmate.";
+        await PlaySoundAsync("playImpactSound");
+        StateHasChanged();
+        await Task.Delay(400);
+        animating = false;
+    }
+
+    private async Task RejectMoveAsync(int[,] beforeMove, string message)
+    {
+        wrongAttemptsThisPuzzle++;
+        totalWrongAttempts++;
+        if (wrongAttemptsThisPuzzle >= 2) showHint = true;
+        statusText = message;
+        await PlaySoundAsync("playMismatchSound");
+        StateHasChanged();
+        await Task.Delay(1100);
+        board = beforeMove;
+        statusText = CurrentPuzzle.MovesToMate == 1 || blackHasMovedOnce
+            ? "Find checkmate."
+            : "Find checkmate in 2 moves - force the king first.";
+        animating = false;
+        StateHasChanged();
+    }
+
+    private async Task SolvePuzzleAsync()
+    {
+        solvedCount++;
+        statusText = "Checkmate! 🎉";
+        StateHasChanged();
+        await Task.Delay(1200);
+
+        if (puzzleIndex + 1 >= sessionPuzzles.Count)
+        {
+            await FinishGame();
+        }
+        else
+        {
+            puzzleIndex++;
+            LoadPuzzle();
+            animating = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string? PieceImagePath(int cell, int row, int col)
+    {
+        var color = ChessRules.IsWhite(cell) ? "white" : "black";
+        var variantSeed = row * ChessRules.Size + col;
+        return ChessRules.PieceType(cell) switch
+        {
+            ChessRules.Pawn => $"{color}-pawn-{variantSeed % 3 + 1}.png",
+            ChessRules.Knight => $"{color}-knight.png",
+            ChessRules.Rook => $"{color}-rook.png",
+            ChessRules.Queen => $"{color}-queen-{variantSeed % 2 + 1}.png",
+            ChessRules.King => $"{color}-king.png",
+            _ => null,
+        };
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"fewest-wrong-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestAttempts = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.ChessPuzzles, key);
+            if (solvedCount == sessionPuzzles.Count)
+            {
+                isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.ChessPuzzles, key, totalWrongAttempts, lowerIsBetter: true);
+            }
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new ChessPuzzlesResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                PuzzlesSolved: solvedCount,
+                SessionSize: sessionPuzzles.Count,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3 puzzles - checkmate in 1 move",
+        Difficulty.Medium => "3 puzzles - checkmate in 1 move, trickier",
+        _ => "2 puzzles - one is checkmate in 2 forced moves",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record ChessPuzzlesResult(string Difficulty, int PuzzlesSolved, int SessionSize, int ElapsedSeconds);
+}

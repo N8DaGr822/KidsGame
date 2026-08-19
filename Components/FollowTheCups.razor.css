@@ -1,0 +1,93 @@
+.ftc-game {
+    width: min(480px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1rem;
+}
+
+.ftc-diff-name {
+    font-weight: 900;
+}
+
+.ftc-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.ftc-title {
+    font-weight: 900;
+}
+
+.ftc-status {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+    margin: 0;
+}
+
+.ftc-table {
+    position: relative;
+    height: 160px;
+    margin: 0.5rem auto 0;
+}
+
+.ftc-slot {
+    position: absolute;
+    bottom: 0;
+    width: 110px;
+    height: 90px;
+    transition: left 0.35s ease;
+}
+
+.ftc-ball {
+    position: absolute;
+    left: 50%;
+    bottom: 6px;
+    transform: translateX(-50%);
+    font-size: 1.6rem;
+    line-height: 1;
+    z-index: 1;
+}
+
+.ftc-cup {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border: none;
+    cursor: pointer;
+    background: url('/images/followcup/cup.png') bottom center / contain no-repeat;
+    filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.35));
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s ease;
+    padding: 0;
+}
+
+.ftc-cup:disabled {
+    cursor: default;
+}
+
+.ftc-cup:not(:disabled):hover {
+    filter: brightness(1.1);
+    transform: translateY(-4px);
+}
+
+.ftc-cup.lifted {
+    transform: translateY(-58px) rotate(-4deg);
+}
+
+.ftc-cup.correct {
+    filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.35)) drop-shadow(0 0 10px rgba(255, 214, 10, 0.8));
+}
+
+.ftc-cup.wrong {
+    filter: grayscale(0.6) drop-shadow(0 4px 4px rgba(0, 0, 0, 0.35));
+    animation: ftc-shake 0.4s ease;
+}
+
+@keyframes ftc-shake {
+    0%, 100% { transform: translateY(-58px) rotate(-4deg) translateX(0); }
+    25% { transform: translateY(-58px) rotate(-4deg) translateX(-6px); }
+    75% { transform: translateY(-58px) rotate(-4deg) translateX(6px); }
+}

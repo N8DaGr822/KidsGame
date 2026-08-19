@@ -55,7 +55,7 @@
             @for (var i = 0; i < 9; i++)
             {
                 var idx = i;
-                <button class="tt-cell @(board[idx] == 'X' ? "x" : "") @(board[idx] == 'O' ? "o" : "")"
+                <button class="tt-cell @(board[idx] == 'X' ? "x" : "") @(board[idx] == 'O' ? "o" : "") @(winningLine?.Contains(idx) == true ? "win" : "")"
                         disabled="@(phase != Phase.Playing || board[idx] != '\0' || aiThinking)"
                         @onclick="() => PlayerMove(idx)">
                     @(board[idx] == '\0' ? "" : board[idx].ToString())
@@ -122,6 +122,7 @@
     private GameAi.Difficulty selectedDifficulty = GameAi.Difficulty.Easy;
     private char[] board = new char[9];
     private bool aiThinking;
+    private int[]? winningLine;
     private string outcome = "";
     private int wins;
     private int losses;
@@ -139,6 +140,7 @@
         board = new char[9];
         phase = Phase.Playing;
         aiThinking = false;
+        winningLine = null;
         startedAtUtc = DateTime.UtcNow;
     }
 
@@ -184,12 +186,14 @@
         var winner = GameAi.TicTacToeWinner(board);
         if (winner == PlayerSymbol)
         {
+            winningLine = GameAi.TicTacToeWinningLine(board);
             wins++;
             await FinishGame("Win");
             return true;
         }
         if (winner == AiSymbol)
         {
+            winningLine = GameAi.TicTacToeWinningLine(board);
             losses++;
             await FinishGame("Loss");
             return true;

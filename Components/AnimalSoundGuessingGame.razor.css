@@ -1,0 +1,78 @@
+.as-game {
+    width: min(440px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.85rem;
+}
+
+.as-diff-name {
+    font-weight: 900;
+}
+
+.as-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.as-title {
+    font-weight: 900;
+}
+
+.as-sound-card {
+    display: grid;
+    justify-items: center;
+    gap: 0.6rem;
+    padding: 1.5rem 1rem;
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
+}
+
+.as-sound-text {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 900;
+}
+
+.as-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 0.6rem;
+}
+
+.as-choice-btn {
+    display: grid;
+    place-items: center;
+    gap: 0.3rem;
+    padding: 1rem 0.5rem;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.1s ease, background-color 0.15s ease;
+}
+
+.as-choice-btn:not(:disabled):hover {
+    transform: translateY(-2px);
+}
+
+.as-choice-btn.correct {
+    background: #2dc653;
+}
+
+.as-choice-btn.wrong {
+    background: #e63946;
+}
+
+.as-choice-emoji {
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.as-choice-name {
+    font-size: 0.8rem;
+    font-weight: 800;
+}

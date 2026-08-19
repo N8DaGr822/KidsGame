@@ -77,6 +77,11 @@
             <span class="ah-puck" style="left:@((puck.Position.X * 100f / TableWidth).ToString(Inv))%; top:@((puck.Position.Y * 100f / TableHeight).ToString(Inv))%;"></span>
             <span class="ah-paddle cpu" style="left:@((cpuPaddle.Position.X * 100f / TableWidth).ToString(Inv))%; top:@((cpuPaddle.Position.Y * 100f / TableHeight).ToString(Inv))%;"></span>
             <span class="ah-paddle player" style="left:@((playerPaddle.Position.X * 100f / TableWidth).ToString(Inv))%; top:@((playerPaddle.Position.Y * 100f / TableHeight).ToString(Inv))%;"></span>
+
+            @foreach (var fx in goalEffects)
+            {
+                <span @key="fx.Id" class="ah-goal-fx" style="left:@((fx.X * 100f / TableWidth).ToString(Inv))%; top:@((fx.Y * 100f / TableHeight).ToString(Inv))%;"></span>
+            }
         </div>
 
         @if (!string.IsNullOrEmpty(roundMessage))
@@ -137,6 +142,7 @@
     private const int MaxSubstepsPerFrame = 8;
     private const int FrameDelayMs = 16;
     private const int GoalPauseMs = 1200;
+    private const int GoalFxMs = 700;
 
     private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
 
@@ -174,6 +180,18 @@
     private bool paused;
     private DateTime pauseUntilUtc;
 
+    /// <summary>A one-shot explosion-sprite flash where the puck crossed a
+    /// goal line - see GAMES_ROADMAP.md's explosion-pack asset triage.</summary>
+    private class GoalFx
+    {
+        public string Id { get; } = Guid.NewGuid().ToString();
+        public float X;
+        public float Y;
+        public int RemainingMs;
+    }
+
+    private readonly List<GoalFx> goalEffects = new();
+
     protected override void OnInitialized()
     {
         if (LockedDifficulty is { } locked) selectedDifficulty = locked;
@@ -191,6 +209,7 @@
         paused = false;
         activeFieldPointerId = null;
         playerPointerTarget = null;
+        goalEffects.Clear();
 
         puck = new PhysicsBody { Radius = PuckRadius, Position = new Vector2(TableWidth / 2f, TableHeight / 2f) };
         playerPaddle = new PhysicsBody { Radius = PaddleRadius, IsKinematic = true, Position = new Vector2(TableWidth / 2f, TableHeight * 0.85f) };
@@ -253,6 +272,12 @@
                 var elapsed = (float)(now - lastTick).TotalSeconds;
                 lastTick = now;
 
+                for (var i = goalEffects.Count - 1; i >= 0; i--)
+                {
+                    goalEffects[i].RemainingMs -= (int)(elapsed * 1000);
+                    if (goalEffects[i].RemainingMs <= 0) goalEffects.RemoveAt(i);
+                }
+
                 if (paused)
                 {
                     if (now >= pauseUntilUtc)
@@ -282,6 +307,10 @@
                     {
                         if (playerScored) { playerScore++; roundMessage = "Goal!"; }
                         else { cpuScore++; roundMessage = "CPU scores!"; }
+
+                        var goalX = Math.Clamp(puck.Position.X, PuckRadius, TableWidth - PuckRadius);
+                        goalEffects.Add(new GoalFx { X = goalX, Y = playerScored ? 0f : TableHeight, RemainingMs = GoalFxMs });
+
                         await PlaySoundAsync(playerScored ? "playMatchSound" : "playMismatchSound");
 
                         if (playerScore >= WinScore || cpuScore >= WinScore)

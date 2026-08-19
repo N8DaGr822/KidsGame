@@ -1,0 +1,98 @@
+.cp-game {
+    width: min(480px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.75rem;
+}
+
+.cp-diff-name {
+    font-weight: 900;
+}
+
+.cp-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.cp-title {
+    font-weight: 900;
+}
+
+.cp-status {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+    margin: 0;
+}
+
+.cp-board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    width: min(420px, 100%);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    border: 3px solid #4a3428;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.cp-cell {
+    display: grid;
+    place-items: center;
+    border: none;
+    padding: 0;
+    background-size: cover;
+    background-position: center;
+}
+
+.cp-piece {
+    width: 84%;
+    aspect-ratio: 1;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
+    transition: transform 0.15s ease;
+}
+
+.cp-piece.selected {
+    transform: scale(1.14) translateY(-3px);
+    filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px rgba(78, 205, 196, 0.85));
+}
+
+.cp-bishop-glyph {
+    font-size: min(7vw, 34px);
+    line-height: 1;
+    font-weight: 900;
+    -webkit-text-stroke: 1px rgba(0, 0, 0, 0.5);
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
+}
+
+.cp-bishop-glyph.white {
+    color: #fdf6e8;
+}
+
+.cp-bishop-glyph.black {
+    color: #2a2a2a;
+}
+
+.cp-hint {
+    width: 30%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: rgba(78, 205, 196, 0.55);
+    box-shadow: 0 0 10px rgba(78, 205, 196, 0.6);
+}
+
+.cp-hint-text {
+    text-align: center;
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    background: var(--control-bg-subtle);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 0.9rem;
+    margin: 0;
+}
