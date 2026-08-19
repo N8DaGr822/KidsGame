@@ -1,21 +1,25 @@
 @*
     Checkers.razor
     Standard English/American draughts vs a CPU on an 8x8 board, using
-    only the 32 dark squares. Real rules, not a simplified variant:
-    captures are mandatory whenever any of your pieces has one available
-    (tap-selectable pieces are limited to just the capturing ones when
-    that's the case), a capturing piece must keep jumping until no
-    further jump is available for it, and reaching the far row promotes
-    a man to a king (which can move/capture in all four diagonal
-    directions) - promoting ends the turn immediately even if another
-    jump would have been possible, a real rule, not a bug. Tap a
-    highlighted piece, then tap a highlighted destination; mid-jump-chain
-    the same piece stays selected and only its further jumps light up.
-    AI logic lives in Services/GameAi.cs (CheckersLegalTurns/CheckersMove/
-    CheckersApplyHop), searching whole turns (a full forced-capture chain
-    counts as one ply, matching how a turn actually plays out) with the
-    same alpha-beta minimax shape as Reversi/Connect Four. Personal best
-    tracks fewest turns to win, per difficulty.
+    only the 32 dark squares, with a choice of rules: Tournament (the
+    real official rule - captures are mandatory whenever any of your
+    pieces has one available, tap-selectable pieces are limited to just
+    the capturing ones when that's the case, and a capturing piece must
+    keep jumping until no further jump is available for it) or Free Play
+    (captures are offered but never forced, and never force a
+    continuation chain either - the simpler, more casual variant). Either
+    way, reaching the far row promotes a man to a king (which can
+    move/capture in all four diagonal directions) - promoting ends the
+    turn immediately even if another jump would have been possible, a
+    real rule, not a bug. Tap a highlighted piece, then tap a highlighted
+    destination; mid-jump-chain (Tournament only) the same piece stays
+    selected and only its further jumps light up. AI logic lives in
+    Services/GameAi.cs (CheckersLegalTurns/CheckersMove/CheckersApplyHop),
+    searching whole turns (a full forced-capture chain counts as one ply
+    under Tournament rules, matching how a turn actually plays out) with
+    the same alpha-beta minimax shape as Reversi/Connect Four - the CPU
+    plays under whichever ruleset the player chose, same as the player.
+    Personal best tracks fewest turns to win, per difficulty and ruleset.
 
     Usage:
         <Checkers OnComplete="HandleGameComplete" />
@@ -31,7 +35,18 @@
     {
         <div class="ck-setup game-setup-panel">
             <h2>🔴 Checkers</h2>
-            <p>Jump the CPU's pieces to capture them - a capture is mandatory whenever one is available! Reach the far row to crown a king.</p>
+            <p>Jump the CPU's pieces to capture them. Reach the far row to crown a king.</p>
+
+            <h3 class="game-section-title">Choose the rules</h3>
+            <div class="game-option-grid">
+                @foreach (var rules in RulesOptions)
+                {
+                    <button class="game-option-button @(rules == mandatoryCapture ? "selected" : "")" @onclick="() => mandatoryCapture = rules">
+                        <span class="ck-diff-name">@RulesName(rules)</span>
+                        <span class="ck-diff-detail">@RulesDetail(rules)</span>
+                    </button>
+                }
+            </div>
 
             <h3 class="game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
@@ -136,12 +151,18 @@
     private enum Turn { Player, Cpu }
 
     private static readonly GameAi.Difficulty[] Difficulties = { GameAi.Difficulty.Easy, GameAi.Difficulty.Medium, GameAi.Difficulty.Hard };
+    private static readonly bool[] RulesOptions = { true, false };
 
     private GameAi.Difficulty? LockedDifficulty =>
         Enum.TryParse<GameAi.Difficulty>(ForcedDifficulty, out var d) ? d : null;
 
     private Phase phase = Phase.Setup;
     private GameAi.Difficulty selectedDifficulty = GameAi.Difficulty.Easy;
+
+    // Tournament (mandatory capture) is the real official rule and stays
+    // the default; free play makes capturing optional for a more casual
+    // game, applied identically to the player and the CPU.
+    private bool mandatoryCapture = true;
     private Turn turn = Turn.Player;
     private int[,] board = new int[GameAi.CheckersSize, GameAi.CheckersSize];
     private HashSet<(int Row, int Col)> legalOrigins = new();
@@ -184,7 +205,7 @@
         bestTurns = null;
         isNewBest = false;
         UpdateCounts();
-        legalOrigins = GameAi.CheckersLegalOrigins(board, 1).ToHashSet();
+        legalOrigins = GameAi.CheckersLegalOrigins(board, 1, mandatoryCapture).ToHashSet();
         startedAtUtc = DateTime.UtcNow;
         phase = Phase.Playing;
     }
@@ -240,10 +261,23 @@
     private void SelectOrigin(int row, int col)
     {
         selectedOrigin = (row, col);
-        var mustCapture = GameAi.CheckersHasAnyCapture(board, 1);
-        legalDestinations = (mustCapture
-            ? GameAi.CheckersCaptureHopsFor(board, row, col).Select(h => (h.ToRow, h.ToCol))
-            : GameAi.CheckersSimpleMovesFor(board, row, col)).ToHashSet();
+        var mustCapture = mandatoryCapture && GameAi.CheckersHasAnyCapture(board, 1);
+        if (mustCapture)
+        {
+            legalDestinations = GameAi.CheckersCaptureHopsFor(board, row, col).Select(h => (h.ToRow, h.ToCol)).ToHashSet();
+            return;
+        }
+
+        legalDestinations = GameAi.CheckersSimpleMovesFor(board, row, col).ToHashSet();
+        if (!mandatoryCapture)
+        {
+            // Free play: a capture is offered too, alongside simple moves,
+            // never forced.
+            foreach (var (toR, toC, _, _) in GameAi.CheckersCaptureHopsFor(board, row, col))
+            {
+                legalDestinations.Add((toR, toC));
+            }
+        }
     }
 
     private async Task ApplyPlayerHopAsync(int fromRow, int fromCol, int toRow, int toCol)
@@ -271,7 +305,7 @@
         await PlaySoundAsync(wasCapture ? "playImpactSound" : "playMatchSound");
         StateHasChanged();
 
-        if (wasCapture && !justPromoted && GameAi.CheckersCaptureHopsFor(board, toRow, toCol).Count > 0)
+        if (mandatoryCapture && wasCapture && !justPromoted && GameAi.CheckersCaptureHopsFor(board, toRow, toCol).Count > 0)
         {
             midChain = true;
             selectedOrigin = (toRow, toCol);
@@ -293,7 +327,7 @@
     private async Task RunCpuTurnAsync()
     {
         await Task.Delay(500);
-        var cpuTurn = GameAi.CheckersMove(board, 2, 1, selectedDifficulty);
+        var cpuTurn = GameAi.CheckersMove(board, 2, 1, selectedDifficulty, mandatoryCapture);
         if (cpuTurn is null)
         {
             // CPU has no legal turn (no pieces, or every piece is blocked) -
@@ -313,7 +347,7 @@
         }
 
         turn = Turn.Player;
-        legalOrigins = GameAi.CheckersLegalOrigins(board, 1).ToHashSet();
+        legalOrigins = GameAi.CheckersLegalOrigins(board, 1, mandatoryCapture).ToHashSet();
         if (legalOrigins.Count == 0)
         {
             won = false;
@@ -358,7 +392,7 @@
 
         if (!string.IsNullOrEmpty(ProfileId))
         {
-            var key = $"fewest-turns-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            var key = $"fewest-turns-{DifficultyName(selectedDifficulty).ToLowerInvariant()}-{(mandatoryCapture ? "tournament" : "free")}";
             bestTurns = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Checkers, key);
             if (won)
             {
@@ -389,10 +423,16 @@
 
     private static string DifficultyDetail(GameAi.Difficulty d) => d switch
     {
-        GameAi.Difficulty.Easy => "CPU moves randomly (still obeys forced captures)",
+        GameAi.Difficulty.Easy => "CPU moves randomly",
         GameAi.Difficulty.Medium => "CPU plans a few moves ahead",
         _ => "CPU plans several moves ahead + real strategy",
     };
+
+    private static string RulesName(bool mandatory) => mandatory ? "Tournament" : "Free Play";
+
+    private static string RulesDetail(bool mandatory) => mandatory
+        ? "Captures are mandatory - the official rule"
+        : "Capture if you want to - never forced";
 
     public async ValueTask DisposeAsync()
     {

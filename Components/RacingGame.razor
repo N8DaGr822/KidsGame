@@ -49,6 +49,17 @@
                 }
             </div>
 
+            <h3 class="game-section-title">Choose a track</h3>
+            <div class="rg-track-select game-option-grid">
+                @foreach (var track in RaceTrack.Tracks)
+                {
+                    <button class="game-option-button @(track.Id == selectedTrack.Id ? "selected" : "")" @onclick="() => selectedTrack = track">
+                        <span class="rg-diff-name">@track.Name</span>
+                        <span class="rg-diff-detail">@track.Description</span>
+                    </button>
+                }
+            </div>
+
             <h3 class="game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
             {
@@ -79,33 +90,36 @@
             <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
-        <div class="rg-field" @ref="fieldRef"
+        <div class="rg-field" @ref="fieldRef" style="aspect-ratio:@(selectedTrack.GridCols)/@(selectedTrack.GridRows);"
              @onpointerdown="OnFieldPointerDown" @onpointermove="OnFieldPointerMove"
              @onpointerup="OnFieldPointerUp" @onpointercancel="OnFieldPointerUp">
 
-            @foreach (var tile in RaceTrack.TrackTiles)
+            @foreach (var tile in selectedTrack.Tiles)
             {
                 <img class="rg-tile" src="images/racing/@RaceTrack.TileImageFile(tile.Kind)"
-                     style="left:@((RaceTrack.TileCenterX(tile) * 100f / RaceTrack.FieldWidth).ToString(Inv))%; top:@((RaceTrack.TileCenterY(tile) * 100f / RaceTrack.FieldHeight).ToString(Inv))%; transform:translate(-50%,-50%) rotate(@(tile.RotationDeg.ToString(Inv))deg);" />
+                     style="left:@((RaceTrack.TileCenterX(tile) * 100f / selectedTrack.FieldWidth).ToString(Inv))%; top:@((RaceTrack.TileCenterY(tile) * 100f / selectedTrack.FieldHeight).ToString(Inv))%; transform:translate(-50%,-50%) rotate(@(tile.RotationDeg.ToString(Inv))deg);" />
             }
 
             <img class="rg-finish" src="images/racing/finish-strip.png"
-                 style="left:@((RaceTrack.Waypoints[1].X * 100f / RaceTrack.FieldWidth).ToString(Inv))%; top:@((RaceTrack.Waypoints[1].Y * 100f / RaceTrack.FieldHeight).ToString(Inv))%;" />
+                 style="left:@((selectedTrack.Waypoints[1].X * 100f / selectedTrack.FieldWidth).ToString(Inv))%; top:@((selectedTrack.Waypoints[1].Y * 100f / selectedTrack.FieldHeight).ToString(Inv))%;" />
 
-            <img class="rg-decor rg-grandstand" src="images/racing/grandstand.png" style="left:50%; top:30%;" />
-            <img class="rg-decor rg-tire" src="images/racing/tire-stack.png" style="left:27.5%; top:18.3%;" />
-            <img class="rg-decor rg-tire" src="images/racing/tire-stack.png" style="left:72.5%; top:18.3%;" />
-            <img class="rg-decor rg-tire" src="images/racing/tire-stack.png" style="left:27.5%; top:81.7%;" />
-            <img class="rg-decor rg-tire" src="images/racing/tire-stack.png" style="left:72.5%; top:81.7%;" />
+            <img class="rg-decor rg-grandstand" src="images/racing/grandstand.png" style="left:50%; top:@(selectedTrack.Id == "thunder-oval" ? "50%" : "30%");" />
+            @if (selectedTrack.Id != "switchback")
+            {
+                <img class="rg-decor rg-tire" src="images/racing/tire-stack.png" style="left:27.5%; top:18.3%;" />
+                <img class="rg-decor rg-tire" src="images/racing/tire-stack.png" style="left:72.5%; top:18.3%;" />
+                <img class="rg-decor rg-tire" src="images/racing/tire-stack.png" style="left:27.5%; top:81.7%;" />
+                <img class="rg-decor rg-tire" src="images/racing/tire-stack.png" style="left:72.5%; top:81.7%;" />
+            }
 
             @foreach (var cpu in cpus)
             {
                 <img class="rg-car" src="images/racing/car-@(cpu.CarSlug).png"
-                     style="left:@((cpu.Body.Position.X * 100f / RaceTrack.FieldWidth).ToString(Inv))%; top:@((cpu.Body.Position.Y * 100f / RaceTrack.FieldHeight).ToString(Inv))%; transform:translate(-50%,-50%) rotate(@(RaceTrack.CssAngle(cpu.FacingDeg).ToString(Inv))deg);" />
+                     style="left:@((cpu.Body.Position.X * 100f / selectedTrack.FieldWidth).ToString(Inv))%; top:@((cpu.Body.Position.Y * 100f / selectedTrack.FieldHeight).ToString(Inv))%; transform:translate(-50%,-50%) rotate(@(RaceTrack.CssAngle(cpu.FacingDeg).ToString(Inv))deg);" />
             }
 
             <img class="rg-car rg-car-player" src="images/racing/car-@(player.CarSlug).png"
-                 style="left:@((player.Body.Position.X * 100f / RaceTrack.FieldWidth).ToString(Inv))%; top:@((player.Body.Position.Y * 100f / RaceTrack.FieldHeight).ToString(Inv))%; transform:translate(-50%,-50%) rotate(@(RaceTrack.CssAngle(player.FacingDeg).ToString(Inv))deg);" />
+                 style="left:@((player.Body.Position.X * 100f / selectedTrack.FieldWidth).ToString(Inv))%; top:@((player.Body.Position.Y * 100f / selectedTrack.FieldHeight).ToString(Inv))%; transform:translate(-50%,-50%) rotate(@(RaceTrack.CssAngle(player.FacingDeg).ToString(Inv))deg);" />
 
             @if (ShowCountdown || ShowGo)
             {
@@ -177,6 +191,7 @@
     private Phase phase = Phase.Setup;
     private Difficulty selectedDifficulty = Difficulty.Easy;
     private string selectedCarSlug = RaceTrack.CarRoster[0].Slug;
+    private RaceTrack.TrackDef selectedTrack = RaceTrack.Tracks[0];
 
     private RaceTrack.RacerState player = new() { IsPlayer = true };
     private readonly List<RaceTrack.RacerState> cpus = new();
@@ -217,12 +232,14 @@
 
     private void StartGame()
     {
-        var startTile = RaceTrack.TrackTiles[0];
+        var startTile = selectedTrack.Tiles[0];
+        var startFacing = RaceTrack.StartFacingDeg(selectedTrack);
         player = new RaceTrack.RacerState
         {
             IsPlayer = true,
             CarSlug = selectedCarSlug,
             MaxSpeed = PlayerMaxSpeed,
+            FacingDeg = startFacing,
             Body = new PhysicsBody { Radius = RaceTrack.CarRadius, Position = new Vector2(RaceTrack.TileCenterX(startTile) - 10, RaceTrack.TileCenterY(startTile)) },
         };
 
@@ -232,12 +249,14 @@
         {
             CarSlug = cpuChoices[0].Slug,
             MaxSpeed = CpuMaxSpeedFor(selectedDifficulty),
+            FacingDeg = startFacing,
             Body = new PhysicsBody { Radius = RaceTrack.CarRadius, Position = new Vector2(RaceTrack.TileCenterX(startTile), RaceTrack.TileCenterY(startTile) - 10) },
         });
         cpus.Add(new RaceTrack.RacerState
         {
             CarSlug = cpuChoices[1].Slug,
             MaxSpeed = CpuMaxSpeedFor(selectedDifficulty),
+            FacingDeg = startFacing,
             Body = new PhysicsBody { Radius = RaceTrack.CarRadius, Position = new Vector2(RaceTrack.TileCenterX(startTile) + 10, RaceTrack.TileCenterY(startTile) + 10) },
         });
 
@@ -316,8 +335,8 @@
     {
         if (DateTime.UtcNow < raceStartUtc) return;
 
-        RaceTrack.UpdateRacer(player, pointerTarget, dt);
-        foreach (var cpu in cpus) RaceTrack.UpdateRacer(cpu, RaceTrack.Waypoints[cpu.NextWaypointIndex], dt);
+        RaceTrack.UpdateRacer(selectedTrack, player, pointerTarget, dt);
+        foreach (var cpu in cpus) RaceTrack.UpdateRacer(selectedTrack, cpu, selectedTrack.Waypoints[cpu.NextWaypointIndex], dt);
 
         var all = new List<RaceTrack.RacerState> { player };
         all.AddRange(cpus);
@@ -353,8 +372,7 @@
         all.AddRange(cpus);
         var ranked = all
             .OrderByDescending(r => r.LapsCompleted)
-            .ThenByDescending(r => r.NextWaypointIndex)
-            .ThenBy(r => Vector2.DistanceSquared(r.Body.Position, RaceTrack.Waypoints[r.NextWaypointIndex]))
+            .ThenByDescending(r => r.TrackProgress)
             .ToList();
         return ranked.IndexOf(player) + 1;
     }
@@ -403,7 +421,7 @@
         if (fieldWidth <= 0 || fieldHeight <= 0) return;
         var xPct = (clientX - fieldLeft) / fieldWidth;
         var yPct = (clientY - fieldTop) / fieldHeight;
-        pointerTarget = new Vector2((float)(xPct * RaceTrack.FieldWidth), (float)(yPct * RaceTrack.FieldHeight));
+        pointerTarget = new Vector2((float)(xPct * selectedTrack.FieldWidth), (float)(yPct * selectedTrack.FieldHeight));
     }
 
     private async Task PlaySoundAsync(string function)

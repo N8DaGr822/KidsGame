@@ -87,6 +87,39 @@
     pointer-events: none;
 }
 
+.mg-power-meter {
+    position: absolute;
+    right: 4%;
+    top: 8%;
+    bottom: 8%;
+    width: 7%;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    overflow: hidden;
+    display: flex;
+    align-items: flex-end;
+    pointer-events: none;
+}
+
+.mg-power-fill {
+    width: 100%;
+    border-radius: 999px;
+    transition: height 0.05s linear;
+}
+
+.mg-power-fill.low {
+    background: #4fd17e;
+}
+
+.mg-power-fill.mid {
+    background: #ffd60a;
+}
+
+.mg-power-fill.high {
+    background: #e63946;
+}
+
 .mg-message {
     text-align: center;
     font-weight: 900;

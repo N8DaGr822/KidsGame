@@ -93,6 +93,13 @@
             {
                 <span class="mg-ball" style="left:@((ball.Position.X * 100f / TableWidth).ToString(Inv))%; top:@((ball.Position.Y * 100f / TableHeight).ToString(Inv))%;"></span>
             }
+
+            @if (isDragging && previewPoints.Count > 0)
+            {
+                <div class="mg-power-meter">
+                    <div class="mg-power-fill @PowerLevelClass(aimPowerFraction)" style="height:@((aimPowerFraction * 100).ToString(Inv))%;"></div>
+                </div>
+            }
         </div>
 
         @if (!string.IsNullOrEmpty(roundMessage))
@@ -198,6 +205,7 @@
     private bool isDragging;
     private long? activeFieldPointerId;
     private readonly List<Vector2> previewPoints = new();
+    private float aimPowerFraction;
 
     private CancellationTokenSource? _loopCts;
 
@@ -301,8 +309,9 @@
         if (!isDragging) return;
         isDragging = false;
 
-        var (hasShot, direction, power) = ResolveAim(e.ClientX, e.ClientY);
+        var (hasShot, direction, power, _) = ResolveAim(e.ClientX, e.ClientY);
         previewPoints.Clear();
+        aimPowerFraction = 0f;
 
         if (!hasShot)
         {
@@ -315,20 +324,28 @@
 
     private void UpdateAimPreview(double clientX, double clientY)
     {
-        var (hasShot, direction, _) = ResolveAim(clientX, clientY);
+        var (hasShot, direction, _, powerFraction) = ResolveAim(clientX, clientY);
         previewPoints.Clear();
+        aimPowerFraction = hasShot ? powerFraction : 0f;
 
         if (hasShot)
         {
-            previewPoints.AddRange(ComputeAimPreview(ball.Position, direction));
+            previewPoints.AddRange(ComputeAimPreview(ball.Position, direction, powerFraction));
         }
 
         StateHasChanged();
     }
 
-    private (bool HasShot, Vector2 Direction, float Power) ResolveAim(double clientX, double clientY)
+    // Drag distance already maps to shot power (see MinDragDistance/
+    // MaxDragDistance below), but nothing showed that mapping - a kid
+    // could see WHICH way they were about to putt but not HOW HARD,
+    // since the aim line used to always draw the same fixed length no
+    // matter how far back they'd pulled. Both the aim line's length and
+    // a power meter now scale with the same 0..1 fraction the actual
+    // shot speed is computed from.
+    private (bool HasShot, Vector2 Direction, float Power, float PowerFraction) ResolveAim(double clientX, double clientY)
     {
-        if (fieldWidth <= 0 || fieldHeight <= 0) return (false, Vector2.Zero, 0);
+        if (fieldWidth <= 0 || fieldHeight <= 0) return (false, Vector2.Zero, 0, 0);
 
         var pointerPos = new Vector2(
             (float)((clientX - fieldLeft) / fieldWidth * TableWidth),
@@ -336,20 +353,23 @@
 
         var pull = pointerPos - ball.Position;
         var pullDistance = pull.Length();
-        if (pullDistance < MinDragDistance) return (false, Vector2.Zero, 0);
+        if (pullDistance < MinDragDistance) return (false, Vector2.Zero, 0, 0);
 
         var direction = -Vector2.Normalize(pull);
         var clampedDrag = Math.Clamp(pullDistance, MinDragDistance, MaxDragDistance);
         var t = (clampedDrag - MinDragDistance) / (MaxDragDistance - MinDragDistance);
         var power = MinShotSpeed + t * (MaxShotSpeed - MinShotSpeed);
 
-        return (true, direction, power);
+        return (true, direction, power, t);
     }
 
-    private static List<Vector2> ComputeAimPreview(Vector2 origin, Vector2 direction)
+    private const float MinPreviewLength = 14f;
+    private const float MaxPreviewLength = 62f;
+
+    private static List<Vector2> ComputeAimPreview(Vector2 origin, Vector2 direction, float powerFraction)
     {
-        const float previewLength = 40f;
-        const int steps = 8;
+        var previewLength = MinPreviewLength + powerFraction * (MaxPreviewLength - MinPreviewLength);
+        var steps = Math.Max(3, (int)MathF.Round(previewLength / 7f));
         var points = new List<Vector2>();
         for (var i = 1; i <= steps; i++)
         {
@@ -359,6 +379,13 @@
         }
         return points;
     }
+
+    private static string PowerLevelClass(float fraction) => fraction switch
+    {
+        < 0.4f => "low",
+        < 0.75f => "mid",
+        _ => "high",
+    };
 
     private async Task Putt(Vector2 direction, float power)
     {

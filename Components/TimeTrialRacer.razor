@@ -40,6 +40,17 @@
                 }
             </div>
 
+            <h3 class="game-section-title">Choose a track</h3>
+            <div class="tt-track-select game-option-grid">
+                @foreach (var track in RaceTrack.Tracks)
+                {
+                    <button class="game-option-button @(track.Id == selectedTrack.Id ? "selected" : "")" @onclick="() => selectedTrack = track">
+                        <span class="tt-diff-name">@track.Name</span>
+                        <span class="tt-diff-detail">@track.Description</span>
+                    </button>
+                }
+            </div>
+
             <h3 class="game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
             {
@@ -70,27 +81,30 @@
             <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
-        <div class="tt-field" @ref="fieldRef"
+        <div class="tt-field" @ref="fieldRef" style="aspect-ratio:@(selectedTrack.GridCols)/@(selectedTrack.GridRows);"
              @onpointerdown="OnFieldPointerDown" @onpointermove="OnFieldPointerMove"
              @onpointerup="OnFieldPointerUp" @onpointercancel="OnFieldPointerUp">
 
-            @foreach (var tile in RaceTrack.TrackTiles)
+            @foreach (var tile in selectedTrack.Tiles)
             {
                 <img class="tt-tile" src="images/racing/@RaceTrack.TileImageFile(tile.Kind)"
-                     style="left:@((RaceTrack.TileCenterX(tile) * 100f / RaceTrack.FieldWidth).ToString(Inv))%; top:@((RaceTrack.TileCenterY(tile) * 100f / RaceTrack.FieldHeight).ToString(Inv))%; transform:translate(-50%,-50%) rotate(@(tile.RotationDeg.ToString(Inv))deg);" />
+                     style="left:@((RaceTrack.TileCenterX(tile) * 100f / selectedTrack.FieldWidth).ToString(Inv))%; top:@((RaceTrack.TileCenterY(tile) * 100f / selectedTrack.FieldHeight).ToString(Inv))%; transform:translate(-50%,-50%) rotate(@(tile.RotationDeg.ToString(Inv))deg);" />
             }
 
             <img class="tt-finish" src="images/racing/finish-strip.png"
-                 style="left:@((RaceTrack.Waypoints[1].X * 100f / RaceTrack.FieldWidth).ToString(Inv))%; top:@((RaceTrack.Waypoints[1].Y * 100f / RaceTrack.FieldHeight).ToString(Inv))%;" />
+                 style="left:@((selectedTrack.Waypoints[1].X * 100f / selectedTrack.FieldWidth).ToString(Inv))%; top:@((selectedTrack.Waypoints[1].Y * 100f / selectedTrack.FieldHeight).ToString(Inv))%;" />
 
-            <img class="tt-decor tt-grandstand" src="images/racing/grandstand.png" style="left:50%; top:30%;" />
-            <img class="tt-decor tt-tire" src="images/racing/tire-stack.png" style="left:27.5%; top:18.3%;" />
-            <img class="tt-decor tt-tire" src="images/racing/tire-stack.png" style="left:72.5%; top:18.3%;" />
-            <img class="tt-decor tt-tire" src="images/racing/tire-stack.png" style="left:27.5%; top:81.7%;" />
-            <img class="tt-decor tt-tire" src="images/racing/tire-stack.png" style="left:72.5%; top:81.7%;" />
+            <img class="tt-decor tt-grandstand" src="images/racing/grandstand.png" style="left:50%; top:@(selectedTrack.Id == "thunder-oval" ? "50%" : "30%");" />
+            @if (selectedTrack.Id != "switchback")
+            {
+                <img class="tt-decor tt-tire" src="images/racing/tire-stack.png" style="left:27.5%; top:18.3%;" />
+                <img class="tt-decor tt-tire" src="images/racing/tire-stack.png" style="left:72.5%; top:18.3%;" />
+                <img class="tt-decor tt-tire" src="images/racing/tire-stack.png" style="left:27.5%; top:81.7%;" />
+                <img class="tt-decor tt-tire" src="images/racing/tire-stack.png" style="left:72.5%; top:81.7%;" />
+            }
 
             <img class="tt-car" src="images/racing/car-@(car.CarSlug).png"
-                 style="left:@((car.Body.Position.X * 100f / RaceTrack.FieldWidth).ToString(Inv))%; top:@((car.Body.Position.Y * 100f / RaceTrack.FieldHeight).ToString(Inv))%; transform:translate(-50%,-50%) rotate(@(RaceTrack.CssAngle(car.FacingDeg).ToString(Inv))deg);" />
+                 style="left:@((car.Body.Position.X * 100f / selectedTrack.FieldWidth).ToString(Inv))%; top:@((car.Body.Position.Y * 100f / selectedTrack.FieldHeight).ToString(Inv))%; transform:translate(-50%,-50%) rotate(@(RaceTrack.CssAngle(car.FacingDeg).ToString(Inv))deg);" />
 
             @if (ShowCountdown || ShowGo)
             {
@@ -159,6 +173,7 @@
     private Phase phase = Phase.Setup;
     private Difficulty selectedDifficulty = Difficulty.Easy;
     private string selectedCarSlug = RaceTrack.CarRoster[0].Slug;
+    private RaceTrack.TrackDef selectedTrack = RaceTrack.Tracks[0];
     private int totalLaps = 3;
 
     private RaceTrack.RacerState car = new() { IsPlayer = true };
@@ -198,12 +213,13 @@
     private void StartGame()
     {
         totalLaps = LapsFor(selectedDifficulty);
-        var startTile = RaceTrack.TrackTiles[0];
+        var startTile = selectedTrack.Tiles[0];
         car = new RaceTrack.RacerState
         {
             IsPlayer = true,
             CarSlug = selectedCarSlug,
             MaxSpeed = PlayerMaxSpeed,
+            FacingDeg = RaceTrack.StartFacingDeg(selectedTrack),
             Body = new PhysicsBody { Radius = RaceTrack.CarRadius, Position = new Vector2(RaceTrack.TileCenterX(startTile), RaceTrack.TileCenterY(startTile)) },
         };
 
@@ -285,7 +301,7 @@
     {
         if (DateTime.UtcNow < raceStartUtc) return;
 
-        RaceTrack.UpdateRacer(car, pointerTarget, dt);
+        RaceTrack.UpdateRacer(selectedTrack, car, pointerTarget, dt);
 
         if (car.LapsCompleted >= totalLaps)
         {
@@ -330,7 +346,7 @@
         if (fieldWidth <= 0 || fieldHeight <= 0) return;
         var xPct = (clientX - fieldLeft) / fieldWidth;
         var yPct = (clientY - fieldTop) / fieldHeight;
-        pointerTarget = new Vector2((float)(xPct * RaceTrack.FieldWidth), (float)(yPct * RaceTrack.FieldHeight));
+        pointerTarget = new Vector2((float)(xPct * selectedTrack.FieldWidth), (float)(yPct * selectedTrack.FieldHeight));
     }
 
     private async Task PlaySoundAsync(string function)

@@ -553,12 +553,14 @@ public static class GameAi
         return false;
     }
 
-    /// <summary>Pieces the given player may legally start a turn with - only
-    /// capturing pieces when any capture is available anywhere on the board
-    /// (the forced-capture rule), otherwise every piece with a simple move.</summary>
-    public static List<(int Row, int Col)> CheckersLegalOrigins(int[,] board, int player)
+    /// <summary>Pieces the given player may legally start a turn with. Under
+    /// tournament rules (mandatoryCapture: true, the default and the real
+    /// official rule), only capturing pieces count when any capture is
+    /// available anywhere on the board; under free play, capturing is
+    /// optional, so any piece with either kind of move counts.</summary>
+    public static List<(int Row, int Col)> CheckersLegalOrigins(int[,] board, int player, bool mandatoryCapture = true)
     {
-        var mustCapture = CheckersHasAnyCapture(board, player);
+        var mustCapture = mandatoryCapture && CheckersHasAnyCapture(board, player);
         var result = new List<(int, int)>();
 
         for (var r = 0; r < CheckersSize; r++)
@@ -568,7 +570,7 @@ public static class GameAi
                 if (CheckersOwner(board[r, c]) != player) continue;
                 var hasMove = mustCapture
                     ? CheckersCaptureHopsFor(board, r, c).Count > 0
-                    : CheckersSimpleMovesFor(board, r, c).Count > 0;
+                    : CheckersSimpleMovesFor(board, r, c).Count > 0 || CheckersCaptureHopsFor(board, r, c).Count > 0;
                 if (hasMove) result.Add((r, c));
             }
         }
@@ -602,16 +604,21 @@ public static class GameAi
         foreach (var hop in turn) CheckersApplyHop(board, hop.FromRow, hop.FromCol, hop.ToRow, hop.ToCol, hop.CapRow, hop.CapCol);
     }
 
-    /// <summary>Every complete legal turn for a player: one hop for a simple
-    /// move, or a full maximal forced-capture chain (branching whenever a
-    /// mid-chain piece has more than one further jump) for a capturing
-    /// piece. This is the unit the AI searches over - see the header note
-    /// above for why a multi-jump chain counts as a single ply.</summary>
-    public static List<List<CheckersHop>> CheckersLegalTurns(int[,] board, int player)
+    /// <summary>Every complete legal turn for a player. Under tournament
+    /// rules (mandatoryCapture: true) that's one hop for a simple move, or
+    /// a full maximal forced-capture chain (branching whenever a mid-chain
+    /// piece has more than one further jump) for a capturing piece - the
+    /// unit the AI searches over, see the header note above for why a
+    /// multi-jump chain counts as a single ply. Under free play, every hop
+    /// (simple or capture) is its own complete one-hop turn instead - a
+    /// capture is offered but never forced, and never forces a
+    /// continuation chain either, the simplest "may capture, never forced
+    /// to" casual ruleset.</summary>
+    public static List<List<CheckersHop>> CheckersLegalTurns(int[,] board, int player, bool mandatoryCapture = true)
     {
         var turns = new List<List<CheckersHop>>();
-        var mustCapture = CheckersHasAnyCapture(board, player);
-        var origins = CheckersLegalOrigins(board, player);
+        var mustCapture = mandatoryCapture && CheckersHasAnyCapture(board, player);
+        var origins = CheckersLegalOrigins(board, player, mandatoryCapture);
 
         foreach (var (row, col) in origins)
         {
@@ -620,6 +627,14 @@ public static class GameAi
                 foreach (var (toR, toC) in CheckersSimpleMovesFor(board, row, col))
                 {
                     turns.Add(new List<CheckersHop> { new(row, col, toR, toC, null, null) });
+                }
+
+                if (!mandatoryCapture)
+                {
+                    foreach (var (toR, toC, capR, capC) in CheckersCaptureHopsFor(board, row, col))
+                    {
+                        turns.Add(new List<CheckersHop> { new(row, col, toR, toC, capR, capC) });
+                    }
                 }
                 continue;
             }
@@ -652,9 +667,9 @@ public static class GameAi
         return turns;
     }
 
-    public static List<CheckersHop>? CheckersMove(int[,] board, int ai, int human, Difficulty difficulty)
+    public static List<CheckersHop>? CheckersMove(int[,] board, int ai, int human, Difficulty difficulty, bool mandatoryCapture = true)
     {
-        var turns = CheckersLegalTurns(board, ai);
+        var turns = CheckersLegalTurns(board, ai, mandatoryCapture);
         if (turns.Count == 0) return null;
 
         if (difficulty == Difficulty.Easy)
@@ -670,7 +685,7 @@ public static class GameAi
         {
             var copy = (int[,])board.Clone();
             CheckersApplyTurn(copy, turn);
-            var score = CheckersMinimax(copy, depth - 1, false, ai, human, int.MinValue, int.MaxValue);
+            var score = CheckersMinimax(copy, depth - 1, false, ai, human, int.MinValue, int.MaxValue, mandatoryCapture);
 
             if (score > bestScore)
             {
@@ -687,10 +702,10 @@ public static class GameAi
         return bestTurns[Rng.Next(bestTurns.Count)];
     }
 
-    private static int CheckersMinimax(int[,] board, int depth, bool maximizing, int ai, int human, int alpha, int beta)
+    private static int CheckersMinimax(int[,] board, int depth, bool maximizing, int ai, int human, int alpha, int beta, bool mandatoryCapture)
     {
         var player = maximizing ? ai : human;
-        var turns = CheckersLegalTurns(board, player);
+        var turns = CheckersLegalTurns(board, player, mandatoryCapture);
 
         // No legal turn = that player has lost right now, regardless of
         // remaining depth - checkers has no "pass," being stuck is a loss.
@@ -702,7 +717,7 @@ public static class GameAi
         {
             var copy = (int[,])board.Clone();
             CheckersApplyTurn(copy, turn);
-            var score = CheckersMinimax(copy, depth - 1, !maximizing, ai, human, alpha, beta);
+            var score = CheckersMinimax(copy, depth - 1, !maximizing, ai, human, alpha, beta, mandatoryCapture);
 
             if (maximizing)
             {
