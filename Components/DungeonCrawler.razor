@@ -1,0 +1,541 @@
+@*
+    DungeonCrawler.razor
+    A turn-based, tile-grid vertical slice - the roadmap's "Dungeon
+    Crawler" item, deliberately scoped down. Movement reuses
+    TreasureHunt.razor's exact "only orthogonally-adjacent tiles are
+    tappable" pattern (IsAdjacent below is the same shape as
+    TreasureHunt's IsAdjacentToPlayer) rather than free movement, and
+    each room renders unclipped in one fixed grid like every other
+    tile-based game here - no scrolling camera, since nothing in this
+    codebase has one to build on (checked before designing this).
+    Tapping an adjacent tile with an enemy on it attacks instead of
+    moving ("bump to attack" - no separate battle screen); if the enemy
+    survives, it hits back in the same action. Remaining enemies then
+    each take one turn: chase the player one grid-step closer if within
+    aggro range (Chebyshev distance, same helper family as
+    HotAndCold/TreasureHunt's tier logic), or attack if already adjacent,
+    or do nothing. Rooms are procedurally generated fresh each run
+    (MiniGolf's per-hole generation shape) and connect in a straight
+    line - walk to the door/stairs tile to advance, reach the final
+    room's door to win, HP hitting 0 ends the run. No cross-session
+    save - a full run completes in one sitting, same as every other
+    game. Personal best tracks fewest turns to clear the whole run, per
+    difficulty.
+
+    Usage:
+        <DungeonCrawler OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+
+<div class="dc-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="dc-setup game-setup-panel">
+            <h2>⚔️ Dungeon Crawler</h2>
+            <p>Tap a tile next to you to step there, or tap an enemy to attack it. Find the stairs in each room to go deeper - clear every room to win!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="dc-diff-name">@DifficultyName(diff)</span>
+                            <span class="dc-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="dc-hud game-hud">
+            <span class="dc-title">Dungeon Crawler</span>
+            <span class="game-stat">🚪 Room @Math.Min(roomIndex + 1, totalRooms)/@totalRooms</span>
+            <span class="game-stat">❤️ @Math.Max(0, playerHp)/@maxPlayerHp</span>
+            <span class="game-stat">👣 Turns @turnsTaken</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <p class="dc-status">@statusText</p>
+
+        <div class="dc-grid" style="--dc-cols:@room.Width; --dc-rows:@room.Height;">
+            @for (var r = 0; r < room.Height; r++)
+            {
+                for (var c = 0; c < room.Width; c++)
+                {
+                    var row = r; var col = c;
+                    var walkable = room.Floor[row, col];
+                    var isPlayer = row == playerRow && col == playerCol;
+                    var isDoor = row == room.DoorRow && col == room.DoorCol;
+                    var enemy = room.Enemies.FirstOrDefault(e => e.Row == row && e.Col == col);
+                    var reachable = phase == Phase.Playing && IsAdjacent(row, col) && (walkable || enemy is not null);
+
+                    <button class="dc-cell @(walkable ? "floor" : "wall") @(reachable ? "reachable" : "")"
+                            disabled="@(!reachable)"
+                            @onclick="() => OnTileTap(row, col)">
+                        @if (isPlayer)
+                        {
+                            <img class="dc-sprite dc-player @(playerHitFlashMs > 0 ? "hit" : "")" src="images/dungeoncrawler/hero.png" alt="" />
+                        }
+                        else if (enemy is not null)
+                        {
+                            <div class="dc-enemy-wrap">
+                                <img class="dc-sprite @(enemy.HitFlashMs > 0 ? "hit" : "")" src="images/dungeoncrawler/@(EnemySprite(enemy.Kind))" alt="" />
+                                <div class="dc-hp-track"><div class="dc-hp-fill" style="width:@((enemy.Hp * 100.0 / enemy.MaxHp).ToString(System.Globalization.CultureInfo.InvariantCulture))%;"></div></div>
+                            </div>
+                        }
+                        else if (isDoor)
+                        {
+                            <span class="dc-door">@(room.IsFinal ? "🏆" : "🚪")</span>
+                        }
+                    </button>
+                }
+            }
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(won ? "🏆 Dungeon Cleared!" : "💀 You Were Defeated")</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@(won ? $"you fought through all {totalRooms} rooms!" : $"you made it to room {roomIndex + 1} of {totalRooms}.")</p>
+                    <div class="game-result-stats">
+                        <div><span class="game-stat-label">Turns</span><span class="game-stat-value">@turnsTaken</span></div>
+                        <div><span class="game-stat-label">Enemies defeated</span><span class="game-stat-value">@kills</span></div>
+                    </div>
+                    <PersonalBestBadge Value="@(bestTurns is { } bt ? $"{bt} turns" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<DungeonCrawlerResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest turns to clear the whole run, per difficulty) - null skips
+    /// recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int AggroRange = 3;
+    private const int MaxPlayerHp = 20;
+    private const int PlayerDamage = 5;
+
+    private class EnemyState
+    {
+        public string Kind = "goblin";
+        public int Row;
+        public int Col;
+        public int Hp;
+        public int MaxHp;
+        public int Damage;
+        public int HitFlashMs;
+    }
+
+    private class RoomState
+    {
+        public int Width;
+        public int Height;
+        public bool[,] Floor = new bool[0, 0];
+        public int DoorRow;
+        public int DoorCol;
+        public bool IsFinal;
+        public readonly List<EnemyState> Enemies = new();
+    }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int RoomCountFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 3,
+        Difficulty.Medium => 5,
+        _ => 7,
+    };
+
+    private static double HpMultFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 0.8,
+        Difficulty.Medium => 1.0,
+        _ => 1.3,
+    };
+
+    private static double DamageMultFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 0.8,
+        Difficulty.Medium => 1.0,
+        _ => 1.2,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private RoomState room = new();
+    private int totalRooms = 3;
+    private int roomIndex;
+    private int playerRow;
+    private int playerCol;
+    private int playerHp;
+    private int maxPlayerHp = MaxPlayerHp;
+    private int playerHitFlashMs;
+    private int turnsTaken;
+    private int kills;
+    private bool won;
+    private string statusText = "";
+    private int? bestTurns;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        totalRooms = RoomCountFor(selectedDifficulty);
+        roomIndex = 0;
+        playerHp = MaxPlayerHp;
+        maxPlayerHp = MaxPlayerHp;
+        turnsTaken = 0;
+        kills = 0;
+        won = false;
+        bestTurns = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        GenerateRoom();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new DungeonCrawlerResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                RoomsCleared: roomIndex,
+                TotalRooms: totalRooms,
+                TurnsTaken: turnsTaken,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    // Each room is a fresh random rectangle, walls on the perimeter,
+    // player always entering near one corner and the door/stairs tile
+    // near the opposite corner so every room demands real traversal -
+    // same "regenerate every time" replay-variety idea as
+    // MiniGolf.GenerateHole.
+    private void GenerateRoom()
+    {
+        var width = rng.Next(6, 10);
+        var height = rng.Next(6, 10);
+        room = new RoomState
+        {
+            Width = width,
+            Height = height,
+            Floor = new bool[height, width],
+            DoorRow = height - 2,
+            DoorCol = width - 2,
+            IsFinal = roomIndex == totalRooms - 1,
+        };
+
+        for (var r = 0; r < height; r++)
+        {
+            for (var c = 0; c < width; c++)
+            {
+                room.Floor[r, c] = r > 0 && c > 0 && r < height - 1 && c < width - 1;
+            }
+        }
+
+        playerRow = 1;
+        playerCol = 1;
+
+        var enemyCount = Math.Min(3, 1 + roomIndex / 2);
+        var hpMult = HpMultFor(selectedDifficulty);
+        var dmgMult = DamageMultFor(selectedDifficulty);
+        var baseHp = (int)Math.Round((8 + roomIndex * 4) * hpMult);
+        var baseDamage = (int)Math.Round((2 + roomIndex / 2) * dmgMult);
+        var kinds = new[] { "goblin", "ogre" };
+
+        for (var i = 0; i < enemyCount; i++)
+        {
+            (int Row, int Col) pos;
+            var attempts = 0;
+            do
+            {
+                pos = (rng.Next(1, height - 1), rng.Next(1, width - 1));
+                attempts++;
+            }
+            while (attempts < 50 && (Chebyshev(pos.Row, pos.Col, playerRow, playerCol) < 3
+                || (pos.Row == room.DoorRow && pos.Col == room.DoorCol)
+                || room.Enemies.Any(e => e.Row == pos.Row && e.Col == pos.Col)));
+
+            room.Enemies.Add(new EnemyState
+            {
+                Kind = kinds[rng.Next(kinds.Length)],
+                Row = pos.Row,
+                Col = pos.Col,
+                Hp = Math.Max(4, baseHp),
+                MaxHp = Math.Max(4, baseHp),
+                Damage = Math.Max(1, baseDamage),
+            });
+        }
+
+        statusText = room.IsFinal ? "The stairs up ahead lead to victory!" : "Find the door to the next room.";
+    }
+
+    // Same shape as TreasureHunt.razor's IsAdjacentToPlayer - only
+    // orthogonally-adjacent tiles are legal taps, no diagonal movement.
+    private bool IsAdjacent(int row, int col)
+    {
+        if (row == playerRow && col == playerCol) return false;
+        return (Math.Abs(playerRow - row) == 1 && playerCol == col) || (Math.Abs(playerCol - col) == 1 && playerRow == row);
+    }
+
+    private bool IsWalkable(int row, int col) =>
+        row >= 0 && row < room.Height && col >= 0 && col < room.Width && room.Floor[row, col];
+
+    private static int Chebyshev(int r1, int c1, int r2, int c2) =>
+        Math.Max(Math.Abs(r1 - r2), Math.Abs(c1 - c2));
+
+    private async Task OnTileTap(int row, int col)
+    {
+        if (phase != Phase.Playing || !IsAdjacent(row, col)) return;
+
+        turnsTaken++;
+        var enemy = room.Enemies.FirstOrDefault(e => e.Row == row && e.Col == col);
+        EnemyState? actedEnemy = null;
+
+        if (enemy is not null)
+        {
+            actedEnemy = enemy;
+            await BumpAttackAsync(enemy);
+        }
+        else if (IsWalkable(row, col))
+        {
+            playerRow = row;
+            playerCol = col;
+            StateHasChanged();
+            await PlaySoundAsync("playImpactSound");
+
+            if (row == room.DoorRow && col == room.DoorCol)
+            {
+                await Task.Delay(250);
+                await EnterNextRoomAsync();
+                return;
+            }
+        }
+        else
+        {
+            return;
+        }
+
+        if (playerHp <= 0)
+        {
+            await FinishGame(false);
+            return;
+        }
+
+        await RunEnemyTurnAsync(actedEnemy);
+    }
+
+    // Bump-to-attack: the attacked enemy either dies here, or - since it's
+    // still adjacent - hits back immediately as part of the same action.
+    // No separate battle screen, matching how every other tap-driven game
+    // here resolves an action in one beat.
+    private async Task BumpAttackAsync(EnemyState enemy)
+    {
+        enemy.Hp -= PlayerDamage;
+        enemy.HitFlashMs = 250;
+        statusText = $"You hit the {enemy.Kind}!";
+        StateHasChanged();
+        await PlaySoundAsync("playImpactSound");
+        await Task.Delay(200);
+        enemy.HitFlashMs = 0;
+
+        if (enemy.Hp <= 0)
+        {
+            room.Enemies.Remove(enemy);
+            kills++;
+            statusText = "Enemy defeated!";
+            await PlaySoundAsync("playMatchSound");
+        }
+        else
+        {
+            playerHp -= enemy.Damage;
+            playerHitFlashMs = 250;
+            statusText = $"The {enemy.Kind} hits back!";
+            await PlaySoundAsync("playMismatchSound");
+            StateHasChanged();
+            await Task.Delay(200);
+            playerHitFlashMs = 0;
+        }
+
+        StateHasChanged();
+    }
+
+    // Every enemy except the one that just fought (it already acted this
+    // beat) either attacks if already adjacent, takes one greedy step
+    // toward the player if within aggro range, or does nothing. Orthogonal
+    // stepping can never land exactly on the player's tile in one step -
+    // a tile that's already adjacent is caught by the attack branch first.
+    private async Task RunEnemyTurnAsync(EnemyState? skip)
+    {
+        foreach (var enemy in room.Enemies.Where(e => e != skip).ToList())
+        {
+            if (playerHp <= 0) break;
+            if (!room.Enemies.Contains(enemy)) continue;
+
+            if (IsAdjacent(enemy.Row, enemy.Col) || (enemy.Row == playerRow && enemy.Col == playerCol))
+            {
+                playerHp -= enemy.Damage;
+                playerHitFlashMs = 250;
+                statusText = $"The {enemy.Kind} attacks!";
+                StateHasChanged();
+                await PlaySoundAsync("playMismatchSound");
+                await Task.Delay(200);
+                playerHitFlashMs = 0;
+            }
+            else if (Chebyshev(enemy.Row, enemy.Col, playerRow, playerCol) <= AggroRange)
+            {
+                var dr = playerRow - enemy.Row;
+                var dc = playerCol - enemy.Col;
+                int nr = enemy.Row, nc = enemy.Col;
+                if (Math.Abs(dr) >= Math.Abs(dc) && dr != 0) nr += Math.Sign(dr);
+                else if (dc != 0) nc += Math.Sign(dc);
+
+                if (IsWalkable(nr, nc) && !room.Enemies.Any(o => o != enemy && o.Row == nr && o.Col == nc))
+                {
+                    enemy.Row = nr;
+                    enemy.Col = nc;
+                }
+            }
+            StateHasChanged();
+            await Task.Delay(180);
+        }
+
+        if (playerHp <= 0)
+        {
+            await FinishGame(false);
+        }
+        else
+        {
+            statusText = room.IsFinal ? "The stairs up ahead lead to victory!" : "Find the door to the next room.";
+            StateHasChanged();
+        }
+    }
+
+    private async Task EnterNextRoomAsync()
+    {
+        roomIndex++;
+        if (roomIndex >= totalRooms)
+        {
+            await FinishGame(true);
+            return;
+        }
+        GenerateRoom();
+        StateHasChanged();
+    }
+
+    private static string EnemySprite(string kind) => kind switch
+    {
+        "ogre" => "enemy-ogre.png",
+        _ => "enemy-goblin.png",
+    };
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame(bool won)
+    {
+        this.won = won;
+        phase = Phase.Finished;
+        StateHasChanged();
+        await PlaySoundAsync(won ? "playMatchSound" : "playMismatchSound");
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"fewest-turns-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestTurns = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.DungeonCrawler, key);
+            if (won)
+            {
+                isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.DungeonCrawler, key, turnsTaken, lowerIsBetter: true);
+            }
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new DungeonCrawlerResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: won,
+                RoomsCleared: won ? totalRooms : roomIndex,
+                TotalRooms: totalRooms,
+                TurnsTaken: turnsTaken,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3 rooms, weaker enemies",
+        Difficulty.Medium => "5 rooms",
+        _ => "7 rooms, tougher enemies",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record DungeonCrawlerResult(string Difficulty, bool Won, int RoomsCleared, int TotalRooms, int TurnsTaken, int ElapsedSeconds);
+}

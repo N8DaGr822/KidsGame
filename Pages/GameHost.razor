@@ -306,6 +306,10 @@
             {
                 <Dominoes PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleDominoesComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.DungeonCrawler)
+            {
+                <DungeonCrawler PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleDungeonCrawlerComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -737,6 +741,21 @@
             Theme = result.Difficulty,
             Difficulty = result.Outcome,
             Moves = result.PlayerTurnsTaken,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleDungeonCrawlerComplete(DungeonCrawler.DungeonCrawlerResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Won ? "Won" : $"Reached room {result.RoomsCleared + 1}/{result.TotalRooms}",
+            Moves = result.TurnsTaken,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

@@ -168,6 +168,18 @@ do not leave blank UI.
   horizontal chain, direction computed per-tile from which value needs to
   end up on which side (see `Dominoes.razor`'s `ChainTileStyle`), not a
   fixed rotation.
+- `dungeoncrawler/hero.png`, `dungeoncrawler/enemy-goblin.png`, and
+  `dungeoncrawler/enemy-ogre.png` (added 2026-08-19) are single 32x32
+  frames cropped from [CraftPix](https://craftpix.net)'s free "Top-Down
+  Roguelike Game Kit" (`craftpix-net-436971-free-top-down-roguelike-game-
+  kit-pixel-art.zip`), used under CraftPix's free-file license - the first
+  frame of each character's `D_Idle.png` (a 128x32 4-frame sheet;
+  `hero.png` from `1 Characters/1/`, the enemies from `3 Dungeon
+  Enemies/1/` and `/2/`). Only a static pose is used, not the pack's full
+  walk/attack/hurt/death animation sets or its Tiled dungeon map/tileset -
+  floor and walls render as plain CSS in `Components/DungeonCrawler.razor`
+  instead, the same "autotile art doesn't suit a grid this simple" call
+  `Components/TowerDefense.razor` already made for its own terrain.
 - `checkers/*.png` and `chess/*.png` are from a user-provided batch dropped
   in `Downloads/Assets/Checkers-Chess` on 2026-08-18 (33 UUID-named PNGs,
   no pack metadata - source/license unknown, unlike the Kenney/CraftPix

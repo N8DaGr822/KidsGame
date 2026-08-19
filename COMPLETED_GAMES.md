@@ -26,6 +26,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Dots and Boxes
 - Dress Up
 - Duck Shoot
+- Dungeon Crawler
 - Feed the Animal
 - Fishing Catch
 - Flag Guessing Game

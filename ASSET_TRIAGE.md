@@ -98,9 +98,15 @@ plan around them casually.
 
 **Dungeon/roguelike kit:**
 - `craftpix-net-436971-free-top-down-roguelike-game-kit-pixel-art.zip` -
-  verified: genuine tiny top-down character walk-cycles plus a ready Tiled
-  `.tmx` dungeon map and tileset. This is the actual closest match for
-  building Dungeon Crawler / Roguelike Arena - start here.
+  **used.** Powers `Components/DungeonCrawler.razor` - one static Idle
+  frame each for the hero (`1 Characters/1/D_Idle.png`) and two enemies
+  (`3 Dungeon Enemies/1|2/D_Idle.png`), not the full walk-cycle animation
+  or the pack's own Tiled `.tmx` map/tileset (floor/walls render as plain
+  CSS instead, following `TowerDefense`'s own precedent for skipping
+  autotile art - see `wwwroot/images/README.md` for the exact crop). Still
+  useful for Roguelike Arena if that gets built later - the walk/attack/
+  hurt/death frames and the second and third hero/enemy character slots
+  weren't touched.
 - `kenney_tiny-dungeon.zip` - lightweight alternative/starter dungeon
   tileset + character portraits, also Tiled-ready. Good for a smaller-scope
   first pass before reaching for the CraftPix kit's larger footprint.
