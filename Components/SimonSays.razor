@@ -13,7 +13,7 @@
         <SimonSays OnComplete="HandleGameComplete" />
 *@
 @implements IAsyncDisposable
-@inject IJSRuntime JS
+@inject InteropService Interop
 @inject AppDataService Data
 
 <div class="simon-game">
@@ -119,7 +119,6 @@
     private int mistakesMade;
     private DateTime startedAtUtc;
     private readonly Random rng = new();
-    private IJSObjectReference? _module;
 
     // Cancels a stale playback loop if the kid exits mid-sequence and
     // starts a fresh game before the old one finishes its delays.
@@ -337,28 +336,22 @@
     {
         try
         {
-            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
             if (arg is int i)
             {
-                await _module.InvokeVoidAsync(fn, i);
+                await Interop.InvokeVoidAsync(fn, i);
             }
             else
             {
-                await _module.InvokeVoidAsync(fn);
+                await Interop.InvokeVoidAsync(fn);
             }
         }
         catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         playbackCts?.Cancel();
-
-        if (_module is not null)
-        {
-            try { await _module.DisposeAsync(); }
-            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
-        }
+        return ValueTask.CompletedTask;
     }
 
     public record SimonSaysResult(int RoundsReached, int ElapsedSeconds);

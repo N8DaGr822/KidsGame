@@ -18,8 +18,7 @@
     Usage:
         <ArcheryChallenge OnComplete="HandleGameComplete" />
 *@
-@implements IAsyncDisposable
-@inject IJSRuntime JS
+@inject InteropService Interop
 @inject AppDataService Data
 @using KidsGameLauncher.Services
 
@@ -190,7 +189,6 @@
     private bool isNewBest;
     private readonly Random rng = new();
     private DateTime startedAtUtc;
-    private IJSObjectReference? _module;
 
     private ElementReference fieldRef;
     private double fieldLeft, fieldTop, fieldWidth, fieldHeight;
@@ -263,14 +261,13 @@
         if (phase != Phase.Playing || resolving) return;
 
         activeFieldPointerId = e.PointerId;
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-        var rect = await _module.InvokeAsync<FieldRect>("getBoundingRect", fieldRef);
+        var rect = await Interop.InvokeAsync<FieldRect>("getBoundingRect", fieldRef);
         fieldLeft = rect.Left;
         fieldTop = rect.Top;
         fieldWidth = rect.Width;
         fieldHeight = rect.Height;
 
-        await _module.InvokeVoidAsync("setPointerCapture", fieldRef, e.PointerId);
+        await Interop.InvokeVoidAsync("setPointerCapture", fieldRef, e.PointerId);
 
         if (activeFieldPointerId != e.PointerId) return;
 
@@ -449,7 +446,7 @@
 
         totalScore += score;
         lastImpact = (landX, landY);
-        await PlaySoundAsync(score >= 6 ? "playMatchSound" : score > 0 ? "playImpactSound" : "playMismatchSound");
+        await Interop.InvokeVoidAsync(score >= 6 ? "playMatchSound" : score > 0 ? "playImpactSound" : "playMismatchSound");
         StateHasChanged();
         await Task.Delay(1100);
 
@@ -464,12 +461,6 @@
             NextArrow();
             StateHasChanged();
         }
-    }
-
-    private async Task PlaySoundAsync(string function)
-    {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-        await _module.InvokeVoidAsync(function);
     }
 
     private async Task FinishGame()
@@ -510,15 +501,6 @@
     };
 
     private record FieldRect(double Left, double Top, double Width, double Height);
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_module is not null)
-        {
-            try { await _module.DisposeAsync(); }
-            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
-        }
-    }
 
     public record ArcheryChallengeResult(string Difficulty, int TotalScore, int ArrowsShot, int ElapsedSeconds);
 }

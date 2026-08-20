@@ -12,7 +12,8 @@
         <WordScramble OnComplete="HandleGameComplete" />
 *@
 @implements IAsyncDisposable
-@inject IJSRuntime JS
+@inject InteropService Interop
+@inject AppDataService Data
 
 <div class="ws-game">
 
@@ -89,6 +90,7 @@
                 <div class="ws-win-panel game-result-panel">
                     <h2>🎉 All Words Solved!</h2>
                     <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") - @sessionWords.Count words in @FormatTime(elapsedSeconds)!</p>
+                    <PersonalBestBadge Value="@FormatTime(bestSeconds ?? elapsedSeconds)" IsNew="isNewBest" />
                     <div class="ws-win-actions game-result-actions">
                         <button class="ws-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="ws-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
@@ -108,6 +110,13 @@
     /// from the admin panel; when set, the picker is replaced with a
     /// locked note and that difficulty is used.</summary>
     [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fastest time per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestSeconds;
+    private bool isNewBest;
 
     private enum Phase { Setup, Playing, SessionComplete }
     public enum Difficulty { Easy, Medium, Hard }
@@ -163,7 +172,6 @@
     private int elapsedSeconds;
     private readonly Random rng = new();
     private System.Threading.Timer? timer;
-    private IJSObjectReference? _module;
 
     protected override void OnInitialized()
     {
@@ -175,6 +183,7 @@
         sessionWords = WordsFor(selectedDifficulty).OrderBy(_ => rng.Next()).Take(SessionSize).ToList();
         wordIndex = 0;
         elapsedSeconds = 0;
+        isNewBest = false;
         LoadWord();
         phase = Phase.Playing;
         StartTimer();
@@ -271,7 +280,7 @@
         {
             justSolved = true;
             StateHasChanged();
-            await PlaySoundAsync("playMatchSound");
+            await Interop.InvokeVoidAsync("playMatchSound");
             await Task.Delay(900);
             await AdvanceAsync();
         }
@@ -279,7 +288,7 @@
         {
             wrongShake = true;
             StateHasChanged();
-            await PlaySoundAsync("playMismatchSound");
+            await Interop.InvokeVoidAsync("playMismatchSound");
             await Task.Delay(700);
 
             // Never a dead end - the same letters go back into a fresh
@@ -310,6 +319,14 @@
     {
         StopTimer();
         phase = Phase.SessionComplete;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"seconds:{DifficultyName(selectedDifficulty)}";
+            bestSeconds = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.WordScramble, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.WordScramble, key, elapsedSeconds, lowerIsBetter: true);
+        }
+
         StateHasChanged();
 
         if (OnComplete.HasDelegate)
@@ -356,20 +373,10 @@
         _ => "7-10 letter words",
     };
 
-    private async Task PlaySoundAsync(string function)
-    {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-        await _module.InvokeVoidAsync(function);
-    }
-
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         StopTimer();
-        if (_module is not null)
-        {
-            try { await _module.DisposeAsync(); }
-            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
-        }
+        return ValueTask.CompletedTask;
     }
 
     public record WordScrambleResult(int WordsCompleted, int ElapsedSeconds);

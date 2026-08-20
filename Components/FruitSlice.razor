@@ -11,7 +11,8 @@
         <FruitSlice OnComplete="HandleGameComplete" />
 *@
 @implements IAsyncDisposable
-@inject IJSRuntime JS
+@inject InteropService Interop
+@inject AppDataService Data
 
 <div class="fs-game">
 
@@ -84,6 +85,7 @@
                         <div><span class="game-stat-label">Sliced</span><span class="game-stat-value">@sliced</span></div>
                         <div><span class="game-stat-label">Best streak</span><span class="game-stat-value">@bestStreak</span></div>
                     </div>
+                    <PersonalBestBadge Value="@((bestScore ?? score).ToString())" IsNew="isNewBest" />
                     <div class="fs-win-actions game-result-actions">
                         <button class="fs-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="fs-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
@@ -103,6 +105,13 @@
     /// from the admin panel; when set, the picker is replaced with a
     /// locked note and that difficulty is used.</summary>
     [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (high score per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestScore;
+    private bool isNewBest;
 
     private enum Phase { Setup, Playing, Finished }
     public enum Difficulty { Easy, Medium, Hard }
@@ -150,7 +159,6 @@
     private int nextSpawnInMs;
     private readonly Random rng = new();
     private System.Threading.Timer? timer;
-    private IJSObjectReference? _module;
     private ElementReference fieldRef;
     private DotNetObjectReference<FruitSlice>? _dotNetRef;
     private bool trackingAttached;
@@ -171,9 +179,8 @@
     {
         if (phase != Phase.Setup && !trackingAttached)
         {
-            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
             _dotNetRef ??= DotNetObjectReference.Create(this);
-            await _module.InvokeVoidAsync("attachSliceTracking", fieldRef, _dotNetRef);
+            await Interop.InvokeVoidAsync("attachSliceTracking", fieldRef, _dotNetRef);
             trackingAttached = true;
         }
     }
@@ -198,6 +205,7 @@
         bombsHit = 0;
         streak = 0;
         bestStreak = 0;
+        isNewBest = false;
         remainingMs = config.RoundSeconds * 1000;
         nextSpawnInMs = rng.Next(config.MinSpawnMs, config.MaxSpawnMs + 1);
         phase = Phase.Playing;
@@ -223,9 +231,9 @@
         phase = Phase.Setup;
         items.Clear();
 
-        if (trackingAttached && _module is not null)
+        if (trackingAttached)
         {
-            await _module.InvokeVoidAsync("detachSliceTracking", fieldRef);
+            await Interop.InvokeVoidAsync("detachSliceTracking", fieldRef);
             trackingAttached = false;
         }
     }
@@ -312,14 +320,21 @@
 
     private async Task PlaySoundAsync(string function)
     {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-        await _module.InvokeVoidAsync(function);
+        await Interop.InvokeVoidAsync(function);
     }
 
     private async Task FinishGame()
     {
         StopTimer();
         phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"score:{DifficultyName(selectedDifficulty)}";
+            bestScore = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.FruitSlice, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.FruitSlice, key, score, lowerIsBetter: false);
+        }
+
         StateHasChanged();
 
         if (OnComplete.HasDelegate)
@@ -370,15 +385,11 @@
     {
         StopTimer();
 
-        if (_module is not null)
+        try
         {
-            try
-            {
-                if (trackingAttached) await _module.InvokeVoidAsync("detachSliceTracking", fieldRef);
-                await _module.DisposeAsync();
-            }
-            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+            if (trackingAttached) await Interop.InvokeVoidAsync("detachSliceTracking", fieldRef);
         }
+        catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
 
         _dotNetRef?.Dispose();
     }

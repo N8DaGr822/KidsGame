@@ -15,7 +15,7 @@
         <MemorySequenceAdventure OnComplete="HandleGameComplete" />
 *@
 @implements IAsyncDisposable
-@inject IJSRuntime JS
+@inject InteropService Interop
 @inject AppDataService Data
 
 <div class="ma-game">
@@ -127,7 +127,6 @@
     private int mistakesMade;
     private DateTime startedAtUtc;
     private readonly Random rng = new();
-    private IJSObjectReference? _module;
     private CancellationTokenSource? playbackCts;
 
     private static readonly string[] DoorNames = { "Garden Door", "Cave Door", "Tower Door", "Harbor Door" };
@@ -321,21 +320,16 @@
     {
         try
         {
-            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-            if (arg is int i) await _module.InvokeVoidAsync(fn, i);
-            else await _module.InvokeVoidAsync(fn);
+            if (arg is int i) await Interop.InvokeVoidAsync(fn, i);
+            else await Interop.InvokeVoidAsync(fn);
         }
         catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
     }
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         playbackCts?.Cancel();
-        if (_module is not null)
-        {
-            try { await _module.DisposeAsync(); }
-            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
-        }
+        return ValueTask.CompletedTask;
     }
 
     public record MemorySequenceAdventureResult(int RoundsReached, int ElapsedSeconds);

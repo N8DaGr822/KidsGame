@@ -24,8 +24,7 @@
     Usage:
         <ChessPuzzles OnComplete="HandleGameComplete" />
 *@
-@implements IAsyncDisposable
-@inject IJSRuntime JS
+@inject InteropService Interop
 @inject AppDataService Data
 @using KidsGameLauncher.Services
 
@@ -220,7 +219,6 @@
     private bool isNewBest;
     private readonly Random rng = new();
     private DateTime startedAtUtc;
-    private IJSObjectReference? _module;
 
     protected override void OnInitialized()
     {
@@ -302,7 +300,7 @@
 
         if (ChessRules.IsCheckmate(board, false))
         {
-            await PlaySoundAsync("playMatchSound");
+            await Interop.InvokeVoidAsync("playMatchSound");
             await Task.Delay(700);
             await SolvePuzzleAsync();
             return;
@@ -327,13 +325,13 @@
             return;
         }
 
-        await PlaySoundAsync("playImpactSound");
+        await Interop.InvokeVoidAsync("playImpactSound");
         StateHasChanged();
         await Task.Delay(500);
         ChessRules.ApplyMove(board, blackReplies[0]);
         blackHasMovedOnce = true;
         statusText = "Forced! Now find the checkmate.";
-        await PlaySoundAsync("playImpactSound");
+        await Interop.InvokeVoidAsync("playImpactSound");
         StateHasChanged();
         await Task.Delay(400);
         animating = false;
@@ -345,7 +343,7 @@
         totalWrongAttempts++;
         if (wrongAttemptsThisPuzzle >= 2) showHint = true;
         statusText = message;
-        await PlaySoundAsync("playMismatchSound");
+        await Interop.InvokeVoidAsync("playMismatchSound");
         StateHasChanged();
         await Task.Delay(1100);
         board = beforeMove;
@@ -391,12 +389,6 @@
         };
     }
 
-    private async Task PlaySoundAsync(string function)
-    {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-        await _module.InvokeVoidAsync(function);
-    }
-
     private async Task FinishGame()
     {
         phase = Phase.Finished;
@@ -436,15 +428,6 @@
         Difficulty.Medium => "3 puzzles - checkmate in 1 move, trickier",
         _ => "2 puzzles - one is checkmate in 2 forced moves",
     };
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_module is not null)
-        {
-            try { await _module.DisposeAsync(); }
-            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
-        }
-    }
 
     public record ChessPuzzlesResult(string Difficulty, int PuzzlesSolved, int SessionSize, int ElapsedSeconds);
 }

@@ -15,8 +15,8 @@
     Usage:
         <WordSearch OnComplete="HandleGameComplete" />
 *@
-@implements IAsyncDisposable
-@inject IJSRuntime JS
+@inject InteropService Interop
+@inject AppDataService Data
 
 <div class="wsr-game">
 
@@ -91,6 +91,7 @@
                         <div><span class="game-stat-label">Words found</span><span class="game-stat-value">@totalFound/@totalWords</span></div>
                         <div><span class="game-stat-label">Grids cleared</span><span class="game-stat-value">@(gridNumber - 1)/@TotalGrids</span></div>
                     </div>
+                    <PersonalBestBadge Value="@FormatTime(bestSeconds ?? finalElapsedSeconds)" IsNew="isNewBest" />
                     <div class="game-result-actions">
                         <button class="game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
@@ -110,6 +111,14 @@
     /// from the admin panel; when set, the picker is replaced with a
     /// locked note and that difficulty is used.</summary>
     [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fastest time per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestSeconds;
+    private bool isNewBest;
+    private int finalElapsedSeconds;
 
     private enum Phase { Setup, Playing, Finished }
     public enum Difficulty { Easy, Medium, Hard }
@@ -180,7 +189,6 @@
     private DateTime startedAtUtc;
 
     private ElementReference gridRef;
-    private IJSObjectReference? _module;
     private bool selecting;
     private StageRect? dragRect;
     private (int Row, int Col) selStart;
@@ -199,6 +207,7 @@
         totalFound = 0;
         totalWords = 0;
         startedAtUtc = DateTime.UtcNow;
+        isNewBest = false;
         phase = Phase.Playing;
         NextGrid();
     }
@@ -315,9 +324,8 @@
     {
         if (phase != Phase.Playing) return;
 
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-        dragRect = await _module.InvokeAsync<StageRect>("getBoundingRect", gridRef);
-        await _module.InvokeVoidAsync("setPointerCapture", gridRef, e.PointerId);
+        dragRect = await Interop.InvokeAsync<StageRect>("getBoundingRect", gridRef);
+        await Interop.InvokeVoidAsync("setPointerCapture", gridRef, e.PointerId);
 
         var cell = CellAt(e.ClientX, e.ClientY);
         if (cell is null) return;
@@ -367,7 +375,7 @@
             match.Found = true;
             totalFound++;
             roundMessage = $"Found {match.Word}!";
-            await PlaySoundAsync("playMatchSound");
+            await Interop.InvokeVoidAsync("playMatchSound");
 
             if (placedWords.All(w => w.Found))
             {
@@ -391,7 +399,7 @@
             // especially on Hard's small cells where overshoot/undershoot
             // from touch imprecision is common.
             wrongPath = attempt;
-            await PlaySoundAsync("playMismatchSound");
+            await Interop.InvokeVoidAsync("playMismatchSound");
             StateHasChanged();
             await Task.Delay(400);
             wrongPath = new List<(int Row, int Col)>();
@@ -413,15 +421,18 @@
         return (row, col);
     }
 
-    private async Task PlaySoundAsync(string function)
-    {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-        await _module.InvokeVoidAsync(function);
-    }
-
     private async Task FinishGame()
     {
         phase = Phase.Finished;
+        finalElapsedSeconds = (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"seconds:{DifficultyName(selectedDifficulty)}";
+            bestSeconds = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.WordSearch, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.WordSearch, key, finalElapsedSeconds, lowerIsBetter: true);
+        }
+
         StateHasChanged();
 
         if (OnComplete.HasDelegate)
@@ -431,8 +442,14 @@
                 WordsFound: totalFound,
                 TotalWords: totalWords,
                 GridsCompleted: TotalGrids,
-                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+                ElapsedSeconds: finalElapsedSeconds));
         }
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var span = TimeSpan.FromSeconds(totalSeconds);
+        return span.Minutes > 0 ? $"{span.Minutes}:{span.Seconds:00}" : $"0:{span.Seconds:00}";
     }
 
     private static string DifficultyName(Difficulty d) => d switch
@@ -448,15 +465,6 @@
         Difficulty.Medium => "10x10 grid, 5 words",
         _ => "12x12 grid, 6 words",
     };
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_module is not null)
-        {
-            try { await _module.DisposeAsync(); }
-            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
-        }
-    }
 
     public record WordSearchResult(string Difficulty, int WordsFound, int TotalWords, int GridsCompleted, int ElapsedSeconds);
 }

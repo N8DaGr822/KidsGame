@@ -14,7 +14,7 @@
         <CopyThePattern OnComplete="HandleGameComplete" />
 *@
 @implements IAsyncDisposable
-@inject IJSRuntime JS
+@inject InteropService Interop
 @inject AppDataService Data
 
 <div class="cp-game">
@@ -135,7 +135,6 @@
     private int roundsReached;
     private DateTime startedAtUtc;
     private readonly Random rng = new();
-    private IJSObjectReference? _module;
     private CancellationTokenSource? _roundCts;
 
     protected override void OnInitialized()
@@ -192,7 +191,7 @@
         }
 
         StateHasChanged();
-        await PlaySoundAsync("playImpactSound");
+        await Interop.InvokeVoidAsync("playImpactSound");
 
         // Give a slightly longer look at bigger patterns, floored so it
         // never becomes unfairly brief for a young player.
@@ -219,7 +218,7 @@
             {
                 wrongCell = idx;
                 StateHasChanged();
-                await PlaySoundAsync("playSimonErrorSound");
+                await Interop.InvokeVoidAsync("playSimonErrorSound");
                 await Task.Delay(700);
                 await EndRoundAsync();
                 return;
@@ -227,7 +226,7 @@
 
             foundCells.Add(idx);
             StateHasChanged();
-            await PlaySoundAsync("playMatchSound");
+            await Interop.InvokeVoidAsync("playMatchSound");
 
             if (foundCells.Count == shownPattern.Count)
             {
@@ -279,24 +278,10 @@
         _ => "5x5 grid",
     };
 
-    private async Task PlaySoundAsync(string fn)
-    {
-        try
-        {
-            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-            await _module.InvokeVoidAsync(fn);
-        }
-        catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
-    }
-
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _roundCts?.Cancel();
-        if (_module is not null)
-        {
-            try { await _module.DisposeAsync(); }
-            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
-        }
+        return ValueTask.CompletedTask;
     }
 
     public record CopyThePatternResult(int RoundsReached, int ElapsedSeconds);

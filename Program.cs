@@ -18,6 +18,7 @@ builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(builder.
 builder.Services.AddScoped<AppDataService>();
 builder.Services.AddScoped<AppState>();
 builder.Services.AddScoped<PlayTimeTracker>();
+builder.Services.AddScoped<InteropService>();
 
 builder.Services
     .AddBlazorise(options => options.Immediate = true)

@@ -52,11 +52,11 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.SlidingPuzzle)
             {
-                <SlidingPuzzle PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSlidingPuzzleComplete" />
+                <SlidingPuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSlidingPuzzleComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.WordScramble)
             {
-                <WordScramble PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWordScrambleComplete" />
+                <WordScramble PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWordScrambleComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Minesweeper)
             {
@@ -72,15 +72,15 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.CatchGame)
             {
-                <CatchGame PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCatchGameComplete" />
+                <CatchGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCatchGameComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.FruitSlice)
             {
-                <FruitSlice PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleFruitSliceComplete" />
+                <FruitSlice PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleFruitSliceComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.BubblePop)
             {
-                <BubblePop PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleBubblePopComplete" />
+                <BubblePop PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleBubblePopComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ReactionTimer)
             {
@@ -88,23 +88,23 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.RedLightGreenLight)
             {
-                <RedLightGreenLight PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRedLightGreenLightComplete" />
+                <RedLightGreenLight PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRedLightGreenLightComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.TicTacToe)
             {
-                <TicTacToe PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTicTacToeComplete" />
+                <TicTacToe PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTicTacToeComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ConnectFour)
             {
-                <ConnectFour PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleConnectFourComplete" />
+                <ConnectFour PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleConnectFourComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.RockPaperScissors)
             {
-                <RockPaperScissors PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRockPaperScissorsComplete" />
+                <RockPaperScissors PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRockPaperScissorsComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.HigherOrLower)
             {
-                <HigherOrLower PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleHigherOrLowerComplete" />
+                <HigherOrLower PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleHigherOrLowerComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.PeekReveal)
             {
@@ -136,27 +136,27 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.OddOneOut)
             {
-                <OddOneOut PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleOddOneOutComplete" />
+                <OddOneOut PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleOddOneOutComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.PatternComplete)
             {
-                <PatternComplete PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandlePatternCompleteComplete" />
+                <PatternComplete PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandlePatternCompleteComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.NumberSequence)
             {
-                <NumberSequence PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleNumberSequenceComplete" />
+                <NumberSequence PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleNumberSequenceComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ColorMatch)
             {
-                <ColorMatch PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleColorMatchComplete" />
+                <ColorMatch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleColorMatchComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ShapeSorter)
             {
-                <ShapeSorter PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleShapeSorterComplete" />
+                <ShapeSorter PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleShapeSorterComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ShadowMatch)
             {
-                <ShadowMatch PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleShadowMatchComplete" />
+                <ShadowMatch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleShadowMatchComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.GuessTheWord)
             {
@@ -164,7 +164,7 @@
             }
             else if (_game.LaunchTarget == BuiltInGames.WordSearch)
             {
-                <WordSearch PlayerName="@State.CurrentProfile?.Name" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWordSearchComplete" />
+                <WordSearch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWordSearchComplete" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Mastermind)
             {

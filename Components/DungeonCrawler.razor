@@ -25,9 +25,9 @@
     Usage:
         <DungeonCrawler OnComplete="HandleGameComplete" />
 *@
-@implements IAsyncDisposable
-@inject IJSRuntime JS
+@inject InteropService Interop
 @inject AppDataService Data
+@using KidsGameLauncher.Services
 
 <div class="dc-game">
 
@@ -214,7 +214,6 @@
     private bool isNewBest;
     private readonly Random rng = new();
     private DateTime startedAtUtc;
-    private IJSObjectReference? _module;
 
     protected override void OnInitialized()
     {
@@ -350,7 +349,7 @@
             playerRow = row;
             playerCol = col;
             StateHasChanged();
-            await PlaySoundAsync("playImpactSound");
+            await Interop.InvokeVoidAsync("playImpactSound");
 
             if (row == room.DoorRow && col == room.DoorCol)
             {
@@ -383,7 +382,7 @@
         enemy.HitFlashMs = 250;
         statusText = $"You hit the {enemy.Kind}!";
         StateHasChanged();
-        await PlaySoundAsync("playImpactSound");
+        await Interop.InvokeVoidAsync("playImpactSound");
         await Task.Delay(200);
         enemy.HitFlashMs = 0;
 
@@ -392,14 +391,14 @@
             room.Enemies.Remove(enemy);
             kills++;
             statusText = "Enemy defeated!";
-            await PlaySoundAsync("playMatchSound");
+            await Interop.InvokeVoidAsync("playMatchSound");
         }
         else
         {
             playerHp -= enemy.Damage;
             playerHitFlashMs = 250;
             statusText = $"The {enemy.Kind} hits back!";
-            await PlaySoundAsync("playMismatchSound");
+            await Interop.InvokeVoidAsync("playMismatchSound");
             StateHasChanged();
             await Task.Delay(200);
             playerHitFlashMs = 0;
@@ -426,7 +425,7 @@
                 playerHitFlashMs = 250;
                 statusText = $"The {enemy.Kind} attacks!";
                 StateHasChanged();
-                await PlaySoundAsync("playMismatchSound");
+                await Interop.InvokeVoidAsync("playMismatchSound");
                 await Task.Delay(200);
                 playerHitFlashMs = 0;
             }
@@ -477,18 +476,12 @@
         _ => "enemy-goblin.png",
     };
 
-    private async Task PlaySoundAsync(string function)
-    {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-        await _module.InvokeVoidAsync(function);
-    }
-
     private async Task FinishGame(bool won)
     {
         this.won = won;
         phase = Phase.Finished;
         StateHasChanged();
-        await PlaySoundAsync(won ? "playMatchSound" : "playMismatchSound");
+        await Interop.InvokeVoidAsync(won ? "playMatchSound" : "playMismatchSound");
 
         if (!string.IsNullOrEmpty(ProfileId))
         {
@@ -527,15 +520,6 @@
         Difficulty.Medium => "5 rooms",
         _ => "7 rooms, tougher enemies",
     };
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_module is not null)
-        {
-            try { await _module.DisposeAsync(); }
-            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
-        }
-    }
 
     public record DungeonCrawlerResult(string Difficulty, bool Won, int RoomsCleared, int TotalRooms, int TurnsTaken, int ElapsedSeconds);
 }

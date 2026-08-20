@@ -13,8 +13,7 @@
     Usage:
         <HotAndCold OnComplete="HandleGameComplete" />
 *@
-@implements IAsyncDisposable
-@inject IJSRuntime JS
+@inject InteropService Interop
 @inject AppDataService Data
 
 <div class="hc-game">
@@ -133,7 +132,6 @@
     private bool isNewBest;
     private readonly Random rng = new();
     private DateTime startedAtUtc;
-    private IJSObjectReference? _module;
 
     protected override void OnInitialized()
     {
@@ -184,7 +182,7 @@
             revealedTiers[idx] = "found";
             roundMessage = "Found it! 🎉";
             StateHasChanged();
-            await PlaySoundAsync("playMatchSound");
+            await Interop.InvokeVoidAsync("playMatchSound");
             await Task.Delay(900);
 
             roundIndex++;
@@ -204,7 +202,7 @@
         var tier = TierFor(dist, maxDist);
         revealedTiers[idx] = tier;
         roundMessage = TierMessage(tier);
-        await PlaySoundAsync(tier is "scorching" or "hot" ? "playImpactSound" : "playCatchSound");
+        await Interop.InvokeVoidAsync(tier is "scorching" or "hot" ? "playImpactSound" : "playCatchSound");
         StateHasChanged();
     }
 
@@ -244,12 +242,6 @@
         _ => "Freezing! Way off.",
     };
 
-    private async Task PlaySoundAsync(string function)
-    {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-        await _module.InvokeVoidAsync(function);
-    }
-
     private async Task FinishGame()
     {
         phase = Phase.Finished;
@@ -287,15 +279,6 @@
         Difficulty.Medium => "7x7 grid",
         _ => "9x9 grid",
     };
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_module is not null)
-        {
-            try { await _module.DisposeAsync(); }
-            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
-        }
-    }
 
     public record HotAndColdResult(string Difficulty, int TargetsFound, int SessionSize, int TotalTaps, int ElapsedSeconds);
 }

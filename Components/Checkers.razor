@@ -24,8 +24,7 @@
     Usage:
         <Checkers OnComplete="HandleGameComplete" />
 *@
-@implements IAsyncDisposable
-@inject IJSRuntime JS
+@inject InteropService Interop
 @inject AppDataService Data
 @using KidsGameLauncher.Services
 
@@ -176,7 +175,6 @@
     private int? bestTurns;
     private bool isNewBest;
     private DateTime startedAtUtc;
-    private IJSObjectReference? _module;
 
     protected override void OnInitialized()
     {
@@ -302,7 +300,7 @@
 
         var (wasCapture, justPromoted) = GameAi.CheckersApplyHop(board, fromRow, fromCol, toRow, toCol, capRow, capCol);
         UpdateCounts();
-        await PlaySoundAsync(wasCapture ? "playImpactSound" : "playMatchSound");
+        await Interop.InvokeVoidAsync(wasCapture ? "playImpactSound" : "playMatchSound");
         StateHasChanged();
 
         if (mandatoryCapture && wasCapture && !justPromoted && GameAi.CheckersCaptureHopsFor(board, toRow, toCol).Count > 0)
@@ -341,7 +339,7 @@
         {
             var (wasCapture, _) = GameAi.CheckersApplyHop(board, hop.FromRow, hop.FromCol, hop.ToRow, hop.ToCol, hop.CapRow, hop.CapCol);
             UpdateCounts();
-            await PlaySoundAsync(wasCapture ? "playImpactSound" : "playMatchSound");
+            await Interop.InvokeVoidAsync(wasCapture ? "playImpactSound" : "playMatchSound");
             StateHasChanged();
             await Task.Delay(450);
         }
@@ -379,12 +377,6 @@
         GameAi.CheckersBlackMan => "black-piece.png",
         _ => "black-king.png",
     };
-
-    private async Task PlaySoundAsync(string function)
-    {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-        await _module.InvokeVoidAsync(function);
-    }
 
     private async Task FinishGame()
     {
@@ -433,15 +425,6 @@
     private static string RulesDetail(bool mandatory) => mandatory
         ? "Captures are mandatory - the official rule"
         : "Capture if you want to - never forced";
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_module is not null)
-        {
-            try { await _module.DisposeAsync(); }
-            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
-        }
-    }
 
     public record CheckersResult(string Difficulty, bool Won, int RedCount, int BlackCount, int PlayerTurnsTaken, int ElapsedSeconds);
 }

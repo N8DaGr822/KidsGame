@@ -24,7 +24,7 @@
         <MannersGarden PlayerName="Riley" OnComplete="HandleGameComplete" />
 *@
 @implements IAsyncDisposable
-@inject IJSRuntime JS
+@inject InteropService Interop
 @inject AppDataService Data
 
 <div class="mng-game">
@@ -652,7 +652,6 @@
     // in-play "+item added!" toast and progress strip).
     private List<string> persistedGardenItems = new();
 
-    private IJSObjectReference? _module;
     private int elapsedSeconds;
     private System.Threading.Timer? timer;
 
@@ -694,8 +693,6 @@
 
     private async Task StartSession(LessonType? focusLesson)
     {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-
         quizMode = false;
         sessionLessons = focusLesson is { } lesson
             ? Enumerable.Repeat(lesson, 3).ToList()
@@ -714,8 +711,6 @@
 
     private async Task StartQuizSession()
     {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-
         quizMode = true;
         sessionQuiz = QuizScenarios.OrderBy(_ => rng.Next()).Take(QuizSessionSize).ToList();
         quizIndex = 0;
@@ -1120,21 +1115,19 @@
     {
         activeCleanupPointerId = e.PointerId;
 
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-
-        var areaRect = await _module.InvokeAsync<StageRect>("getBoundingRect", cleanupAreaRef);
+        var areaRect = await Interop.InvokeAsync<StageRect>("getBoundingRect", cleanupAreaRef);
         areaLeft = areaRect.Left;
         areaTop = areaRect.Top;
         areaWidth = areaRect.Width;
         areaHeight = areaRect.Height;
 
-        var binRect = await _module.InvokeAsync<StageRect>("getBoundingRect", binRef);
+        var binRect = await Interop.InvokeAsync<StageRect>("getBoundingRect", binRef);
         binLeft = binRect.Left;
         binTop = binRect.Top;
         binWidth = binRect.Width;
         binHeight = binRect.Height;
 
-        await _module.InvokeVoidAsync("setPointerCapture", cleanupAreaRef, e.PointerId);
+        await Interop.InvokeVoidAsync("setPointerCapture", cleanupAreaRef, e.PointerId);
 
         // A fast tap-and-release can fire OnCleanupPointerUp (which clears
         // activeCleanupPointerId synchronously, before any awaits of its
@@ -1205,21 +1198,19 @@
     {
         activeAchooPointerId = e.PointerId;
 
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-
-        var areaRect = await _module.InvokeAsync<StageRect>("getBoundingRect", achooAreaRef);
+        var areaRect = await Interop.InvokeAsync<StageRect>("getBoundingRect", achooAreaRef);
         achooAreaLeft = areaRect.Left;
         achooAreaTop = areaRect.Top;
         achooAreaWidth = areaRect.Width;
         achooAreaHeight = areaRect.Height;
 
-        var targetRect = await _module.InvokeAsync<StageRect>("getBoundingRect", achooTargetRef);
+        var targetRect = await Interop.InvokeAsync<StageRect>("getBoundingRect", achooTargetRef);
         achooTargetLeft = targetRect.Left;
         achooTargetTop = targetRect.Top;
         achooTargetWidth = targetRect.Width;
         achooTargetHeight = targetRect.Height;
 
-        await _module.InvokeVoidAsync("setPointerCapture", achooAreaRef, e.PointerId);
+        await Interop.InvokeVoidAsync("setPointerCapture", achooAreaRef, e.PointerId);
 
         // Same fast tap-and-release race as StartDragToy above - bail out
         // if OnAchooPointerUp already cleared this pointer while we awaited.
@@ -1286,14 +1277,12 @@
 
     private async Task SpeakAsync(string text)
     {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-        await _module.InvokeVoidAsync("speak", text);
+        await Interop.InvokeVoidAsync("speak", text);
     }
 
     private async Task StopSpeakingAsync()
     {
-        if (_module is null) return;
-        await _module.InvokeVoidAsync("stopSpeaking");
+        await Interop.InvokeVoidAsync("stopSpeaking");
     }
 
     private void ToggleMute()
@@ -1327,15 +1316,11 @@
     {
         StopTimer();
 
-        if (_module is not null)
+        try
         {
-            try
-            {
-                await _module.InvokeVoidAsync("stopSpeaking");
-                await _module.DisposeAsync();
-            }
-            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+            await Interop.InvokeVoidAsync("stopSpeaking");
         }
+        catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
     }
 
     // ---- Result payload ------------------------------------------------------

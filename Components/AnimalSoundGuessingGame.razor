@@ -18,7 +18,7 @@
         <AnimalSoundGuessingGame OnComplete="HandleGameComplete" />
 *@
 @implements IAsyncDisposable
-@inject IJSRuntime JS
+@inject InteropService Interop
 @inject AppDataService Data
 
 <div class="as-game">
@@ -164,7 +164,6 @@
     private bool isNewBest;
     private readonly Random rng = new();
     private DateTime startedAtUtc;
-    private IJSObjectReference? _module;
 
     protected override void OnInitialized()
     {
@@ -236,14 +235,12 @@
 
     private async Task SpeakAsync(string text)
     {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-        await _module.InvokeVoidAsync("speak", text);
+        await Interop.InvokeVoidAsync("speak", text);
     }
 
     private async Task PlaySoundAsync(string function)
     {
-        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
-        await _module.InvokeVoidAsync(function);
+        await Interop.InvokeVoidAsync(function);
     }
 
     private async Task FinishGame()
@@ -285,15 +282,11 @@
 
     public async ValueTask DisposeAsync()
     {
-        if (_module is not null)
+        try
         {
-            try
-            {
-                await _module.InvokeVoidAsync("stopSpeaking");
-                await _module.DisposeAsync();
-            }
-            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+            await Interop.InvokeVoidAsync("stopSpeaking");
         }
+        catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
     }
 
     public record AnimalSoundGuessingGameResult(string Difficulty, int Score, int SessionSize, int ElapsedSeconds);
