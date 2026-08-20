@@ -118,6 +118,18 @@
             {
                 <PopAndSparkle PlayerName="@State.CurrentProfile?.Name" OnComplete="HandlePopAndSparkleComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.BigSmall)
+            {
+                <BigSmall PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBigSmallComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.ColorSplash)
+            {
+                <ColorSplash PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleColorSplashComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.FingerTrails)
+            {
+                <FingerTrails PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleFingerTrailsComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.BabyPiano)
             {
                 <BabyPiano PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBabyPianoComplete" />
@@ -794,6 +806,49 @@
             Theme = result.Theme,
             Difficulty = $"{result.Pops} pops",
             Moves = result.Pops,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleBigSmallComplete(BigSmall.BigSmallResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Difficulty = $"{result.Toggles} toggles",
+            Moves = result.Toggles,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleColorSplashComplete(ColorSplash.ColorSplashResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Difficulty = $"{result.Taps} splashes",
+            Moves = result.Taps,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleFingerTrailsComplete(FingerTrails.FingerTrailsResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Theme,
+            Difficulty = $"{result.Particles} particles",
+            Moves = result.Particles,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

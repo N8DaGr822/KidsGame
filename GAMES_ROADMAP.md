@@ -101,11 +101,11 @@ and multi-step rules.
 
 - [ ] Lights On / Lights Off - tap lamps, switches, stars, or windows to toggle
   them on and off.
-- [ ] Big / Small - tap a tiny object and it becomes huge; tap again and it
+- [x] Big / Small - tap a tiny object and it becomes huge; tap again and it
   shrinks.
-- [ ] Color Splash - every screen tap produces a large blob of color with a
+- [x] Color Splash - every screen tap produces a large blob of color with a
   soft sound or animation.
-- [ ] Finger Trails - drag a finger and leave stars, bubbles, snowflakes, paint,
+- [x] Finger Trails - drag a finger and leave stars, bubbles, snowflakes, paint,
   or sparkles behind.
 - [ ] Fireworks Touch - tap anywhere for a soft colorful burst; keep it gentle,
   not realistic or loud.

@@ -11,6 +11,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Baby Piano
 - Basketball Shot
 - Battleships
+- Big & Small
 - Bubble Pop
 - Build-a-Monster
 - Cat Defense
@@ -19,6 +20,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Chess
 - Chess Puzzles
 - Color Match
+- Color Splash
 - Code Breaker
 - Connect Four
 - Copy the Pattern
@@ -29,6 +31,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Duck Shoot
 - Dungeon Crawler
 - Feed the Animal
+- Finger Trails
 - Fishing Catch
 - Flag Guessing Game
 - Follow the Cups

@@ -85,6 +85,9 @@ public static class BuiltInGames
     public const string DungeonCrawler = "dungeon-crawler";
     public const string RpgBattle = "rpg-battle";
     public const string CatDefense = "cat-defense";
+    public const string BigSmall = "big-small";
+    public const string ColorSplash = "color-splash";
+    public const string FingerTrails = "finger-trails";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -162,5 +165,8 @@ public static class BuiltInGames
         new BuiltInGame("Dungeon Crawler", "⚔️", DungeonCrawler, "images/dungeoncrawler/hero.png", MinAge: 9, MaxAge: 14),
         new BuiltInGame("Mini RPG Battle", "🐉", RpgBattle, "images/rpgbattle/monster-dragon.png", MinAge: 9, MaxAge: 14),
         new BuiltInGame("Cat Defense", "🐱", CatDefense, "images/catdefense/tower-guardian.png", MinAge: 8, MaxAge: 14),
+        new BuiltInGame("Big & Small", "🔵", BigSmall, "images/shapes/blue-circle.png", MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Color Splash", "🎨", ColorSplash, MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Finger Trails", "✨", FingerTrails, MinAge: 1, MaxAge: 3),
     };
 }

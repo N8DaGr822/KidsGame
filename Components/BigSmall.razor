@@ -1,0 +1,114 @@
+@*
+    BigSmall.razor
+    A toddler cause-and-effect toy (~1 year old target): a friendly shape
+    character sits small in the middle of the screen; tapping it makes it
+    grow huge with a bouncy pop, tapping again shrinks it back down. Every
+    time it shrinks, a new random shape/color/expression takes its place so
+    repeat taps stay visually fresh. No score, no timer, no fail state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many times the
+    character was toggled and how long the child played, then returns to the
+    theme picker.
+
+    Usage:
+        <BigSmall OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="bs-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="bs-setup game-setup-panel">
+            <h2>🔵 Big &amp; Small</h2>
+            <p>Tap the little shape and watch it grow - tap it again to make it small!</p>
+            <button class="bs-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="bs-hud game-hud">
+            <span class="bs-title">@current.Name</span>
+            <button class="bs-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="bs-stage">
+            <button class="bs-character @(isBig ? "big" : "small")" @onclick="Toggle">
+                <img class="bs-body" src="@current.BodyPath" alt="" />
+                <img class="bs-face" src="@current.FacePath" alt="" />
+            </button>
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<BigSmallResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private record CharacterDef(string Name, string BodyPath, string FacePath);
+
+    private static readonly CharacterDef[] Characters =
+    {
+        new("Blue Circle", "images/shapes/blue-circle.png", "images/shapes/face-a.png"),
+        new("Pink Squircle", "images/shapes/pink-squircle.png", "images/shapes/face-c.png"),
+        new("Yellow Rhombus", "images/shapes/yellow-rhombus.png", "images/shapes/face-l.png"),
+    };
+
+    private Phase phase = Phase.Setup;
+    private readonly Random rng = new();
+    private CharacterDef current = Characters[0];
+    private bool isBig;
+    private int toggles;
+    private DateTime startedAtUtc;
+
+    private void StartGame()
+    {
+        toggles = 0;
+        isBig = false;
+        current = Characters[rng.Next(Characters.Length)];
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task Toggle()
+    {
+        isBig = !isBig;
+        toggles++;
+        await Interop.InvokeVoidAsync(isBig ? "playCatchSound" : "playImpactSound");
+
+        if (!isBig)
+        {
+            current = PickNextCharacter();
+        }
+    }
+
+    private CharacterDef PickNextCharacter()
+    {
+        if (Characters.Length == 1) return Characters[0];
+
+        CharacterDef next;
+        do
+        {
+            next = Characters[rng.Next(Characters.Length)];
+        } while (next == current);
+        return next;
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new BigSmallResult(
+                Toggles: toggles,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record BigSmallResult(int Toggles, int ElapsedSeconds);
+}

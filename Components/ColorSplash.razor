@@ -1,0 +1,115 @@
+@*
+    ColorSplash.razor
+    A toddler cause-and-effect toy (~1 year old target): tap anywhere on
+    the field and a big soft blob of color pops up right where you tapped,
+    with a few little droplets scattered around it, then fades away. No
+    score, no timer, no fail state - just pure "I did that" feedback.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many splashes
+    were made and how long the child played, then returns to the setup
+    screen.
+
+    Usage:
+        <ColorSplash OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="csp-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="csp-setup game-setup-panel">
+            <h2>🎨 Color Splash</h2>
+            <p>Tap anywhere and watch a splash of color pop up!</p>
+            <button class="csp-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="csp-hud game-hud">
+            <span class="csp-title">Color Splash</span>
+            <button class="csp-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="csp-field" @onclick="OnFieldTap">
+            @foreach (var splat in splats)
+            {
+                <div class="csp-splat" style="left:@(splat.X)px; top:@(splat.Y)px; width:@(splat.Size)px; height:@(splat.Size)px; --splat-color:@splat.Color;">
+                    @foreach (var d in splat.Droplets)
+                    {
+                        <span class="csp-droplet" style="left:@(d.Dx)px; top:@(d.Dy)px; width:@(d.Size)px; height:@(d.Size)px;"></span>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<ColorSplashResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private record Droplet(double Dx, double Dy, double Size);
+    private record Splat(int Id, double X, double Y, double Size, string Color, Droplet[] Droplets);
+
+    private static readonly string[] Palette =
+    {
+        "#E63946", "#3A86FF", "#FFD60A", "#2DC653", "#9D4EDD", "#FB8500", "#FF70A6", "#06AED5",
+    };
+
+    private Phase phase = Phase.Setup;
+    private readonly List<Splat> splats = new();
+    private readonly Random rng = new();
+    private int nextId;
+    private int taps;
+    private DateTime startedAtUtc;
+
+    private void StartGame()
+    {
+        splats.Clear();
+        taps = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task OnFieldTap(MouseEventArgs e)
+    {
+        var id = nextId++;
+        taps++;
+
+        var size = 80 + rng.NextDouble() * 60;
+        var color = Palette[rng.Next(Palette.Length)];
+        var droplets = Enumerable.Range(0, 4).Select(_ =>
+        {
+            var angle = rng.NextDouble() * Math.PI * 2;
+            var distance = size * 0.45 + rng.NextDouble() * 24;
+            return new Droplet(Math.Cos(angle) * distance, Math.Sin(angle) * distance, 10 + rng.NextDouble() * 14);
+        }).ToArray();
+
+        splats.Add(new Splat(id, e.OffsetX, e.OffsetY, size, color, droplets));
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playCatchSound");
+
+        await Task.Delay(900);
+        splats.RemoveAll(s => s.Id == id);
+        StateHasChanged();
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new ColorSplashResult(
+                Taps: taps,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record ColorSplashResult(int Taps, int ElapsedSeconds);
+}

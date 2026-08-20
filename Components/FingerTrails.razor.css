@@ -1,0 +1,110 @@
+.ft-game {
+    width: min(640px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.ft-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.ft-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.ft-setup p {
+    max-width: 30rem;
+    color: var(--text-muted);
+}
+
+.ft-section-title {
+    margin: 0.4rem 0 0;
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.ft-theme-select {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 0.7rem;
+}
+
+.ft-theme-btn {
+    min-height: 86px;
+    padding: 0.8rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    gap: 0.25rem;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.ft-theme-btn:hover {
+    transform: translateY(-2px);
+    background: var(--control-bg-hover);
+}
+
+.ft-theme-btn.selected {
+    border-color: rgba(78, 205, 196, 0.75);
+    background: var(--selected-bg);
+}
+
+.ft-theme-icon {
+    font-size: 1.8rem;
+}
+
+.ft-theme-name {
+    font-weight: 900;
+}
+
+.ft-title {
+    font-weight: 900;
+}
+
+.ft-field {
+    position: relative;
+    width: min(560px, 96vw);
+    aspect-ratio: 4 / 3;
+    margin: 0 auto;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, rgba(150, 190, 255, 0.1), rgba(150, 190, 255, 0.02));
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    touch-action: none;
+    cursor: pointer;
+}
+
+.ft-particle {
+    position: absolute;
+    line-height: 1;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    animation: ft-drift-fade 0.8s ease-out forwards;
+}
+
+.ft-particle-dot {
+    border-radius: 50%;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes ft-drift-fade {
+    0% { transform: translate(-50%, -50%) scale(0.6); opacity: 1; }
+    100% { transform: translate(-50%, -70%) scale(1.05); opacity: 0; }
+}

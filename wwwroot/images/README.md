@@ -245,6 +245,17 @@ do not leave blank UI.
     "X" icon, a third "wood-brown" king color, and two plain side-view
     duplicate checkers pieces (black/red) that render the same piece from
     a different angle.
+- `shapes/*.png` (added 2026-08-20) are from
+  [Kenney](https://kenney.nl) ("Shape Characters"), CC0. Bodies
+  (`blue-circle.png`, `pink-squircle.png`, `yellow-rhombus.png`, renamed
+  from `PNG/Default/<color>_body_<shape>.png`) are blank 80x80 shape
+  canvases with no face baked in; faces (`face-a.png`, `face-c.png`,
+  `face-l.png`, renamed from `PNG/Default/face_<letter>.png`) are
+  separate tightly-cropped overlay PNGs of varying size, composited on
+  top via CSS (`Components/BigSmall.razor.css`'s `.bs-face`: centered,
+  58% width, `translate(-50%,-50%)`). Used by `Components/BigSmall.razor`
+  - see `ASSET_TRIAGE.md`'s Toddler section for why only 3 of the pack's
+  12 face expressions were used.
 - `medals/best.png` is `PNG/shaded_medal6.png` from
   [Kenney](https://kenney.nl) ("Medals"), CC0 - the gold-and-blue ribbon
   read best as a generic "personal best" icon among the pack's 9 color
@@ -270,9 +281,11 @@ selectively rather than bulk-importing whole ZIPs:
 - `kenney_space-shooter-remastered.zip`, `kenney_space-shooter-extension.zip`,
   and `kenney_simple-space.zip` - good fit for future real-time arcade games
   such as Endless Runner, Snake variants, or a kid-safe space dodger.
-- `kenney_shape-characters.zip`, `kenney_scribble-platformer.zip`,
-  `kenney_tiny-town.zip`, and `kenney_tiny-dungeon.zip` - useful later, but
-  they need more game-specific implementation before importing assets.
+- `kenney_scribble-platformer.zip`, `kenney_tiny-town.zip`, and
+  `kenney_tiny-dungeon.zip` - useful later, but they need more
+  game-specific implementation before importing assets.
+- `kenney_shape-characters.zip` - used for `shapes/*.png` above (see that
+  entry for details).
 - `kenney_medals.zip` - useful for shared reward/result overlays, not core
   gameplay art.
 - `kenney_tower-defense-top-down.zip` - used for the Tower Defense game (see

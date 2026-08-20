@@ -1,0 +1,88 @@
+.bs-game {
+    width: min(640px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.bs-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.bs-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.bs-setup p {
+    max-width: 30rem;
+    color: var(--text-muted);
+}
+
+.bs-title {
+    font-weight: 900;
+}
+
+.bs-stage {
+    position: relative;
+    width: min(560px, 96vw);
+    aspect-ratio: 4 / 3;
+    margin: 0 auto;
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, rgba(150, 190, 255, 0.12), rgba(150, 190, 255, 0.02));
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.bs-character {
+    position: relative;
+    display: grid;
+    place-items: center;
+    border: none;
+    background: transparent;
+    padding: 0;
+    touch-action: manipulation;
+    transition: width 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.bs-character:active {
+    filter: brightness(0.96);
+}
+
+.bs-character.small {
+    width: 90px;
+    height: 90px;
+}
+
+.bs-character.big {
+    width: min(70vw, 320px);
+    height: min(70vw, 320px);
+}
+
+.bs-body {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.2));
+}
+
+.bs-face {
+    position: absolute;
+    top: 52%;
+    left: 50%;
+    width: 58%;
+    height: auto;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}

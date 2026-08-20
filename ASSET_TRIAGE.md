@@ -215,9 +215,20 @@ Packs that match specific items in `GAMES_ROADMAP.md`'s toddler and
 simulation sections, or suggest a small addition not yet on the list.
 
 - `kenney_shape-characters.zip` - verified: geometric shapes (square,
-  triangle, diamond, circle) with cute faces. Strong fit for the toddler
-  "Big / Small" or "Funny Faces" roadmap items, or as bonus characters
-  anywhere a friendly mascot helps.
+  squircle, rhombus, circle) with separate overlay face PNGs, composited
+  via CSS rather than pre-merged. **Used** (2026-08-20) by
+  `Components/BigSmall.razor` - 3 of the 4 body shapes (blue circle, pink
+  squircle, yellow rhombus) paired with 3 of the 12 `face_*` expressions.
+  Only faces `a`, `c`, and `l` read as clearly happy once actually
+  composited and viewed at real render size (~90-320px) - several others
+  that looked plausibly cheerful as tiny isolated crops (`face_f`,
+  `face_k`) turned out to read as grumpy/sad or sleepy once scaled up on
+  a body, so this pack needs the same one-at-a-time-at-real-size
+  verification discipline as `feedback_sticker_image_reads` before
+  picking any more faces from it (e.g. for "Funny Faces"). Still useful:
+  green square body, the other 9 face expressions (several read as
+  smug/mischievous/surprised rather than sad - could suit a different
+  mood than "happy"), and the full `Double` (2x resolution) variant.
 - `craftpix-901245-free-underwater-world-2d-game-objects.zip` - verified:
   bubbles and small decorative underwater objects. Good for Fishing Catch
   visual variety, or the roadmap's "Baby Aquarium" / "Touch the Fish"

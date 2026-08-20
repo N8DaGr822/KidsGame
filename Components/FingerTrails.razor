@@ -1,0 +1,181 @@
+@*
+    FingerTrails.razor
+    A toddler cause-and-effect toy (~1 year old target): drag a finger
+    across the field and leave a trail of stars, bubbles, snowflakes,
+    sparkles, or paint dots behind - each particle drifts up and fades on
+    its own a moment later. No score, no timer, no fail state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many
+    particles were left behind and how long the child played, then
+    returns to the theme picker.
+
+    Usage:
+        <FingerTrails OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="ft-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="ft-setup game-setup-panel">
+            <h2>✨ Finger Trails</h2>
+            <p>Drag your finger across the box and leave a trail behind!</p>
+
+            <h3 class="ft-section-title game-section-title">Choose a trail</h3>
+            <div class="ft-theme-select game-option-grid">
+                @foreach (var t in Themes)
+                {
+                    <button class="ft-theme-btn game-option-button @(t.Name == selectedTheme.Name ? "selected" : "")" @onclick="() => selectedTheme = t">
+                        <span class="ft-theme-icon">@(t.Glyph ?? "🎨")</span>
+                        <span class="ft-theme-name">@t.Name</span>
+                    </button>
+                }
+            </div>
+
+            <button class="ft-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="ft-hud game-hud">
+            <span class="ft-title">@selectedTheme.Name</span>
+            <button class="ft-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="ft-field"
+             @onpointerdown="OnPointerDown"
+             @onpointermove="OnPointerMove"
+             @onpointerup="OnPointerUp"
+             @onpointerleave="OnPointerUp">
+            @foreach (var p in particles)
+            {
+                @if (p.Glyph is not null)
+                {
+                    <span class="ft-particle" style="left:@(p.X)px; top:@(p.Y)px; font-size:@(p.Size)px;">@p.Glyph</span>
+                }
+                else
+                {
+                    <span class="ft-particle ft-particle-dot" style="left:@(p.X)px; top:@(p.Y)px; width:@(p.Size)px; height:@(p.Size)px; background:@p.Color;"></span>
+                }
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<FingerTrailsResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private record ThemeDefinition(string Name, string? Glyph);
+    private record Particle(int Id, double X, double Y, double Size, string? Glyph, string? Color);
+
+    private static readonly ThemeDefinition[] Themes =
+    {
+        new("Stars", "⭐"),
+        new("Bubbles", "🫧"),
+        new("Snowflakes", "❄️"),
+        new("Sparkles", "✨"),
+        new("Paint", null),
+    };
+
+    private static readonly string[] PaintPalette =
+    {
+        "#E63946", "#3A86FF", "#FFD60A", "#2DC653", "#9D4EDD", "#FB8500", "#FF70A6", "#06AED5",
+    };
+
+    private const double MinSpawnDistance = 22;
+
+    private Phase phase = Phase.Setup;
+    private ThemeDefinition selectedTheme = Themes[0];
+    private readonly List<Particle> particles = new();
+    private readonly Random rng = new();
+    private int nextId;
+    private int particleCount;
+    private bool isDragging;
+    private double? lastSpawnX;
+    private double? lastSpawnY;
+    private DateTime startedAtUtc;
+
+    private void StartGame()
+    {
+        particles.Clear();
+        particleCount = 0;
+        isDragging = false;
+        lastSpawnX = null;
+        lastSpawnY = null;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private void OnPointerDown(PointerEventArgs e)
+    {
+        isDragging = true;
+        lastSpawnX = null;
+        lastSpawnY = null;
+        SpawnParticle(e.OffsetX, e.OffsetY);
+    }
+
+    private void OnPointerUp(PointerEventArgs e)
+    {
+        isDragging = false;
+    }
+
+    private async Task OnPointerMove(PointerEventArgs e)
+    {
+        if (!isDragging) return;
+
+        if (lastSpawnX is not null)
+        {
+            var dx = e.OffsetX - lastSpawnX.Value;
+            var dy = e.OffsetY - lastSpawnY!.Value;
+            if (Math.Sqrt(dx * dx + dy * dy) < MinSpawnDistance) return;
+        }
+
+        await SpawnParticleAsync(e.OffsetX, e.OffsetY);
+    }
+
+    private void SpawnParticle(double x, double y) => _ = SpawnParticleAsync(x, y);
+
+    private async Task SpawnParticleAsync(double x, double y)
+    {
+        lastSpawnX = x;
+        lastSpawnY = y;
+
+        var id = nextId++;
+        particleCount++;
+        var size = selectedTheme.Glyph is null ? 12 + rng.NextDouble() * 10 : 22 + rng.NextDouble() * 12;
+        var color = selectedTheme.Glyph is null ? PaintPalette[rng.Next(PaintPalette.Length)] : null;
+
+        particles.Add(new Particle(id, x, y, size, selectedTheme.Glyph, color));
+        StateHasChanged();
+
+        if (particleCount % 4 == 0)
+        {
+            await Interop.InvokeVoidAsync("playCatchSound");
+        }
+
+        await Task.Delay(800);
+        particles.RemoveAll(p => p.Id == id);
+        StateHasChanged();
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new FingerTrailsResult(
+                Theme: selectedTheme.Name,
+                Particles: particleCount,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record FingerTrailsResult(string Theme, int Particles, int ElapsedSeconds);
+}
