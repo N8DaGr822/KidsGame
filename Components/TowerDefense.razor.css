@@ -320,30 +320,14 @@
     box-shadow: 0 0 4px 1px currentColor;
 }
 
-.td-shot.gatling {
-    background: #ffe066;
-    color: #ffe066;
-}
-
-.td-shot.cannon {
-    background: #ffa94d;
-    color: #ffa94d;
-}
-
-.td-shot.rocket {
+.td-shot.heavy {
     width: 10px;
     height: 10px;
-    background: #ff6b6b;
-    color: #ff6b6b;
 }
 
-.td-shot.mega-gatling,
-.td-shot.mega-cannon,
-.td-shot.mega-rocket {
+.td-shot.mega {
     width: 12px;
     height: 12px;
-    background: #ffd43b;
-    color: #ffd43b;
     box-shadow: 0 0 7px 2px currentColor;
 }
 

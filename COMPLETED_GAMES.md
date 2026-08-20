@@ -13,6 +13,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Battleships
 - Bubble Pop
 - Build-a-Monster
+- Cat Defense
 - Catch the Falling Objects
 - Checkers
 - Chess
@@ -42,6 +43,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Memory Match
 - Memory Sequence Adventure
 - Mini Golf
+- Mini RPG Battle
 - Minesweeper
 - Morse Code Challenge
 - Number Sequence

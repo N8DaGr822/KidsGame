@@ -54,7 +54,7 @@
     @if (phase == Phase.Setup)
     {
         <div class="td-setup game-setup-panel">
-            <h2>🏯 Tower Defense</h2>
+            <h2>@currentTheme.Emoji @currentTheme.Title</h2>
             <p>Place towers along the path to stop the enemies before they reach the end. Clear a level and a brand new path takes its place - keep going as long as you can!</p>
 
             <h3 class="td-section-title game-section-title">Choose a difficulty</h3>
@@ -94,7 +94,7 @@
         </div>
 
         <div class="td-palette">
-            @foreach (var t in TowerTypes)
+            @foreach (var t in currentTheme.Towers)
             {
                 <button class="td-palette-btn @(selectedTowerType?.Id == t.Id ? "selected" : "") @(gold < t.Cost ? "unaffordable" : "")"
                         disabled="@(phase != Phase.Playing)"
@@ -126,7 +126,7 @@
                         @if (FindMergePartner(selPos, selTower) is not null)
                         {
                             <button class="td-panel-btn game-primary-action td-merge-btn" @onclick="() => MergeTower(selPos)">
-                                💥 Merge into @MegaByBaseId[selTower.Type.Id].Name
+                                💥 Merge into @currentTheme.MegaByBaseId[selTower.Type.Id].Name
                             </button>
                         }
                         else
@@ -188,7 +188,7 @@
 
             @foreach (var shot in shots)
             {
-                <div @key="shot.Id" class="td-shot @shot.TowerTypeId" style="@ShotStyle(shot)"></div>
+                <div @key="shot.Id" class="td-shot @(shot.Mega ? "mega" : shot.Heavy ? "heavy" : "")" style="@ShotStyle(shot)"></div>
             }
 
             @foreach (var fx in boomEffects)
@@ -232,9 +232,9 @@
             <div class="td-legend-panel game-result-panel" @onclick:stopPropagation="true">
                 <h2>💥 Tower Merges</h2>
                 <p class="td-legend-intro">Get a tower to level @MaxTowerLevel, then merge it with another maxed tower of the same kind - the fused Mega tower hits everything near its target, not just one enemy.</p>
-                @foreach (var t in TowerTypes)
+                @foreach (var t in currentTheme.Towers)
                 {
-                    var mega = MegaByBaseId[t.Id];
+                    var mega = currentTheme.MegaByBaseId[t.Id];
                     <div class="td-legend-row">
                         <img class="td-legend-icon" src="@t.ImagePath" alt="" />
                         <span class="td-legend-plus">+</span>
@@ -267,6 +267,10 @@
     /// locked note and that difficulty is used.</summary>
     [Parameter] public string? ForcedDifficulty { get; set; }
 
+    /// <summary>Which visual theme's towers/enemies to use - "animal"
+    /// (default, the original theme) or "cat" (Cat Defense).</summary>
+    [Parameter] public string Theme { get; set; } = "animal";
+
     private enum Phase { Setup, Playing, Finished }
     public enum Difficulty { Easy, Medium, Hard, Endless }
 
@@ -291,13 +295,13 @@
 
     // ---- Tower / enemy definitions -----------------------------------
 
-    private record TowerType(string Id, string Name, string ImagePath, int Cost, double RangeCells, int Damage, int FireIntervalMs, bool IsMega = false, double SplashRadiusCells = 0);
+    private record TowerType(string Id, string Name, string ImagePath, int Cost, double RangeCells, int Damage, int FireIntervalMs, bool IsMega = false, double SplashRadiusCells = 0, string ShotColor = "#ffe066", bool HeavyShot = false);
 
-    private static readonly TowerType[] TowerTypes =
+    private static readonly TowerType[] AnimalTowerTypes =
     {
-        new("gatling", "Gatling", "images/tower-defense/tower-gatling.png", 40, 2.2, 6, 350),
-        new("cannon", "Cannon", "images/tower-defense/tower-cannon.png", 80, 2.8, 18, 700),
-        new("rocket", "Rocket", "images/tower-defense/tower-rocket.png", 150, 3.4, 42, 1300),
+        new("gatling", "Gatling", "images/tower-defense/tower-gatling.png", 40, 2.2, 6, 350, ShotColor: "#ffe066"),
+        new("cannon", "Cannon", "images/tower-defense/tower-cannon.png", 80, 2.8, 18, 700, ShotColor: "#ffa94d"),
+        new("rocket", "Rocket", "images/tower-defense/tower-rocket.png", 150, 3.4, 42, 1300, ShotColor: "#ff6b6b", HeavyShot: true),
     };
 
     // Only reachable by merging two max-level towers of the same base type
@@ -306,15 +310,40 @@
     // for its scaling, and a Mega tower can still be leveled up further.
     // Splash damage (SplashRadiusCells) is the Mega tier's real upgrade,
     // not just bigger numbers: their hits now damage everything nearby too.
-    private static readonly TowerType MegaGatling = new("mega-gatling", "Mega Gatling", "images/tower-defense/tower-gatling.png", 100, 3.0, 16, 220, IsMega: true, SplashRadiusCells: 0.9);
-    private static readonly TowerType MegaCannon = new("mega-cannon", "Mega Cannon", "images/tower-defense/tower-cannon.png", 200, 3.6, 46, 550, IsMega: true, SplashRadiusCells: 1.1);
-    private static readonly TowerType MegaRocket = new("mega-rocket", "Mega Rocket", "images/tower-defense/tower-rocket.png", 350, 4.2, 100, 1050, IsMega: true, SplashRadiusCells: 1.4);
+    private static readonly TowerType AnimalMegaGatling = new("mega-gatling", "Mega Gatling", "images/tower-defense/tower-gatling.png", 100, 3.0, 16, 220, IsMega: true, SplashRadiusCells: 0.9);
+    private static readonly TowerType AnimalMegaCannon = new("mega-cannon", "Mega Cannon", "images/tower-defense/tower-cannon.png", 200, 3.6, 46, 550, IsMega: true, SplashRadiusCells: 1.1);
+    private static readonly TowerType AnimalMegaRocket = new("mega-rocket", "Mega Rocket", "images/tower-defense/tower-rocket.png", 350, 4.2, 100, 1050, IsMega: true, SplashRadiusCells: 1.4);
 
-    private static readonly Dictionary<string, TowerType> MegaByBaseId = new()
+    private static readonly Dictionary<string, TowerType> AnimalMegaByBaseId = new()
     {
-        ["gatling"] = MegaGatling,
-        ["cannon"] = MegaCannon,
-        ["rocket"] = MegaRocket,
+        ["gatling"] = AnimalMegaGatling,
+        ["cannon"] = AnimalMegaCannon,
+        ["rocket"] = AnimalMegaRocket,
+    };
+
+    // Cat Defense theme - same mechanics/balance, reskinned via
+    // craftpix-net-397030's cat characters (verified tonally consistent
+    // and format-usable; see ASSET_TRIAGE.md). The gun-toting cat reads as
+    // the rapid-fire tier, the shielded plunger-cat as the sturdy middle
+    // tier, the boxing cat as the heavy hitter - same cost/range/damage
+    // envelope as the animal theme's gatling/cannon/rocket so difficulty
+    // feels identical, just reskinned.
+    private static readonly TowerType[] CatTowerTypes =
+    {
+        new("cat-gatling", "Scout Cat", "images/catdefense/tower-gatling.png", 40, 2.2, 6, 350, ShotColor: "#ffe066"),
+        new("cat-cannon", "Guardian Cat", "images/catdefense/tower-cannon.png", 80, 2.8, 18, 700, ShotColor: "#ffa94d"),
+        new("cat-rocket", "Boxer Cat", "images/catdefense/tower-rocket.png", 150, 3.4, 42, 1300, ShotColor: "#ff6b6b", HeavyShot: true),
+    };
+
+    private static readonly TowerType CatMegaGatling = new("mega-cat-gatling", "Mega Scout Cat", "images/catdefense/tower-gatling.png", 100, 3.0, 16, 220, IsMega: true, SplashRadiusCells: 0.9);
+    private static readonly TowerType CatMegaCannon = new("mega-cat-cannon", "Mega Guardian Cat", "images/catdefense/tower-cannon.png", 200, 3.6, 46, 550, IsMega: true, SplashRadiusCells: 1.1);
+    private static readonly TowerType CatMegaRocket = new("mega-cat-rocket", "Mega Boxer Cat", "images/catdefense/tower-rocket.png", 350, 4.2, 100, 1050, IsMega: true, SplashRadiusCells: 1.4);
+
+    private static readonly Dictionary<string, TowerType> CatMegaByBaseId = new()
+    {
+        ["cat-gatling"] = CatMegaGatling,
+        ["cat-cannon"] = CatMegaCannon,
+        ["cat-rocket"] = CatMegaRocket,
     };
 
     private record EnemyType(string Id, string ImagePath, int Hp, double SpeedCellsPerSec, int Reward, int LifeCost);
@@ -326,11 +355,11 @@
     // actually viewing sample sprites (see ASSET_TRIAGE.md's "Tower
     // Defense Variety" section) - one is a sharp-fanged insectoid that
     // clashes badly with this game's soft round style, the other (Cat
-    // Defense kit) matches the tone but ships its enemies as Spine
-    // skeletal-rig atlases, not simple images. The remaining 7 Memory
-    // Match animals were sitting unused and already match perfectly, so
-    // the variety pass used those instead - zero new asset work, same
-    // art style, just more stat profiles.
+    // Defense kit)'s Json-Atlas enemy folder is a Spine skeletal rig, not
+    // usable images. The remaining 7 Memory Match animals were sitting
+    // unused and already match perfectly, so the variety pass used those
+    // instead - zero new asset work, same art style, just more stat
+    // profiles.
     private static readonly EnemyType RabbitEnemy = new("rabbit", "images/memory/animals/rabbit.png", 25, 1.6, 4, 1);
     private static readonly EnemyType DuckEnemy = new("duck", "images/memory/animals/duck.png", 40, 1.1, 5, 1);
     private static readonly EnemyType ChickEnemy = new("chick", "images/memory/animals/chick.png", 18, 1.8, 3, 1);
@@ -344,6 +373,75 @@
     private static readonly EnemyType GiraffeEnemy = new("giraffe", "images/memory/animals/giraffe.png", 110, 0.7, 12, 2);
     private static readonly EnemyType ElephantEnemy = new("elephant", "images/memory/animals/elephant.png", 220, 0.5, 25, 3);
     private static readonly EnemyType PandaEnemy = new("panda", "images/memory/animals/panda.png", 180, 0.55, 20, 3);
+
+    // Cat Defense enemies - craftpix-net-397030's Png/Enemies/Enemy Reg/Boss
+    // folders (flat pre-rendered PNG frames, a different location than the
+    // Spine-atlas folder ASSET_TRIAGE.md rejected - see its "Tower Defense
+    // Variety" section for the distinction). 8 "critter" regulars plus 2
+    // bigger "boss" critters for late-wave variety, same tiered-rarity
+    // shape as the animal theme.
+    private static readonly EnemyType CritterA1 = new("critter-a1", "images/catdefense/enemy-reg-1.png", 20, 1.8, 4, 1);
+    private static readonly EnemyType CritterA2 = new("critter-a2", "images/catdefense/enemy-reg-2.png", 24, 1.6, 4, 1);
+    private static readonly EnemyType CritterA3 = new("critter-a3", "images/catdefense/enemy-reg-3.png", 20, 1.9, 3, 1);
+    private static readonly EnemyType CritterB1 = new("critter-b1", "images/catdefense/enemy-reg-4.png", 34, 1.4, 4, 1);
+    private static readonly EnemyType CritterB2 = new("critter-b2", "images/catdefense/enemy-reg-5.png", 48, 1.15, 6, 1);
+    private static readonly EnemyType CritterB3 = new("critter-b3", "images/catdefense/enemy-reg-6.png", 58, 0.95, 7, 1);
+    private static readonly EnemyType CritterC1 = new("critter-c1", "images/catdefense/enemy-reg-7.png", 88, 0.8, 9, 2);
+    private static readonly EnemyType CritterC2 = new("critter-c2", "images/catdefense/enemy-reg-8.png", 95, 0.78, 9, 2);
+    private static readonly EnemyType CritterBoss1 = new("critter-boss1", "images/catdefense/enemy-boss-1.png", 210, 0.5, 22, 3);
+    private static readonly EnemyType CritterBoss2 = new("critter-boss2", "images/catdefense/enemy-boss-2.png", 190, 0.55, 20, 3);
+
+    // A tier-gated weighted-pick rule: Type doesn't enter the roll until
+    // `wave >= MinWave` (MinWave 0 means always available), then its weight
+    // ramps linearly (Growth per wave past the gate) up to Cap. This is the
+    // exact shape PickEnemyType used to hand-write per named enemy - see
+    // WeightFor for the single formula every theme now shares.
+    private record EnemyWeightRule(EnemyType Type, int MinWave, double BaseWeight, double Growth, double Cap);
+
+    private record TdTheme(string Title, string Emoji, TowerType[] Towers, Dictionary<string, TowerType> MegaByBaseId, EnemyWeightRule[] EnemyRules, EnemyType Fallback);
+
+    private static readonly TdTheme AnimalTheme = new(
+        Title: "Tower Defense",
+        Emoji: "🏯",
+        Towers: AnimalTowerTypes,
+        MegaByBaseId: AnimalMegaByBaseId,
+        EnemyRules: new EnemyWeightRule[]
+        {
+            new(RabbitEnemy, MinWave: 0, BaseWeight: 2.2, Growth: 0, Cap: 2.2),
+            new(DuckEnemy, MinWave: 0, BaseWeight: 2.2, Growth: 0, Cap: 2.2),
+            new(ChickEnemy, MinWave: 0, BaseWeight: 2.0, Growth: 0, Cap: 2.0),
+            new(FrogEnemy, MinWave: 0, BaseWeight: 2.0, Growth: 0, Cap: 2.0),
+            new(PigEnemy, MinWave: 0, BaseWeight: 0.4, Growth: 0.22, Cap: 1.8),
+            new(DogEnemy, MinWave: 1, BaseWeight: 0, Growth: 0.3, Cap: 1.8),
+            new(CowEnemy, MinWave: 1, BaseWeight: 0.3, Growth: 0.25, Cap: 1.8),
+            new(MonkeyEnemy, MinWave: 1, BaseWeight: 0, Growth: 0.3, Cap: 1.8),
+            new(BearEnemy, MinWave: 2, BaseWeight: 0, Growth: 0.24, Cap: 1.3),
+            new(OwlEnemy, MinWave: 2, BaseWeight: 0, Growth: 0.22, Cap: 1.3),
+            new(GiraffeEnemy, MinWave: 3, BaseWeight: 0, Growth: 0.22, Cap: 1.1),
+            new(ElephantEnemy, MinWave: 4, BaseWeight: 0, Growth: 0.15, Cap: 0.6),
+            new(PandaEnemy, MinWave: 4, BaseWeight: 0, Growth: 0.15, Cap: 0.6),
+        },
+        Fallback: DuckEnemy);
+
+    private static readonly TdTheme CatTheme = new(
+        Title: "Cat Defense",
+        Emoji: "🐱",
+        Towers: CatTowerTypes,
+        MegaByBaseId: CatMegaByBaseId,
+        EnemyRules: new EnemyWeightRule[]
+        {
+            new(CritterA1, MinWave: 0, BaseWeight: 2.2, Growth: 0, Cap: 2.2),
+            new(CritterA2, MinWave: 0, BaseWeight: 2.2, Growth: 0, Cap: 2.2),
+            new(CritterA3, MinWave: 0, BaseWeight: 2.0, Growth: 0, Cap: 2.0),
+            new(CritterB1, MinWave: 0, BaseWeight: 0.4, Growth: 0.22, Cap: 1.8),
+            new(CritterB2, MinWave: 1, BaseWeight: 0, Growth: 0.3, Cap: 1.8),
+            new(CritterB3, MinWave: 1, BaseWeight: 0.3, Growth: 0.25, Cap: 1.8),
+            new(CritterC1, MinWave: 2, BaseWeight: 0, Growth: 0.24, Cap: 1.3),
+            new(CritterC2, MinWave: 2, BaseWeight: 0, Growth: 0.22, Cap: 1.3),
+            new(CritterBoss1, MinWave: 4, BaseWeight: 0, Growth: 0.15, Cap: 0.6),
+            new(CritterBoss2, MinWave: 4, BaseWeight: 0, Growth: 0.15, Cap: 0.6),
+        },
+        Fallback: CritterA2);
 
     // ---- Grid / levels ---------------------------------------------------
 
@@ -440,6 +538,9 @@
         public double ToCol;
         public double ToRow;
         public string TowerTypeId = "";
+        public string Color = "#ffe066";
+        public bool Heavy;
+        public bool Mega;
         public int Age;
     }
 
@@ -491,10 +592,12 @@
     private DateTime startedAtUtc;
     private System.Threading.Timer? timer;
     private IJSObjectReference? _module;
+    private TdTheme currentTheme = AnimalTheme;
 
     protected override void OnInitialized()
     {
         if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+        currentTheme = Theme == "cat" ? CatTheme : AnimalTheme;
     }
 
     private void StartGame()
@@ -570,45 +673,36 @@
         nextWaveCountdownMs = 0;
     }
 
-    /// <summary>Weighted pick across thirteen animal enemy types in four
-    /// tiers - Rabbit/Duck/Chick/Frog (weak/fast) are always available,
-    /// Pig/Dog/Cow/Monkey (mid) ramp in from wave 1, Bear/Owl/Giraffe
-    /// (tanky) from wave 2-3, and Elephant/Panda (rare mini-bosses) only
-    /// from wave 4. Each tier's per-type weight is lower than the original
-    /// 6-enemy version since there are now more options splitting the same
-    /// share - more variety within a tier, not more overall difficulty.
+    /// <summary>A rule doesn't enter the roll until wave &gt;= MinWave (0
+    /// means always available), then its weight ramps linearly by Growth
+    /// per wave past that gate, capped at Cap - reproduces exactly what
+    /// PickEnemyType used to hand-write per named animal (verified against
+    /// the original formulas), now shared by every theme's roster.</summary>
+    private static double WeightFor(EnemyWeightRule rule, int wave)
+    {
+        if (rule.MinWave > 0 && wave < rule.MinWave) return 0;
+        var rampWave = rule.MinWave > 0 ? wave - rule.MinWave + 1 : wave;
+        return Math.Min(rule.Cap, rule.BaseWeight + rule.Growth * rampWave);
+    }
+
+    /// <summary>Weighted pick across the current theme's enemy roster.
     /// Uses the run's total cleared-wave count (not the current level's),
     /// so difficulty keeps climbing across level transitions instead of
     /// resetting each time a new level starts.</summary>
     private EnemyType PickEnemyType(int wave)
     {
-        var options = new (EnemyType Type, double Weight)[]
-        {
-            (RabbitEnemy, 2.2),
-            (DuckEnemy, 2.2),
-            (ChickEnemy, 2.0),
-            (FrogEnemy, 2.0),
-            (PigEnemy, Math.Min(1.8, 0.4 + wave * 0.22)),
-            (DogEnemy, wave >= 1 ? Math.Min(1.8, wave * 0.3) : 0),
-            (CowEnemy, wave >= 1 ? Math.Min(1.8, 0.3 + wave * 0.25) : 0),
-            (MonkeyEnemy, wave >= 1 ? Math.Min(1.8, wave * 0.3) : 0),
-            (BearEnemy, wave >= 2 ? Math.Min(1.3, (wave - 1) * 0.24) : 0),
-            (OwlEnemy, wave >= 2 ? Math.Min(1.3, (wave - 1) * 0.22) : 0),
-            (GiraffeEnemy, wave >= 3 ? Math.Min(1.1, (wave - 2) * 0.22) : 0),
-            (ElephantEnemy, wave >= 4 ? Math.Min(0.6, (wave - 3) * 0.15) : 0),
-            (PandaEnemy, wave >= 4 ? Math.Min(0.6, (wave - 3) * 0.15) : 0),
-        };
-
-        var total = options.Sum(o => o.Weight);
+        var rules = currentTheme.EnemyRules;
+        var total = rules.Sum(r => WeightFor(r, wave));
         var roll = rng.NextDouble() * total;
 
-        foreach (var (type, weight) in options)
+        foreach (var rule in rules)
         {
-            if (roll < weight) return type;
+            var weight = WeightFor(rule, wave);
+            if (roll < weight) return rule.Type;
             roll -= weight;
         }
 
-        return DuckEnemy;
+        return currentTheme.Fallback;
     }
 
     private void SelectTowerType(TowerType type)
@@ -682,8 +776,8 @@
         selectedPlacedTowerPos = null;
     }
 
-    private static bool CanMerge(PlacedTower tower) =>
-        !tower.Type.IsMega && tower.Level >= MaxTowerLevel && MegaByBaseId.ContainsKey(tower.Type.Id);
+    private bool CanMerge(PlacedTower tower) =>
+        !tower.Type.IsMega && tower.Level >= MaxTowerLevel && currentTheme.MegaByBaseId.ContainsKey(tower.Type.Id);
 
     /// <summary>Nearest other max-level tower of the same base type - the
     /// one that Merge will consume. Returns null if there isn't one yet.</summary>
@@ -716,7 +810,7 @@
         if (!towers.TryGetValue(pos, out var tower) || !CanMerge(tower)) return;
         if (FindMergePartner(pos, tower) is not { } partner || !towers.TryGetValue(partner, out var partnerTower)) return;
 
-        var mega = MegaByBaseId[tower.Type.Id];
+        var mega = currentTheme.MegaByBaseId[tower.Type.Id];
         var combinedInvested = tower.TotalInvested + partnerTower.TotalInvested;
 
         towers.Remove(partner);
@@ -774,10 +868,16 @@
         return $"left:{left}%; top:{top}%; width:{diameterPct}%;";
     }
 
+    // Mega shots are always a fixed gold regardless of base tower color -
+    // matches the original per-id CSS's ".mega-*" rules, which all shared
+    // one gold (#ffd43b) rather than each mega tier keeping its base tint.
+    private const string MegaShotColor = "#ffd43b";
+
     private static string ShotStyle(ShotVisual shot)
     {
         var centered = shot.Age == 0 ? (shot.FromCol, shot.FromRow) : (shot.ToCol, shot.ToRow);
-        return CellPercentStyle(centered);
+        var color = shot.Mega ? MegaShotColor : shot.Color;
+        return $"{CellPercentStyle(centered)} color:{color}; background:{color};";
     }
 
     private static string TowerIconStyle(PlacedTower t)
@@ -897,6 +997,9 @@
                 ToCol = targetCol,
                 ToRow = targetRow,
                 TowerTypeId = tower.Type.Id,
+                Color = tower.Type.ShotColor,
+                Heavy = tower.Type.HeavyShot,
+                Mega = tower.Type.IsMega,
             });
 
             // Mega towers' signature "boom" - splash damage to everything

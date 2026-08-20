@@ -83,6 +83,8 @@ public static class BuiltInGames
     public const string DuckShoot = "duck-shoot";
     public const string Dominoes = "dominoes";
     public const string DungeonCrawler = "dungeon-crawler";
+    public const string RpgBattle = "rpg-battle";
+    public const string CatDefense = "cat-defense";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -158,5 +160,7 @@ public static class BuiltInGames
         new BuiltInGame("Duck Shoot", "🦆", DuckShoot, MinAge: 4, MaxAge: 10),
         new BuiltInGame("Dominoes", "🀫", Dominoes, MinAge: 5, MaxAge: 11),
         new BuiltInGame("Dungeon Crawler", "⚔️", DungeonCrawler, "images/dungeoncrawler/hero.png", MinAge: 9, MaxAge: 14),
+        new BuiltInGame("Mini RPG Battle", "🐉", RpgBattle, "images/rpgbattle/monster-dragon.png", MinAge: 9, MaxAge: 14),
+        new BuiltInGame("Cat Defense", "🐱", CatDefense, "images/catdefense/tower-guardian.png", MinAge: 8, MaxAge: 14),
     };
 }

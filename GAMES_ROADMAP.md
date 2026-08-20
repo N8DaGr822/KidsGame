@@ -78,9 +78,9 @@ Current recommendation:
    code-health multiplier.
 2. **Toddler physical/sensory games** - small, visual, and quick to ship.
 3. **Remaining zero/low-asset puzzles** - Jigsaw, Quick Math, Math Target.
-4. **RPG/strategy vertical slice** - Dungeon Crawler shipped; Mini RPG
-   Battle or Roguelike Arena next, now that usable CraftPix RPG assets
-   exist.
+4. **RPG/strategy vertical slice** - Dungeon Crawler and Mini RPG Battle
+   both shipped; Roguelike Arena next if this category continues, now
+   that usable CraftPix RPG assets exist.
 5. **Creation tools and simulations** - defer until save/editing
    infrastructure exists.
 
@@ -185,7 +185,6 @@ These assume longer sessions, more reading, planning, upgrades, and save state.
 Start with small vertical slices.
 
 - [ ] Roguelike Arena
-- [ ] Mini RPG Battle Game
 - [ ] Card Battle Game
 - [ ] Auto Battler
 

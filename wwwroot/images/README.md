@@ -180,6 +180,40 @@ do not leave blank UI.
   floor and walls render as plain CSS in `Components/DungeonCrawler.razor`
   instead, the same "autotile art doesn't suit a grid this simple" call
   `Components/TowerDefense.razor` already made for its own terrain.
+- `rpgbattle/hero-{knight,mage,rogue}.png` (added 2026-08-20) are the loose
+  top-level portrait files (`PNG/Knight/knight.png` etc., not the animation
+  subfolders) from [CraftPix](https://craftpix.net)'s free "Assassin, Mage,
+  Viking - Pixel Art Game Heroes" pack (`craftpix-891165-assassin-mage-
+  viking-free-pixel-art-game-heroes.zip`), used under CraftPix's free-file
+  license. `rpgbattle/monster-{dragon,lizard,medusa,small-dragon,jinn}.png`
+  are each monster's `Idle1.png` frame from CraftPix's free "RPG Monster
+  Sprites" pack (`craftpix-561178-free-rpg-monster-sprites-pixel-art.zip`).
+  A sixth monster in that pack, `demon` (horned, pitchfork), was viewed and
+  deliberately left uncopied - reads more devilish than fits this app's
+  tone, unlike the other five. Used by `Components/RpgBattle.razor`.
+- `catdefense/tower-{gatling,cannon,rocket}.png` and
+  `catdefense/tower-guardian.png` (the last is only the launcher tile
+  thumbnail, same file as `tower-cannon.png`) plus
+  `catdefense/enemy-reg-{1-8}.png` and `catdefense/enemy-boss-{1,2}.png`
+  (added 2026-08-20) are single Idle-frame crops from
+  [CraftPix](https://craftpix.net)'s free "Cartoon Cat Defense Game Asset
+  Kit" (`craftpix-net-397030-free-cartoon-cat-defense-game-asset-kit.zip`),
+  used under CraftPix's free-file license - `Png/Characters/C14/Idle/
+  Character14-Idle_00.png` (gatling tier), `Png/Cat Guardian/Idle/
+  Enemy-Idle_00.png` (cannon tier - internally filed under a misleading
+  "Enemy-" prefix in the pack itself, it's actually the shield-and-plunger
+  defender character), and `Png/CatBoxing/Idle/CatBoxing-Idle_00.png`
+  (rocket tier). Enemies are `Png/Enemies/Enemy Reg 1-8/Idle/
+  Enemy-Idle_00.png` and `Png/Enemies/Enemy Boss 1-2/Idle/Enemy-Idle_00.png`
+  - flat pre-rendered PNG frames, a different folder than this same pack's
+  `Json Atlas/Enemies/*/Enemy.png`, which ASSET_TRIAGE.md's "Tower Defense
+  Variety" section correctly documented as unusable Spine skeletal-rig
+  atlases; that rejection was specific to the Json Atlas folder; this Png
+  folder is a plain static image per enemy, the same format the game
+  already uses. Powers `Components/TowerDefense.razor`'s "cat" theme
+  (`Theme="cat"` parameter, registered as the separate "Cat Defense" game) -
+  see that component's `CatTheme`/`CatTowerTypes`/`CritterA1` etc. for how
+  the theme system is wired.
 - `checkers/*.png` and `chess/*.png` are from a user-provided batch dropped
   in `Downloads/Assets/Checkers-Chess` on 2026-08-18 (33 UUID-named PNGs,
   no pack metadata - source/license unknown, unlike the Kenney/CraftPix

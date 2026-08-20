@@ -63,7 +63,10 @@ viewing sample sprites from each pack, not guessed from filenames alone.
 or 3/4-view pixel art, not modular parts):
 - `craftpix-891165-assassin-mage-viking-free-pixel-art-game-heroes.zip` -
   Knight/Mage/Rogue, three classes. Verified: clean top-down pixel hero,
-  good default for a starting hero roster.
+  good default for a starting hero roster. **Used** (2026-08-20) - not the
+  animation sheets, but each class's loose top-level portrait file
+  (`PNG/Knight/knight.png` etc.) as a static battle portrait in
+  `Components/RpgBattle.razor`.
 - `craftpix-062999-2d-fantasy-knight-free-sprite-sheets.zip` - knight,
   separate sprite-sheet PNGs per pose/animation (also ships an `_SCML` rig
   variant, ignore that - the flat PNGs are simpler to use).
@@ -75,7 +78,11 @@ or 3/4-view pixel art, not modular parts):
   jinn, lizard, medusa, small_dragon) - verified high quality, but these are
   **side-view battle portraits**, not top-down movement sprites. Best fit
   for a turn-based battle screen (Mini RPG Battle Game, Card Battle Game),
-  not for walking around a dungeon.
+  not for walking around a dungeon. **Used** (2026-08-20) - each monster's
+  `Idle1.png` frame as a static battle portrait in
+  `Components/RpgBattle.razor`, for 5 of the 6: `demon` was viewed and
+  dropped for tone (horned, pitchfork - reads more devilish than the other
+  five, which are all friendly-looking fantasy critters).
 - `craftpix-986711-2d-fantasy-trolls-free-sprite-sheets.zip` - troll enemy,
   same sprite-sheet shape as the hero packs (top-down/3/4-view, not
   battle-portrait style).
@@ -166,20 +173,41 @@ just theoretical style-clash risk:
   sequences (Attack/Dying/Fall/Fly/Idle/Walking per monster), a different
   integration shape than the current one-static-image-per-enemy pattern.
 - `craftpix-net-397030-free-cartoon-cat-defense-game-asset-kit.zip` -
-  **rejected for enemies, tone is actually right.** The Cat Guardian
-  tower/defender character (`Png/Cat Guardian/Idle/*.png`, plain numbered
-  animation frames) is genuinely cute and would fit this game's style well.
-  But the actual enemies (`Json Atlas/Enemies/*/Enemy.png`) are Spine
+  **the `Json Atlas/Enemies/*/Enemy.png` folder is unusable** (Spine
   skeletal-rig atlas sheets - scattered body parts on a texture sheet, not
-  ready-to-use images - real rigging/compositing work, not a drop-in.
+  ready-to-use images), but that's not the only enemy art in this pack.
+  **Update (2026-08-20):** a full zip-listing pass found a second, separate
+  `Png/Enemies/Enemy Reg 1-8/` and `Png/Enemies/Enemy Boss 1-7/` folder
+  tree, each shipping flat pre-rendered `Idle/Attack/Walk/Dead` PNG frame
+  sequences - the same one-static-image-per-enemy format this game already
+  uses, not an atlas. Combined with three separate cute cat characters
+  (`Png/Cat Guardian`, `Png/Characters/C14`, `Png/CatBoxing`, each with its
+  own Idle pose) that map naturally onto a 3-tier tower roster, this pack
+  turned out to fully supply a second Tower Defense theme - see "Cat
+  Defense" below.
 - `craftpix-net-305231-free-tower-defense-2d-vector-tileset.zip` -
   background/tileset variety, not evaluated in this pass (only enemy art
   was under consideration).
 
-Variety was added instead using the 7 Memory Match animals (chick, cow,
-frog, giraffe, monkey, owl, panda) that were already in the project but
-unused by Tower Defense - same art style already established, zero new
-asset work. See `Components/TowerDefense.razor`'s `EnemyType` definitions.
+Variety was added to the original theme using the 7 Memory Match animals
+(chick, cow, frog, giraffe, monkey, owl, panda) that were already in the
+project but unused by Tower Defense - same art style already established,
+zero new asset work. See `Components/TowerDefense.razor`'s `EnemyType`
+definitions.
+
+### Cat Defense (second Tower Defense theme, shipped 2026-08-20)
+
+`Components/TowerDefense.razor` was refactored to take a `Theme` parameter
+(`"animal"` default or `"cat"`) bundling towers/megas/enemy roster into a
+`TdTheme` record, so the exact same engine (grid, waves, gold/lives,
+upgrade/merge math) now serves two visually distinct games registered as
+separate launcher tiles (`BuiltInGames.TowerDefense` and `.CatDefense`).
+Cat Defense's art is entirely `craftpix-net-397030` (see the corrected
+note above) - three cat characters as the gatling/cannon/rocket-equivalent
+tower tiers, 8 "critter" regulars plus 2 bigger "boss" critters as the
+enemy roster, all verified by viewing the actual Idle frames (cartoonish
+zombie-critter style with silly hats, no gore - consistent tone, no
+issues found). See `wwwroot/images/README.md` for the exact file list.
 
 ## Toddler & Casual Game Fits
 

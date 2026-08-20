@@ -1,0 +1,448 @@
+@*
+    RpgBattle.razor
+    A turn-based Mini RPG Battle Game - pick a hero, fight a sequence of
+    monsters one at a time until either the run is cleared or the hero
+    falls. Each encounter is a 1v1 HP duel resolved from a 3-action menu
+    (Attack/Special/Guard), copying Dominoes/Checkers' Turn.Player/
+    Turn.Cpu alternation (player action resolves, then the enemy replies,
+    no unnecessary "Busy" phase) combined with TankDuel's HP-pip HUD and
+    RockPaperScissors' "disable the action menu during resolution"
+    pattern (turnInProgress here plays the same role as roundInProgress
+    there). No inventory/equipment/leveling - deliberately out of scope
+    for this vertical slice.
+
+    Usage:
+        <RpgBattle OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject AppDataService Data
+
+<div class="rb-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="rb-setup game-setup-panel">
+            <h2>🐉 Mini RPG Battle</h2>
+            <p>Choose your hero, then fight your way through a line of monsters. Attack, use your Special, or Guard to reduce the next hit - defeat every monster to win!</p>
+
+            <h3 class="game-section-title">Choose your hero</h3>
+            <div class="rb-hero-select game-option-grid">
+                @foreach (var h in Heroes)
+                {
+                    <button class="rb-hero-btn game-option-button @(h.Id == selectedHeroId ? "selected" : "")" @onclick="() => selectedHeroId = h.Id">
+                        <img class="rb-hero-thumb" src="images/rpgbattle/@(h.ImagePath)" alt="" />
+                        <span class="rb-hero-name">@h.Name</span>
+                        <span class="rb-hero-detail">❤️ @h.MaxHp &nbsp; ⚔️ @h.AttackDamage &nbsp; ✨ @h.SpecialDamage</span>
+                    </button>
+                }
+            </div>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="rb-diff-name">@DifficultyName(diff)</span>
+                            <span class="rb-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Battle</button>
+        </div>
+    }
+    else
+    {
+        <div class="rb-hud game-hud">
+            <span class="rb-title">Mini RPG Battle</span>
+            <span class="game-stat">🐾 Monster @Math.Min(encounterIndex + 1, totalEncounters)/@totalEncounters</span>
+            <span class="game-stat">👣 Turns @turnsTaken</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="rb-arena">
+            <div class="rb-fighter rb-fighter-hero">
+                <img class="rb-portrait @(heroHitFlashMs > 0 ? "hit" : "")" src="images/rpgbattle/@(hero.ImagePath)" alt="" />
+                <span class="rb-fighter-name">@hero.Name</span>
+                <div class="rb-hp-track"><div class="rb-hp-fill rb-hp-hero" style="width:@((Math.Max(0, playerHp) * 100.0 / hero.MaxHp).ToString(System.Globalization.CultureInfo.InvariantCulture))%;"></div></div>
+                <span class="rb-hp-label">@Math.Max(0, playerHp)/@hero.MaxHp</span>
+                @if (guarding)
+                {
+                    <span class="rb-guard-badge">🛡️ Guarding</span>
+                }
+            </div>
+            <span class="rb-vs">VS</span>
+            <div class="rb-fighter rb-fighter-monster">
+                <img class="rb-portrait @(monsterHitFlashMs > 0 ? "hit" : "")" src="images/rpgbattle/@(monster.ImagePath)" alt="" />
+                <span class="rb-fighter-name">@monster.Name</span>
+                <div class="rb-hp-track"><div class="rb-hp-fill rb-hp-monster" style="width:@((Math.Max(0, monsterHp) * 100.0 / monsterMaxHp).ToString(System.Globalization.CultureInfo.InvariantCulture))%;"></div></div>
+                <span class="rb-hp-label">@Math.Max(0, monsterHp)/@monsterMaxHp</span>
+            </div>
+        </div>
+
+        <p class="rb-status">@statusText</p>
+
+        <div class="rb-actions">
+            <button class="rb-action-btn game-option-button" disabled="@(turnInProgress || phase != Phase.Playing)" @onclick="() => PlayerActionAsync(BattleAction.Attack)">
+                <span class="rb-action-icon">⚔️</span>
+                <span class="rb-action-name">Attack</span>
+            </button>
+            <button class="rb-action-btn game-option-button" disabled="@(turnInProgress || phase != Phase.Playing || specialUsesLeft <= 0)" @onclick="() => PlayerActionAsync(BattleAction.Special)">
+                <span class="rb-action-icon">✨</span>
+                <span class="rb-action-name">Special (@specialUsesLeft)</span>
+            </button>
+            <button class="rb-action-btn game-option-button" disabled="@(turnInProgress || phase != Phase.Playing)" @onclick="() => PlayerActionAsync(BattleAction.Guard)">
+                <span class="rb-action-icon">🛡️</span>
+                <span class="rb-action-name">Guard</span>
+            </button>
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(won ? "🏆 Victory!" : "💀 You Were Defeated")</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@(won ? $"you defeated all {totalEncounters} monsters!" : $"you fell to the {monster.Name} on monster {encounterIndex + 1} of {totalEncounters}.")</p>
+                    <div class="game-result-stats">
+                        <div><span class="game-stat-label">Turns</span><span class="game-stat-value">@turnsTaken</span></div>
+                        <div><span class="game-stat-label">Monsters defeated</span><span class="game-stat-value">@monstersDefeated</span></div>
+                    </div>
+                    <PersonalBestBadge Value="@(bestTurns is { } bt ? $"{bt} turns" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<RpgBattleResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest turns to clear the whole run, per difficulty) - null skips
+    /// recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+    private enum BattleAction { Attack, Special, Guard }
+
+    private const int SpecialUsesPerEncounter = 3;
+
+    private record HeroDef(string Id, string Name, string ImagePath, int MaxHp, int AttackDamage, int SpecialDamage);
+    private record MonsterDef(string Id, string Name, string ImagePath, int BaseHp, int BaseDamage);
+
+    private static readonly HeroDef[] Heroes =
+    {
+        new("knight", "Knight", "hero-knight.png", MaxHp: 30, AttackDamage: 5, SpecialDamage: 8),
+        new("mage", "Mage", "hero-mage.png", MaxHp: 22, AttackDamage: 4, SpecialDamage: 12),
+        new("rogue", "Rogue", "hero-rogue.png", MaxHp: 25, AttackDamage: 7, SpecialDamage: 9),
+    };
+
+    private static readonly MonsterDef[] MonsterRoster =
+    {
+        new("dragon", "Dragon", "monster-dragon.png", BaseHp: 26, BaseDamage: 5),
+        new("lizard", "Lizard Warrior", "monster-lizard.png", BaseHp: 18, BaseDamage: 4),
+        new("medusa", "Medusa", "monster-medusa.png", BaseHp: 22, BaseDamage: 5),
+        new("small-dragon", "Young Dragon", "monster-small-dragon.png", BaseHp: 20, BaseDamage: 4),
+        new("jinn", "Jinn", "monster-jinn.png", BaseHp: 24, BaseDamage: 6),
+    };
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int EncounterCountFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 3,
+        Difficulty.Medium => 4,
+        _ => 5,
+    };
+
+    private static double HpMultFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 0.8,
+        Difficulty.Medium => 1.0,
+        _ => 1.25,
+    };
+
+    private static double DamageMultFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 0.8,
+        Difficulty.Medium => 1.0,
+        _ => 1.2,
+    };
+
+    // A hero fights every encounter on one HP pool with no full heal (keeps
+    // run tension per the design), but Easy/Medium restore a partial chunk
+    // between fights so a reasonably-played run is actually winnable - Hard
+    // stays fully punishing, no recovery at all.
+    private static double HealFractionFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 0.5,
+        Difficulty.Medium => 0.25,
+        _ => 0.0,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private string selectedHeroId = Heroes[0].Id;
+    private HeroDef hero = Heroes[0];
+    private MonsterDef monster = MonsterRoster[0];
+    private List<MonsterDef> encounterOrder = new();
+    private int totalEncounters = 3;
+    private int encounterIndex;
+    private int playerHp;
+    private int monsterHp;
+    private int monsterMaxHp;
+    private int specialUsesLeft;
+    private bool guarding;
+    private int heroHitFlashMs;
+    private int monsterHitFlashMs;
+    private bool turnInProgress;
+    private int turnsTaken;
+    private int monstersDefeated;
+    private bool won;
+    private string statusText = "";
+    private int? bestTurns;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private IJSObjectReference? _module;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        hero = Heroes.FirstOrDefault(h => h.Id == selectedHeroId) ?? Heroes[0];
+        totalEncounters = EncounterCountFor(selectedDifficulty);
+
+        encounterOrder = MonsterRoster.OrderBy(_ => rng.Next()).ToList();
+
+        encounterIndex = 0;
+        playerHp = hero.MaxHp;
+        turnsTaken = 0;
+        monstersDefeated = 0;
+        won = false;
+        bestTurns = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        SetUpEncounter();
+    }
+
+    private void SetUpEncounter()
+    {
+        monster = encounterOrder[encounterIndex % encounterOrder.Count];
+        var hpMult = HpMultFor(selectedDifficulty);
+        monsterMaxHp = Math.Max(6, (int)Math.Round(monster.BaseHp * hpMult));
+        monsterHp = monsterMaxHp;
+        specialUsesLeft = SpecialUsesPerEncounter;
+        guarding = false;
+        statusText = $"A wild {monster.Name} appears!";
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new RpgBattleResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                MonstersDefeated: monstersDefeated,
+                TurnsTaken: turnsTaken,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    // Player action resolves first, then - if the monster survived - it
+    // replies immediately in the same beat. Same Turn.Player/Turn.Cpu
+    // alternation shape as Dominoes/Checkers, with damage math instead of
+    // move application; the action menu stays disabled for the whole
+    // exchange via turnInProgress, same role as RockPaperScissors'
+    // roundInProgress.
+    private async Task PlayerActionAsync(BattleAction action)
+    {
+        if (turnInProgress || phase != Phase.Playing) return;
+
+        turnInProgress = true;
+        turnsTaken++;
+
+        switch (action)
+        {
+            case BattleAction.Attack:
+                var atk = Math.Max(1, hero.AttackDamage + rng.Next(-1, 2));
+                monsterHp -= atk;
+                monsterHitFlashMs = 250;
+                statusText = $"You hit the {monster.Name} for {atk}!";
+                await PlaySoundAsync("playImpactSound");
+                break;
+            case BattleAction.Special:
+                specialUsesLeft--;
+                monsterHp -= hero.SpecialDamage;
+                monsterHitFlashMs = 250;
+                statusText = $"Special attack hits the {monster.Name} for {hero.SpecialDamage}!";
+                await PlaySoundAsync("playMatchSound");
+                break;
+            default:
+                guarding = true;
+                statusText = "You brace behind your guard.";
+                await PlaySoundAsync("playImpactSound");
+                break;
+        }
+
+        StateHasChanged();
+        await Task.Delay(350);
+        monsterHitFlashMs = 0;
+        StateHasChanged();
+
+        if (monsterHp <= 0)
+        {
+            await WinEncounterAsync();
+            turnInProgress = false;
+            return;
+        }
+
+        await Task.Delay(150);
+        await RunMonsterTurnAsync();
+
+        if (playerHp <= 0)
+        {
+            await FinishGame(false);
+        }
+
+        turnInProgress = false;
+    }
+
+    private async Task RunMonsterTurnAsync()
+    {
+        var dmgMult = DamageMultFor(selectedDifficulty);
+        var fierce = rng.NextDouble() < 0.3;
+        var rawDamage = Math.Max(1, (int)Math.Round(monster.BaseDamage * dmgMult * (fierce ? 1.6 : 1.0)));
+        var dealt = guarding ? Math.Max(1, rawDamage / 2) : rawDamage;
+
+        playerHp -= dealt;
+        heroHitFlashMs = 250;
+        statusText = guarding
+            ? $"Your guard softens the blow - {dealt} damage."
+            : fierce ? $"The {monster.Name} strikes fiercely for {dealt}!" : $"The {monster.Name} hits you for {dealt}!";
+        guarding = false;
+
+        StateHasChanged();
+        await PlaySoundAsync("playMismatchSound");
+        await Task.Delay(350);
+        heroHitFlashMs = 0;
+        StateHasChanged();
+    }
+
+    private async Task WinEncounterAsync()
+    {
+        monstersDefeated++;
+        statusText = $"The {monster.Name} is defeated!";
+        StateHasChanged();
+        await PlaySoundAsync("playMatchSound");
+        await Task.Delay(500);
+
+        encounterIndex++;
+        if (encounterIndex >= totalEncounters)
+        {
+            await FinishGame(true);
+            return;
+        }
+
+        var healFraction = HealFractionFor(selectedDifficulty);
+        if (healFraction > 0)
+        {
+            playerHp = Math.Min(hero.MaxHp, playerHp + (int)Math.Round(hero.MaxHp * healFraction));
+        }
+
+        SetUpEncounter();
+        StateHasChanged();
+    }
+
+    private async Task PlaySoundAsync(string function)
+    {
+        _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/interop.js");
+        await _module.InvokeVoidAsync(function);
+    }
+
+    private async Task FinishGame(bool won)
+    {
+        this.won = won;
+        phase = Phase.Finished;
+        StateHasChanged();
+        await PlaySoundAsync(won ? "playMatchSound" : "playMismatchSound");
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"fewest-turns-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestTurns = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.RpgBattle, key);
+            if (won)
+            {
+                isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.RpgBattle, key, turnsTaken, lowerIsBetter: true);
+            }
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new RpgBattleResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: won,
+                MonstersDefeated: monstersDefeated,
+                TurnsTaken: turnsTaken,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3 monsters, weaker foes",
+        Difficulty.Medium => "4 monsters",
+        _ => "5 monsters, tougher foes",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.DisposeAsync(); }
+            catch (JSDisconnectedException) { /* app is unloading, safe to ignore */ }
+        }
+    }
+
+    public record RpgBattleResult(string Difficulty, bool Won, int MonstersDefeated, int TurnsTaken, int ElapsedSeconds);
+}

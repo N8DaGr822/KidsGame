@@ -310,6 +310,14 @@
             {
                 <DungeonCrawler PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleDungeonCrawlerComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.RpgBattle)
+            {
+                <RpgBattle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRpgBattleComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.CatDefense)
+            {
+                <TowerDefense Theme="cat" PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTowerDefenseComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -755,6 +763,21 @@
             GameId = _game.Id,
             Theme = result.Difficulty,
             Difficulty = result.Won ? "Won" : $"Reached room {result.RoomsCleared + 1}/{result.TotalRooms}",
+            Moves = result.TurnsTaken,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleRpgBattleComplete(RpgBattle.RpgBattleResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Won ? "Won" : $"Defeated {result.MonstersDefeated} monster(s)",
             Moves = result.TurnsTaken,
             ElapsedSeconds = result.ElapsedSeconds,
         });
