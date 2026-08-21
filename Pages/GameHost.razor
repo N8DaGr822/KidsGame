@@ -130,6 +130,26 @@
             {
                 <FingerTrails PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleFingerTrailsComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.SleepyAnimals)
+            {
+                <SleepyAnimals PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleSleepyAnimalsComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.GentleCreatures)
+            {
+                <GentleCreatures PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleGentleCreaturesComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.NightSky)
+            {
+                <NightSky PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleNightSkyComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.FireworksTouch)
+            {
+                <FireworksTouch PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleFireworksTouchComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.LightsOnOff)
+            {
+                <LightsOnOff PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleLightsOnOffComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.BabyPiano)
             {
                 <BabyPiano PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBabyPianoComplete" />
@@ -789,7 +809,7 @@
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
             Theme = result.Difficulty,
-            Difficulty = result.Won ? "Won" : $"Defeated {result.MonstersDefeated} monster(s)",
+            Difficulty = $"Sequence {result.SequenceReached} ({result.MonstersDefeated} defeated)",
             Moves = result.TurnsTaken,
             ElapsedSeconds = result.ElapsedSeconds,
         });
@@ -849,6 +869,78 @@
             Theme = result.Theme,
             Difficulty = $"{result.Particles} particles",
             Moves = result.Particles,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleSleepyAnimalsComplete(SleepyAnimals.SleepyAnimalsResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Mode,
+            Difficulty = $"{result.Taps} taps",
+            Moves = result.Taps,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleGentleCreaturesComplete(GentleCreatures.GentleCreaturesResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Theme,
+            Difficulty = $"{result.Taps} taps",
+            Moves = result.Taps,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleNightSkyComplete(NightSky.NightSkyResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Difficulty = $"{result.StarsPlaced} stars",
+            Moves = result.StarsPlaced,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleFireworksTouchComplete(FireworksTouch.FireworksTouchResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Difficulty = $"{result.Bursts} bursts",
+            Moves = result.Bursts,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleLightsOnOffComplete(LightsOnOff.LightsOnOffResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Difficulty = $"{result.Toggles} toggles",
+            Moves = result.Toggles,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

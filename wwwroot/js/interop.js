@@ -391,11 +391,28 @@ function loadImage(src) {
 
 const sliceState = new WeakMap();
 const MIN_SWIPE_PX = 18;
+const TRAIL_MIN_PX = 10;
+const TRAIL_FADE_MS = 260;
+
+// Purely a visual flourish (no gameplay effect) so the swipe reads as an
+// actual blade slicing across the screen instead of an invisible hit-test -
+// spawned straight into the DOM rather than round-tripped through Blazor
+// state, since pointermove can fire far more often than a per-frame C#
+// re-render should have to keep up with.
+function spawnSliceTrailDot(fieldEl, clientX, clientY) {
+    const rect = fieldEl.getBoundingClientRect();
+    const dot = document.createElement('span');
+    dot.className = 'fs-trail-dot';
+    dot.style.left = `${clientX - rect.left}px`;
+    dot.style.top = `${clientY - rect.top}px`;
+    fieldEl.appendChild(dot);
+    setTimeout(() => dot.remove(), TRAIL_FADE_MS);
+}
 
 export function attachSliceTracking(fieldEl, dotNetRef) {
     detachSliceTracking(fieldEl);
 
-    const state = { dragging: false, armed: false, startX: 0, startY: 0, hitIds: new Set() };
+    const state = { dragging: false, armed: false, startX: 0, startY: 0, hitIds: new Set(), lastTrailX: 0, lastTrailY: 0 };
 
     const pointerDown = (e) => {
         state.dragging = true;
@@ -413,6 +430,17 @@ export function attachSliceTracking(fieldEl, dotNetRef) {
         if (!state.armed) {
             if (dx * dx + dy * dy < MIN_SWIPE_PX * MIN_SWIPE_PX) return;
             state.armed = true;
+            state.lastTrailX = e.clientX;
+            state.lastTrailY = e.clientY;
+            spawnSliceTrailDot(fieldEl, e.clientX, e.clientY);
+        }
+
+        const tdx = e.clientX - state.lastTrailX;
+        const tdy = e.clientY - state.lastTrailY;
+        if (tdx * tdx + tdy * tdy >= TRAIL_MIN_PX * TRAIL_MIN_PX) {
+            state.lastTrailX = e.clientX;
+            state.lastTrailY = e.clientY;
+            spawnSliceTrailDot(fieldEl, e.clientX, e.clientY);
         }
 
         for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {

@@ -1,0 +1,176 @@
+@*
+    SleepyAnimals.razor
+    A toddler cause-and-effect toy (~1 year old target) covering two mirror-
+    image roadmap ideas with one component and one animal art set (reusing
+    Memory Match's animal images - no new art needed):
+
+    - Wake Up mode: animals start asleep (dimmed, "Zzz"); tap one to wake it
+      - it brightens and bounces for a moment, then drifts back to sleep on
+      its own, ready to be woken again.
+    - Bedtime mode: animals start awake; tap one to tuck it in for good -
+      once every animal is asleep, the lamp turns itself off as a soft
+      "all done" beat. No score, no timer, no fail state either way.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many taps
+    happened and how long the child played, then returns to the mode
+    picker.
+
+    Usage:
+        <SleepyAnimals OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="sla-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="sla-setup game-setup-panel">
+            <h2>😴 Sleepy Animals</h2>
+            <p>Tap the animals - watch them wake up and stretch, or tuck them in for the night!</p>
+
+            <h3 class="sla-section-title game-section-title">Choose a mode</h3>
+            <div class="sla-mode-select game-option-grid">
+                @foreach (var m in Modes)
+                {
+                    <button class="sla-mode-btn game-option-button @(m.Name == selectedMode.Name ? "selected" : "")" @onclick="() => selectedMode = m">
+                        <span class="sla-mode-icon">@m.Icon</span>
+                        <span class="sla-mode-name">@m.Name</span>
+                    </button>
+                }
+            </div>
+
+            <button class="sla-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="sla-hud game-hud">
+            <span class="sla-title">@selectedMode.Name</span>
+            <button class="sla-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="sla-scene">
+            <span class="sla-lamp">@(lampOn ? "💡" : "🌙")</span>
+            <div class="sla-animals">
+                @for (var i = 0; i < animals.Length; i++)
+                {
+                    var idx = i;
+                    var a = animals[idx];
+                    <button class="sla-animal @(a.Awake ? "awake" : "asleep") @(a.Bouncing ? "bounce" : "")" @onclick="() => TapAnimal(idx)">
+                        <img class="sla-animal-img" src="images/memory/animals/@(a.ImageFile)" alt="" />
+                        @if (!a.Awake)
+                        {
+                            <span class="sla-zzz">💤</span>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+
+        <p class="sla-hint">@(selectedMode.Kind == ModeKind.WakeUp ? "Tap a sleepy animal to wake it up!" : "Tap an animal to tuck it into bed.")</p>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<SleepyAnimalsResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+    private enum ModeKind { WakeUp, Bedtime }
+
+    private record ModeDefinition(string Name, string Icon, ModeKind Kind);
+
+    private static readonly ModeDefinition[] Modes =
+    {
+        new("Wake Up the Animals", "☀️", ModeKind.WakeUp),
+        new("Bedtime Animals", "🌙", ModeKind.Bedtime),
+    };
+
+    private static readonly string[] AnimalPool = { "dog.png", "cow.png", "pig.png", "rabbit.png", "duck.png" };
+
+    private class AnimalSpot
+    {
+        public string ImageFile = "";
+        public bool Awake;
+        public bool Bouncing;
+    }
+
+    private Phase phase = Phase.Setup;
+    private ModeDefinition selectedMode = Modes[0];
+    private AnimalSpot[] animals = Array.Empty<AnimalSpot>();
+    private bool lampOn = true;
+    private int taps;
+    private DateTime startedAtUtc;
+
+    private void StartGame()
+    {
+        taps = 0;
+        lampOn = true;
+        animals = AnimalPool.Select(file => new AnimalSpot
+        {
+            ImageFile = file,
+            Awake = selectedMode.Kind == ModeKind.Bedtime,
+        }).ToArray();
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task TapAnimal(int index)
+    {
+        var animal = animals[index];
+        taps++;
+
+        if (selectedMode.Kind == ModeKind.WakeUp)
+        {
+            if (animal.Awake) return;
+
+            animal.Awake = true;
+            animal.Bouncing = true;
+            StateHasChanged();
+            await Interop.InvokeVoidAsync("playCatchSound");
+
+            await Task.Delay(1800);
+            animal.Bouncing = false;
+            animal.Awake = false;
+            StateHasChanged();
+        }
+        else
+        {
+            if (!animal.Awake) return;
+
+            animal.Awake = false;
+            StateHasChanged();
+            await Interop.InvokeVoidAsync("playImpactSound");
+
+            if (Array.TrueForAll(animals, a => !a.Awake))
+            {
+                await Task.Delay(400);
+                lampOn = false;
+                StateHasChanged();
+                await Interop.InvokeVoidAsync("playMatchSound");
+
+                await Task.Delay(2200);
+                lampOn = true;
+                foreach (var a in animals) a.Awake = true;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SleepyAnimalsResult(
+                Mode: selectedMode.Name,
+                Taps: taps,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record SleepyAnimalsResult(string Mode, int Taps, int ElapsedSeconds);
+}

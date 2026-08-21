@@ -1,11 +1,17 @@
 @*
     FruitSlice.razor
-    Fruit toss up from the bottom of the screen and arc back down - click
-    one before it lands to slice it. The occasional bomb should be left
-    alone. Consecutive slices build a streak that raises a score
-    multiplier (same idea as Whack-a-Mole); a bomb hit or a fruit that
-    lands unsliced resets the streak. Harder difficulties spawn faster
-    with a shorter arc and more bombs mixed in.
+    Fruit toss up from the bottom of the screen and arc back down - swipe
+    across one before it lands to slice it (a tap alone doesn't count, see
+    attachSliceTracking in interop.js). That same swipe also drops a fading
+    white trail dot behind the pointer on every armed pointermove, purely
+    cosmetic, so it visibly reads as a blade slicing through the air
+    instead of an invisible hit-test (styling lives in app.css, not this
+    component's isolated stylesheet - see the "JS-injected effects" section
+    there for why). The occasional bomb should be left alone. Consecutive
+    slices build a streak that raises a score multiplier (same idea as
+    Whack-a-Mole); a bomb hit or a fruit that lands unsliced resets the
+    streak. Harder difficulties spawn faster with a shorter arc and more
+    bombs mixed in.
 
     Usage:
         <FruitSlice OnComplete="HandleGameComplete" />

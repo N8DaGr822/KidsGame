@@ -1,0 +1,79 @@
+.fw-game {
+    width: min(640px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.fw-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.fw-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.fw-setup p {
+    max-width: 30rem;
+    color: var(--text-muted);
+}
+
+.fw-title {
+    font-weight: 900;
+}
+
+.fw-field {
+    position: relative;
+    width: min(560px, 96vw);
+    aspect-ratio: 4 / 3;
+    margin: 0 auto;
+    border-radius: var(--radius-lg);
+    background: radial-gradient(circle at 30% 20%, rgba(90, 100, 170, 0.2), transparent 55%), linear-gradient(180deg, #0c0f1c 0%, #171b30 100%);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    touch-action: manipulation;
+    cursor: pointer;
+}
+
+.fw-flash {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    margin: -13px 0 0 -13px;
+    border-radius: 50%;
+    background: radial-gradient(circle, white, var(--fw-color) 60%, transparent 75%);
+    pointer-events: none;
+    animation: fw-flash-fade 0.4s ease-out forwards;
+}
+
+.fw-spark {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    margin: -4px 0 0 -4px;
+    border-radius: 50%;
+    background: var(--fw-color);
+    box-shadow: 0 0 6px 1px var(--fw-color);
+    pointer-events: none;
+    animation: fw-spark-fly 0.75s ease-out forwards;
+}
+
+@keyframes fw-flash-fade {
+    0% { transform: scale(0.3); opacity: 1; }
+    100% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes fw-spark-fly {
+    0% { transform: translate(0, 0) scale(1); opacity: 1; }
+    100% { transform: translate(var(--fw-dx), var(--fw-dy)) scale(0.3); opacity: 0; }
+}

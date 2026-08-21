@@ -42,6 +42,7 @@ public class AppDataService
 
         _cache = JsonSerializer.Deserialize<AppData>(json) ?? SeedDefaultData();
         var changed = ApplyBuiltInCatalogArt(_cache);
+        changed |= ApplyBuiltInCatalogAges(_cache);
         changed |= RemoveStaleGameEntries(_cache);
         changed |= EnsureBuiltInCatalogEntries(_cache);
         changed |= EnsureExternalCatalogEntries(_cache);
@@ -377,6 +378,45 @@ public class AppDataService
 
             game.ThumbnailImagePath = builtIn.ThumbnailImagePath;
             changed = true;
+        }
+
+        return changed;
+    }
+
+    // Same reasoning as ApplyBuiltInCatalogArt just above: a catalog entry
+    // seeded before a game's MinAge/MaxAge was added (or before the game
+    // existed at all) is stuck with null ages forever, since
+    // EnsureBuiltInCatalogEntries/EnsureExternalCatalogEntries only add
+    // missing entries, they never update ones that already exist. Covers
+    // both BuiltInGames.All and the iframe-hosted ExternalGames list so
+    // every game in the catalog - not just routed components - gets an age
+    // once its source definition has one to offer. Runs on every load, so
+    // any game missing an age (however that happened) is fixed automatically
+    // instead of needing a one-off data patch.
+    private static bool ApplyBuiltInCatalogAges(AppData data)
+    {
+        var changed = false;
+        var agesByTarget = BuiltInGames.All.ToDictionary(g => g.LaunchTarget, g => (g.MinAge, g.MaxAge));
+        foreach (var ext in ExternalGames)
+        {
+            agesByTarget[ext.LaunchTarget] = (ext.MinAge, ext.MaxAge);
+        }
+
+        foreach (var game in data.Games)
+        {
+            if (!agesByTarget.TryGetValue(game.LaunchTarget, out var ages)) continue;
+
+            if (game.MinAge is null && ages.MinAge is not null)
+            {
+                game.MinAge = ages.MinAge;
+                changed = true;
+            }
+
+            if (game.MaxAge is null && ages.MaxAge is not null)
+            {
+                game.MaxAge = ages.MaxAge;
+                changed = true;
+            }
         }
 
         return changed;

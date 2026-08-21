@@ -50,9 +50,16 @@
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
     gap: 0.5rem;
-    background: var(--surface-2, rgba(0, 0, 0, 0.05));
+    background-color: var(--surface-2, rgba(0, 0, 0, 0.05));
+    background-size: cover;
+    background-position: center;
     border-radius: var(--radius-md);
     padding: 1rem 0.5rem;
+}
+
+.rb-fighter-name,
+.rb-hp-label {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
 .rb-fighter {
@@ -131,8 +138,8 @@
 
 .rb-actions {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0.5rem;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.4rem;
 }
 
 .rb-action-icon {
@@ -142,6 +149,94 @@
 
 .rb-action-name {
     font-weight: 800;
-    font-size: 0.8rem;
+    font-size: 0.72rem;
     display: block;
+}
+
+.rb-boost-badge {
+    color: #ffc857;
+}
+
+.rb-npc-panel {
+    display: grid;
+    justify-items: center;
+    gap: 0.6rem;
+    background-color: var(--surface-2, rgba(0, 0, 0, 0.05));
+    background-size: cover;
+    background-position: center;
+    border-radius: var(--radius-md);
+    padding: 1.25rem 1rem;
+    text-align: center;
+}
+
+.rb-npc-portrait {
+    font-size: 3.2rem;
+    filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.5));
+}
+
+.rb-npc-line {
+    font-weight: 900;
+    margin: 0;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+.rb-npc-offers {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+    width: 100%;
+}
+
+.rb-npc-offer-btn {
+    display: grid;
+    justify-items: center;
+    gap: 0.15rem;
+    padding: 0.75rem 0.5rem;
+}
+
+.rb-npc-offer-icon {
+    font-size: 1.6rem;
+}
+
+.rb-npc-offer-name {
+    font-weight: 900;
+    font-size: 0.82rem;
+}
+
+.rb-npc-offer-desc {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.rb-item-panel {
+    display: grid;
+    gap: 0.4rem;
+}
+
+.rb-item-btn {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 0.5rem;
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+}
+
+.rb-item-btn .rb-action-name {
+    font-size: 0.85rem;
+}
+
+.rb-item-desc {
+    grid-column: 2;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.rb-item-empty {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    text-align: center;
+    margin: 0.25rem 0;
 }

@@ -61,6 +61,19 @@ available:
 - [ ] MagicGarden - add at least one theme/reskin choice for replay variety.
 - [ ] ShapeSorter / ShadowMatch - dedupe the shared CSS `clip-path` shape
   definitions.
+- [ ] ChessGame - user report (2026-08-21): Medium felt unbeatable across 3
+  games as a self-described non-novice; hasn't tried Hard yet, still
+  testing. Likely explanation, not yet confirmed as the fix: `Services/GameAi.cs`'s
+  `ChessMove` runs real alpha-beta minimax at depth 2 for Medium (3 for
+  Hard, `Difficulty.Easy` skips search entirely) with no blunder injection -
+  Easy is the only tier that mixes in random moves
+  (`difficulty == Difficulty.Easy || (Medium && 50% roll)` inside the other
+  per-piece-type search helpers). A consistent, non-blundering 2-ply search
+  can already punish an intermediate human's tactical mistakes, so "Medium"
+  may be playing closer to "Hard" in practice. Revisit once more games
+  (including a Hard comparison) confirm whether Medium needs an eval
+  handicap or occasional deliberate mistakes, rather than assuming depth-2
+  search is automatically "medium" difficulty for a human opponent.
 
 ## Stable / No Current Action
 

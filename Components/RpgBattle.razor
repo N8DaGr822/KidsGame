@@ -1,15 +1,31 @@
 @*
     RpgBattle.razor
-    A turn-based Mini RPG Battle Game - pick a hero, fight a sequence of
-    monsters one at a time until either the run is cleared or the hero
-    falls. Each encounter is a 1v1 HP duel resolved from a 3-action menu
-    (Attack/Special/Guard), copying Dominoes/Checkers' Turn.Player/
-    Turn.Cpu alternation (player action resolves, then the enemy replies,
-    no unnecessary "Busy" phase) combined with TankDuel's HP-pip HUD and
-    RockPaperScissors' "disable the action menu during resolution"
-    pattern (turnInProgress here plays the same role as roundInProgress
-    there). No inventory/equipment/leveling - deliberately out of scope
-    for this vertical slice.
+    A turn-based Mini RPG Battle Game - pick a hero, then journey through
+    an endless string of sequences (Tower Defense's level-loop shape, not
+    a fixed campaign): each sequence is a short run of encounters over a
+    themed backdrop (see SequenceThemes) that escalates in difficulty as
+    the journey goes on. Most encounters are a 1v1 HP duel resolved from a
+    4-action menu (Attack/Special/Guard/Items), copying Dominoes/Checkers'
+    Turn.Player/Turn.Cpu alternation (player action resolves, then the
+    enemy replies, no unnecessary "Busy" phase) combined with TankDuel's
+    HP-pip HUD and RockPaperScissors' "disable the action menu during
+    resolution" pattern (turnInProgress here plays the same role as
+    roundInProgress there). Exactly one encounter per sequence (never the
+    first or last) is an NPC instead of a monster - it offers a free
+    choice of two items rather than a fight.
+
+    Defeat is a checkpoint, not a permadeath: clearing a sequence or
+    falling in one both pause on a "what next" prompt (awaitingContinueChoice)
+    offering "Continue Journey" (next sequence, new backdrop, harder
+    monsters - a defeat also fully heals the hero as the "regroup" beat)
+    or stopping for good ("End Run"/"Save & Quit"). Only stopping - or the
+    header's early "Exit" - ends the session and logs a play-history entry;
+    there's still no mid-battle save/resume, "Save & Quit" just means the
+    run's final stats get logged like any other finished session. Items
+    collected from NPCs persist in a simple per-run inventory (no
+    currency/shop economy) and can be spent mid-battle for a Heal Potion,
+    Strength Elixir (next-attack damage boost), or Ether (refills Special
+    uses) - each use costs the turn, same as Guard.
 
     Usage:
         <RpgBattle OnComplete="HandleGameComplete" />
@@ -24,7 +40,7 @@
     {
         <div class="rb-setup game-setup-panel">
             <h2>🐉 Mini RPG Battle</h2>
-            <p>Choose your hero, then fight your way through a line of monsters. Attack, use your Special, or Guard to reduce the next hit - defeat every monster to win!</p>
+            <p>Choose your hero, then journey through sequence after sequence of monsters across different terrain. Attack, use your Special, Guard, or spend an item - defeat isn't the end, you can always regroup and press on.</p>
 
             <h3 class="game-section-title">Choose your hero</h3>
             <div class="rb-hero-select game-option-grid">
@@ -63,59 +79,132 @@
     {
         <div class="rb-hud game-hud">
             <span class="rb-title">Mini RPG Battle</span>
-            <span class="game-stat">🐾 Monster @Math.Min(encounterIndex + 1, totalEncounters)/@totalEncounters</span>
+            <span class="game-stat">🗺️ @currentTheme.Name · Sequence @sequenceNumber</span>
+            <span class="game-stat">🐾 @Math.Min(encounterIndex + 1, totalEncounters)/@totalEncounters</span>
             <span class="game-stat">👣 Turns @turnsTaken</span>
             <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
-        <div class="rb-arena">
-            <div class="rb-fighter rb-fighter-hero">
-                <img class="rb-portrait @(heroHitFlashMs > 0 ? "hit" : "")" src="images/rpgbattle/@(hero.ImagePath)" alt="" />
-                <span class="rb-fighter-name">@hero.Name</span>
-                <div class="rb-hp-track"><div class="rb-hp-fill rb-hp-hero" style="width:@((Math.Max(0, playerHp) * 100.0 / hero.MaxHp).ToString(System.Globalization.CultureInfo.InvariantCulture))%;"></div></div>
-                <span class="rb-hp-label">@Math.Max(0, playerHp)/@hero.MaxHp</span>
-                @if (guarding)
-                {
-                    <span class="rb-guard-badge">🛡️ Guarding</span>
-                }
+        @if (atNpcEncounter)
+        {
+            <div class="rb-npc-panel" style="@ArenaBackgroundStyle()">
+                <span class="rb-npc-portrait">🧙</span>
+                <p class="rb-npc-line">A traveling merchant offers you a gift...</p>
+                <div class="rb-npc-offers">
+                    @foreach (var item in npcOffer)
+                    {
+                        <button class="rb-npc-offer-btn game-option-button" @onclick="() => ChooseItemAsync(item)">
+                            <span class="rb-npc-offer-icon">@item.Icon</span>
+                            <span class="rb-npc-offer-name">@item.Name</span>
+                            <span class="rb-npc-offer-desc">@item.Description</span>
+                        </button>
+                    }
+                </div>
+                <button class="game-secondary-action" @onclick="SkipNpcAsync">No thanks, move on</button>
             </div>
-            <span class="rb-vs">VS</span>
-            <div class="rb-fighter rb-fighter-monster">
-                <img class="rb-portrait @(monsterHitFlashMs > 0 ? "hit" : "")" src="images/rpgbattle/@(monster.ImagePath)" alt="" />
-                <span class="rb-fighter-name">@monster.Name</span>
-                <div class="rb-hp-track"><div class="rb-hp-fill rb-hp-monster" style="width:@((Math.Max(0, monsterHp) * 100.0 / monsterMaxHp).ToString(System.Globalization.CultureInfo.InvariantCulture))%;"></div></div>
-                <span class="rb-hp-label">@Math.Max(0, monsterHp)/@monsterMaxHp</span>
+        }
+        else
+        {
+            <div class="rb-arena" style="@ArenaBackgroundStyle()">
+                <div class="rb-fighter rb-fighter-hero">
+                    <img class="rb-portrait @(heroHitFlashMs > 0 ? "hit" : "")" src="images/rpgbattle/@(hero.ImagePath)" alt="" />
+                    <span class="rb-fighter-name">@hero.Name</span>
+                    <div class="rb-hp-track"><div class="rb-hp-fill rb-hp-hero" style="width:@((Math.Max(0, playerHp) * 100.0 / hero.MaxHp).ToString(System.Globalization.CultureInfo.InvariantCulture))%;"></div></div>
+                    <span class="rb-hp-label">@Math.Max(0, playerHp)/@hero.MaxHp</span>
+                    @if (guarding)
+                    {
+                        <span class="rb-guard-badge">🛡️ Guarding</span>
+                    }
+                    @if (attackBoosted)
+                    {
+                        <span class="rb-guard-badge rb-boost-badge">💪 Boosted</span>
+                    }
+                </div>
+                <span class="rb-vs">VS</span>
+                <div class="rb-fighter rb-fighter-monster">
+                    <img class="rb-portrait @(monsterHitFlashMs > 0 ? "hit" : "")" src="images/rpgbattle/@(monster.ImagePath)" alt="" />
+                    <span class="rb-fighter-name">@monster.Name</span>
+                    <div class="rb-hp-track"><div class="rb-hp-fill rb-hp-monster" style="width:@((Math.Max(0, monsterHp) * 100.0 / monsterMaxHp).ToString(System.Globalization.CultureInfo.InvariantCulture))%;"></div></div>
+                    <span class="rb-hp-label">@Math.Max(0, monsterHp)/@monsterMaxHp</span>
+                </div>
             </div>
-        </div>
 
-        <p class="rb-status">@statusText</p>
+            <p class="rb-status">@statusText</p>
 
-        <div class="rb-actions">
-            <button class="rb-action-btn game-option-button" disabled="@(turnInProgress || phase != Phase.Playing)" @onclick="() => PlayerActionAsync(BattleAction.Attack)">
-                <span class="rb-action-icon">⚔️</span>
-                <span class="rb-action-name">Attack</span>
-            </button>
-            <button class="rb-action-btn game-option-button" disabled="@(turnInProgress || phase != Phase.Playing || specialUsesLeft <= 0)" @onclick="() => PlayerActionAsync(BattleAction.Special)">
-                <span class="rb-action-icon">✨</span>
-                <span class="rb-action-name">Special (@specialUsesLeft)</span>
-            </button>
-            <button class="rb-action-btn game-option-button" disabled="@(turnInProgress || phase != Phase.Playing)" @onclick="() => PlayerActionAsync(BattleAction.Guard)">
-                <span class="rb-action-icon">🛡️</span>
-                <span class="rb-action-name">Guard</span>
-            </button>
-        </div>
+            <div class="rb-actions">
+                <button class="rb-action-btn game-option-button" disabled="@(!CanAct)" @onclick="() => PlayerActionAsync(BattleAction.Attack)">
+                    <span class="rb-action-icon">⚔️</span>
+                    <span class="rb-action-name">Attack</span>
+                </button>
+                <button class="rb-action-btn game-option-button" disabled="@(!CanAct || specialUsesLeft <= 0)" @onclick="() => PlayerActionAsync(BattleAction.Special)">
+                    <span class="rb-action-icon">✨</span>
+                    <span class="rb-action-name">Special (@specialUsesLeft)</span>
+                </button>
+                <button class="rb-action-btn game-option-button" disabled="@(!CanAct)" @onclick="() => PlayerActionAsync(BattleAction.Guard)">
+                    <span class="rb-action-icon">🛡️</span>
+                    <span class="rb-action-name">Guard</span>
+                </button>
+                <button class="rb-action-btn game-option-button" disabled="@(phase != Phase.Playing)" @onclick="() => showItemPanel = !showItemPanel">
+                    <span class="rb-action-icon">🎒</span>
+                    <span class="rb-action-name">Items (@TotalItemCount)</span>
+                </button>
+            </div>
 
-        @if (phase == Phase.Finished)
+            @if (showItemPanel)
+            {
+                <div class="rb-item-panel">
+                    @if (TotalItemCount == 0)
+                    {
+                        <p class="rb-item-empty">No items yet - NPCs you meet along the way may offer some.</p>
+                    }
+                    else
+                    {
+                        @foreach (var kvp in inventory.Where(kv => kv.Value > 0))
+                        {
+                            var item = ItemCatalog.First(i => i.Id == kvp.Key);
+                            <button class="rb-item-btn game-option-button" disabled="@(!CanAct)" @onclick="() => UseItemAsync(item)">
+                                <span class="rb-action-icon">@item.Icon</span>
+                                <span class="rb-action-name">@item.Name (@kvp.Value)</span>
+                                <span class="rb-item-desc">@item.Description</span>
+                            </button>
+                        }
+                    }
+                </div>
+            }
+        }
+
+        @if (awaitingContinueChoice)
         {
             <div class="game-result-overlay">
                 <div class="game-result-panel">
-                    <h2>@(won ? "🏆 Victory!" : "💀 You Were Defeated")</h2>
-                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@(won ? $"you defeated all {totalEncounters} monsters!" : $"you fell to the {monster.Name} on monster {encounterIndex + 1} of {totalEncounters}.")</p>
+                    <h2>@(wasDefeated ? "💀 Defeated!" : "🎉 Sequence Cleared!")</h2>
+                    <p>
+                        @(wasDefeated
+                            ? $"The {monster.Name} bested you in sequence {sequenceNumber} ({currentTheme.Name}) - but your journey doesn't have to end here."
+                            : $"You cleared sequence {sequenceNumber} ({currentTheme.Name})! A new stretch of the journey awaits.")
+                    </p>
+                    <div class="game-result-stats">
+                        <div><span class="game-stat-label">Monsters defeated</span><span class="game-stat-value">@monstersDefeated</span></div>
+                        <div><span class="game-stat-label">Items held</span><span class="game-stat-value">@TotalItemCount</span></div>
+                    </div>
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="ContinueJourney">Continue Journey →</button>
+                        <button class="game-secondary-action" @onclick="StopRunAsync">@(wasDefeated ? "Save & Quit" : "End Run")</button>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(won ? "🏆 Journey Complete!" : "💀 Journey Ended")</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")you made it to sequence @sequenceNumber, defeating @monstersDefeated monster@(monstersDefeated == 1 ? "" : "s") along the way!</p>
                     <div class="game-result-stats">
                         <div><span class="game-stat-label">Turns</span><span class="game-stat-value">@turnsTaken</span></div>
                         <div><span class="game-stat-label">Monsters defeated</span><span class="game-stat-value">@monstersDefeated</span></div>
                     </div>
-                    <PersonalBestBadge Value="@(bestTurns is { } bt ? $"{bt} turns" : null)" IsNew="isNewBest" />
+                    <PersonalBestBadge Value="@(bestSequence is { } bs ? $"sequence {bs}" : null)" IsNew="isNewBest" />
                     <div class="game-result-actions">
                         <button class="game-primary-action" @onclick="StartGame">Play Again</button>
                         <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
@@ -132,7 +221,7 @@
     [Parameter] public EventCallback<RpgBattleResult> OnComplete { get; set; }
 
     /// <summary>Current kid profile's id, for the personal-best record
-    /// (fewest turns to clear the whole run, per difficulty) - null skips
+    /// (deepest sequence reached, per difficulty) - null skips
     /// recording/display.</summary>
     [Parameter] public string? ProfileId { get; set; }
 
@@ -144,11 +233,16 @@
     private enum Phase { Setup, Playing, Finished }
     public enum Difficulty { Easy, Medium, Hard }
     private enum BattleAction { Attack, Special, Guard }
+    private enum EncounterKind { Monster, Npc }
+    private enum ItemEffect { Heal, AttackBoost, RestoreSpecial }
 
     private const int SpecialUsesPerEncounter = 3;
 
     private record HeroDef(string Id, string Name, string ImagePath, int MaxHp, int AttackDamage, int SpecialDamage);
     private record MonsterDef(string Id, string Name, string ImagePath, int BaseHp, int BaseDamage);
+    private record SequenceTheme(string Name, string BackgroundImagePath);
+    private record EncounterSlot(EncounterKind Kind, MonsterDef? Monster);
+    private record ItemDef(string Id, string Name, string Icon, string Description, ItemEffect Effect);
 
     private static readonly HeroDef[] Heroes =
     {
@@ -164,6 +258,28 @@
         new("medusa", "Medusa", "monster-medusa.png", BaseHp: 22, BaseDamage: 5),
         new("small-dragon", "Young Dragon", "monster-small-dragon.png", BaseHp: 20, BaseDamage: 4),
         new("jinn", "Jinn", "monster-jinn.png", BaseHp: 24, BaseDamage: 6),
+    };
+
+    // One backdrop per sequence, cycling once the journey outruns the
+    // list - see ASSET_TRIAGE.md for where these came from (craftpix's
+    // fantasy battlegrounds pack) and why only the single full-bleed sky
+    // layer of each is used rather than the pack's full parallax stack.
+    private static readonly SequenceTheme[] SequenceThemes =
+    {
+        new("Lakeside Meadow", "images/rpgbattle/backgrounds/lakeside.png"),
+        new("Twilight Road", "images/rpgbattle/backgrounds/twilight-road.png"),
+        new("Haunted Woods", "images/rpgbattle/backgrounds/haunted-woods.png"),
+        new("Bone Desert", "images/rpgbattle/backgrounds/bone-desert.png"),
+    };
+
+    // No currency/shop economy - NPCs simply gift one of two offered items,
+    // free. Every item use costs the turn, same resource-management shape
+    // as Guard.
+    private static readonly ItemDef[] ItemCatalog =
+    {
+        new("potion", "Health Potion", "🧪", "Restores 40% of max HP", ItemEffect.Heal),
+        new("elixir", "Strength Elixir", "💪", "Your next Attack hits much harder", ItemEffect.AttackBoost),
+        new("ether", "Ether", "🔷", "Refills your Special uses", ItemEffect.RestoreSpecial),
     };
 
     private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
@@ -194,8 +310,10 @@
 
     // A hero fights every encounter on one HP pool with no full heal (keeps
     // run tension per the design), but Easy/Medium restore a partial chunk
-    // between fights so a reasonably-played run is actually winnable - Hard
-    // stays fully punishing, no recovery at all.
+    // between fights so a reasonably-played sequence is actually winnable -
+    // Hard stays fully punishing, no recovery at all. A defeat still gets a
+    // full heal regardless of difficulty - see ContinueJourney - since
+    // that's the "regroup" beat, not a mid-sequence breather.
     private static double HealFractionFor(Difficulty d) => d switch
     {
         Difficulty.Easy => 0.5,
@@ -203,19 +321,27 @@
         _ => 0.0,
     };
 
+    // Each new sequence's monsters hit harder and have more HP than the
+    // last, on top of the chosen difficulty's own multiplier - what makes
+    // an endless journey actually feel endless instead of a flat repeat.
+    private double SequenceEscalationMult() => 1.0 + (sequenceNumber - 1) * 0.15;
+
     private Phase phase = Phase.Setup;
     private Difficulty selectedDifficulty = Difficulty.Easy;
     private string selectedHeroId = Heroes[0].Id;
     private HeroDef hero = Heroes[0];
     private MonsterDef monster = MonsterRoster[0];
-    private List<MonsterDef> encounterOrder = new();
+    private SequenceTheme currentTheme = SequenceThemes[0];
+    private List<EncounterSlot> encounterOrder = new();
     private int totalEncounters = 3;
     private int encounterIndex;
+    private int sequenceNumber;
     private int playerHp;
     private int monsterHp;
     private int monsterMaxHp;
     private int specialUsesLeft;
     private bool guarding;
+    private bool attackBoosted;
     private int heroHitFlashMs;
     private int monsterHitFlashMs;
     private bool turnInProgress;
@@ -223,39 +349,94 @@
     private int monstersDefeated;
     private bool won;
     private string statusText = "";
-    private int? bestTurns;
+    private int? bestSequence;
     private bool isNewBest;
     private readonly Random rng = new();
     private DateTime startedAtUtc;
+
+    private bool atNpcEncounter;
+    private ItemDef[] npcOffer = Array.Empty<ItemDef>();
+    private readonly Dictionary<string, int> inventory = new();
+    private bool showItemPanel;
+    private bool awaitingContinueChoice;
+    private bool wasDefeated;
+
+    private bool CanAct => !turnInProgress && phase == Phase.Playing && !awaitingContinueChoice;
+    private int TotalItemCount => inventory.Values.Sum();
 
     protected override void OnInitialized()
     {
         if (LockedDifficulty is { } locked) selectedDifficulty = locked;
     }
 
+    private string ArenaBackgroundStyle() =>
+        $"background-image: linear-gradient(rgba(8, 10, 16, 0.45), rgba(8, 10, 16, 0.45)), url('{currentTheme.BackgroundImagePath}');";
+
     private void StartGame()
     {
         hero = Heroes.FirstOrDefault(h => h.Id == selectedHeroId) ?? Heroes[0];
         totalEncounters = EncounterCountFor(selectedDifficulty);
 
-        encounterOrder = MonsterRoster.OrderBy(_ => rng.Next()).ToList();
-
-        encounterIndex = 0;
+        sequenceNumber = 1;
         playerHp = hero.MaxHp;
         turnsTaken = 0;
         monstersDefeated = 0;
+        inventory.Clear();
+        showItemPanel = false;
+        attackBoosted = false;
         won = false;
-        bestTurns = null;
+        bestSequence = null;
         isNewBest = false;
         startedAtUtc = DateTime.UtcNow;
         phase = Phase.Playing;
-        SetUpEncounter();
+        BeginSequence();
     }
 
-    private void SetUpEncounter()
+    private void BeginSequence()
     {
-        monster = encounterOrder[encounterIndex % encounterOrder.Count];
-        var hpMult = HpMultFor(selectedDifficulty);
+        currentTheme = SequenceThemes[(sequenceNumber - 1) % SequenceThemes.Length];
+        encounterOrder = BuildEncounterOrder();
+        encounterIndex = 0;
+        awaitingContinueChoice = false;
+        SetUpCurrentEncounter();
+    }
+
+    // Shuffles the full monster roster and takes the first totalEncounters
+    // (never more than the roster size, so no repeats within one
+    // sequence), then overwrites exactly one slot - never the first or
+    // last encounter - with an NPC gift stop for variety.
+    private List<EncounterSlot> BuildEncounterOrder()
+    {
+        var shuffled = MonsterRoster.OrderBy(_ => rng.Next()).ToList();
+        var slots = new List<EncounterSlot>();
+        for (var i = 0; i < totalEncounters; i++)
+        {
+            slots.Add(new EncounterSlot(EncounterKind.Monster, shuffled[i % shuffled.Count]));
+        }
+
+        if (totalEncounters >= 3)
+        {
+            var npcIndex = 1 + rng.Next(totalEncounters - 2);
+            slots[npcIndex] = new EncounterSlot(EncounterKind.Npc, null);
+        }
+
+        return slots;
+    }
+
+    private void SetUpCurrentEncounter()
+    {
+        var slot = encounterOrder[encounterIndex];
+        if (slot.Kind == EncounterKind.Npc)
+        {
+            atNpcEncounter = true;
+            npcOffer = ItemCatalog.OrderBy(_ => rng.Next()).Take(2).ToArray();
+            statusText = "";
+            return;
+        }
+
+        atNpcEncounter = false;
+        monster = slot.Monster!;
+        var hpMult = HpMultFor(selectedDifficulty) * SequenceEscalationMult();
         monsterMaxHp = Math.Max(6, (int)Math.Round(monster.BaseHp * hpMult));
         monsterHp = monsterMaxHp;
         specialUsesLeft = SpecialUsesPerEncounter;
@@ -264,14 +445,23 @@
     }
 
     // An early exit still logs to play history (with whatever was reached
-    // so far) rather than silently vanishing.
+    // so far) rather than silently vanishing, and still records a
+    // personal-best attempt - same reasoning as TowerDefense's "← Exit"
+    // recording best-level even on an unfinished run.
     private async Task ExitToSetup()
     {
         if (phase == Phase.Playing && OnComplete.HasDelegate)
         {
+            if (!string.IsNullOrEmpty(ProfileId))
+            {
+                var key = $"deepest-sequence-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+                await Data.TryRecordBestAsync(ProfileId, BuiltInGames.RpgBattle, key, sequenceNumber, lowerIsBetter: false);
+            }
+
             await OnComplete.InvokeAsync(new RpgBattleResult(
                 Difficulty: DifficultyName(selectedDifficulty),
                 Won: false,
+                SequenceReached: sequenceNumber,
                 MonstersDefeated: monstersDefeated,
                 TurnsTaken: turnsTaken,
                 ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
@@ -287,15 +477,21 @@
     // roundInProgress.
     private async Task PlayerActionAsync(BattleAction action)
     {
-        if (turnInProgress || phase != Phase.Playing) return;
+        if (!CanAct) return;
 
         turnInProgress = true;
         turnsTaken++;
+        showItemPanel = false;
 
         switch (action)
         {
             case BattleAction.Attack:
                 var atk = Math.Max(1, hero.AttackDamage + rng.Next(-1, 2));
+                if (attackBoosted)
+                {
+                    atk = (int)Math.Round(atk * 1.8);
+                    attackBoosted = false;
+                }
                 monsterHp -= atk;
                 monsterHitFlashMs = 250;
                 statusText = $"You hit the {monster.Name} for {atk}!";
@@ -329,18 +525,68 @@
 
         await Task.Delay(150);
         await RunMonsterTurnAsync();
-
-        if (playerHp <= 0)
-        {
-            await FinishGame(false);
-        }
+        await ResolveDefeatIfNeededAsync();
 
         turnInProgress = false;
     }
 
+    // Items share the exact same "resolve, then the monster replies" turn
+    // shape as PlayerActionAsync - kept separate since it operates on an
+    // ItemDef/inventory rather than the fixed 3-action menu, but everything
+    // after applying the effect (monster's counter-turn, defeat check) is
+    // identical.
+    private async Task UseItemAsync(ItemDef item)
+    {
+        if (!CanAct || atNpcEncounter) return;
+        if (!inventory.TryGetValue(item.Id, out var count) || count <= 0) return;
+
+        turnInProgress = true;
+        turnsTaken++;
+        inventory[item.Id] = count - 1;
+        showItemPanel = false;
+
+        switch (item.Effect)
+        {
+            case ItemEffect.Heal:
+                var healed = Math.Min(hero.MaxHp - playerHp, (int)Math.Round(hero.MaxHp * 0.4));
+                playerHp += healed;
+                statusText = $"You drink the {item.Name} and recover {healed} HP!";
+                break;
+            case ItemEffect.AttackBoost:
+                attackBoosted = true;
+                statusText = $"You feel a surge of strength from the {item.Name}!";
+                break;
+            default:
+                specialUsesLeft = SpecialUsesPerEncounter;
+                statusText = $"The {item.Name} refills your Special uses!";
+                break;
+        }
+        await Interop.InvokeVoidAsync("playCatchSound");
+
+        StateHasChanged();
+        await Task.Delay(350);
+
+        await Task.Delay(150);
+        await RunMonsterTurnAsync();
+        await ResolveDefeatIfNeededAsync();
+
+        turnInProgress = false;
+    }
+
+    private async Task ResolveDefeatIfNeededAsync()
+    {
+        if (playerHp > 0) return;
+
+        awaitingContinueChoice = true;
+        wasDefeated = true;
+        statusText = $"You were defeated by the {monster.Name}...";
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playMismatchSound");
+    }
+
     private async Task RunMonsterTurnAsync()
     {
-        var dmgMult = DamageMultFor(selectedDifficulty);
+        var dmgMult = DamageMultFor(selectedDifficulty) * SequenceEscalationMult();
         var fierce = rng.NextDouble() < 0.3;
         var rawDamage = Math.Max(1, (int)Math.Round(monster.BaseDamage * dmgMult * (fierce ? 1.6 : 1.0)));
         var dealt = guarding ? Math.Max(1, rawDamage / 2) : rawDamage;
@@ -367,10 +613,39 @@
         await Interop.InvokeVoidAsync("playMatchSound");
         await Task.Delay(500);
 
+        await AdvanceEncounterAsync();
+    }
+
+    private async Task ChooseItemAsync(ItemDef item)
+    {
+        if (!atNpcEncounter) return;
+
+        inventory[item.Id] = inventory.GetValueOrDefault(item.Id) + 1;
+        atNpcEncounter = false;
+        statusText = $"You received a {item.Name}!";
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playCatchSound");
+        await Task.Delay(500);
+
+        await AdvanceEncounterAsync();
+    }
+
+    private async Task SkipNpcAsync()
+    {
+        if (!atNpcEncounter) return;
+        atNpcEncounter = false;
+        await AdvanceEncounterAsync();
+    }
+
+    private async Task AdvanceEncounterAsync()
+    {
         encounterIndex++;
         if (encounterIndex >= totalEncounters)
         {
-            await FinishGame(true);
+            awaitingContinueChoice = true;
+            wasDefeated = false;
+            statusText = "Sequence cleared!";
+            StateHasChanged();
             return;
         }
 
@@ -380,25 +655,40 @@
             playerHp = Math.Min(hero.MaxHp, playerHp + (int)Math.Round(hero.MaxHp * healFraction));
         }
 
-        SetUpEncounter();
+        SetUpCurrentEncounter();
         StateHasChanged();
+        await Task.CompletedTask;
     }
 
-    private async Task FinishGame(bool won)
+    private void ContinueJourney()
     {
-        this.won = won;
+        sequenceNumber++;
+        if (wasDefeated)
+        {
+            playerHp = hero.MaxHp;
+        }
+
+        BeginSequence();
+    }
+
+    private Task StopRunAsync()
+    {
+        won = !wasDefeated;
+        return FinishGame();
+    }
+
+    private async Task FinishGame()
+    {
         phase = Phase.Finished;
+        awaitingContinueChoice = false;
         StateHasChanged();
         await Interop.InvokeVoidAsync(won ? "playMatchSound" : "playMismatchSound");
 
         if (!string.IsNullOrEmpty(ProfileId))
         {
-            var key = $"fewest-turns-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
-            bestTurns = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.RpgBattle, key);
-            if (won)
-            {
-                isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.RpgBattle, key, turnsTaken, lowerIsBetter: true);
-            }
+            var key = $"deepest-sequence-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestSequence = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.RpgBattle, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.RpgBattle, key, sequenceNumber, lowerIsBetter: false);
         }
 
         StateHasChanged();
@@ -408,6 +698,7 @@
             await OnComplete.InvokeAsync(new RpgBattleResult(
                 Difficulty: DifficultyName(selectedDifficulty),
                 Won: won,
+                SequenceReached: sequenceNumber,
                 MonstersDefeated: monstersDefeated,
                 TurnsTaken: turnsTaken,
                 ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
@@ -423,10 +714,10 @@
 
     private static string DifficultyDetail(Difficulty d) => d switch
     {
-        Difficulty.Easy => "3 monsters, weaker foes",
-        Difficulty.Medium => "4 monsters",
-        _ => "5 monsters, tougher foes",
+        Difficulty.Easy => "3 monsters per sequence, weaker foes",
+        Difficulty.Medium => "4 monsters per sequence",
+        _ => "5 monsters per sequence, tougher foes",
     };
 
-    public record RpgBattleResult(string Difficulty, bool Won, int MonstersDefeated, int TurnsTaken, int ElapsedSeconds);
+    public record RpgBattleResult(string Difficulty, bool Won, int SequenceReached, int MonstersDefeated, int TurnsTaken, int ElapsedSeconds);
 }

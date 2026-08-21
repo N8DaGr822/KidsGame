@@ -67,22 +67,6 @@
     filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 8px rgba(78, 205, 196, 0.85));
 }
 
-.cg-bishop-glyph {
-    font-size: min(7vw, 34px);
-    line-height: 1;
-    font-weight: 900;
-    -webkit-text-stroke: 1px rgba(0, 0, 0, 0.5);
-    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
-}
-
-.cg-bishop-glyph.white {
-    color: #fdf6e8;
-}
-
-.cg-bishop-glyph.black {
-    color: #2a2a2a;
-}
-
 .cg-hint {
     width: 30%;
     aspect-ratio: 1;

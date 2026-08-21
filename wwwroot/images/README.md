@@ -191,6 +191,14 @@ do not leave blank UI.
   A sixth monster in that pack, `demon` (horned, pitchfork), was viewed and
   deliberately left uncopied - reads more devilish than fits this app's
   tone, unlike the other five. Used by `Components/RpgBattle.razor`.
+- `rpgbattle/backgrounds/{lakeside,twilight-road,haunted-woods,bone-desert}.png`
+  (added 2026-08-21) are from [CraftPix](https://craftpix.net)'s free
+  "Fantasy 2D Battlegrounds" pack (`craftpix-net-686291-free-pixel-art-
+  fantasy-2d-battlegrounds-unity.zip`) - each is just the single confirmed
+  full-bleed sky/backdrop layer from one of the pack's 4 scenes (not the
+  full parallax stack; see `ASSET_TRIAGE.md` for why). One per
+  `Components/RpgBattle.razor` journey "sequence", cycling once the run
+  outruns the list.
 - `catdefense/tower-{gatling,cannon,rocket}.png` and
   `catdefense/tower-guardian.png` (the last is only the launcher tile
   thumbnail, same file as `tower-cannon.png`) plus
@@ -226,16 +234,22 @@ do not leave blank UI.
     checkers set (flame emblem = plain, crown emblem = king, per color).
     `checkers/tile-dark.png`/`tile-light.png` are plain wood/cream board
     squares.
-  - `chess/*-pawn-{1,2,3}.png` (3 face variants per color, for visual
-    variety across 8 pawns), `*-rook.png`, `*-knight.png`,
-    `*-queen-{1,2}.png` (2 face variants per color), and `*-king.png`
-    are a full cute cartoon set for white and black - **except no bishop
-    art exists in this batch for either color**.
-    `Components/ChessPuzzles.razor` renders the bishop as a styled Unicode
-    glyph (♗/♝) sized to match the other piece art rather than leaving it
-    blank or mismatching the art style further - swap in real bishop PNGs
-    here (`chess/white-bishop.png`/`chess/black-bishop.png`) if matching
-    art turns up later. `chess/tile-dark.png`/`tile-light.png` are a more
+  - `chess/*-rook.png`, `*-knight.png`, `*-queen-{1,2}.png` (2 face
+    variants per color), and `*-king.png` are a full cute cartoon set for
+    white and black. **Update (2026-08-21):** the original per-file
+    eyeballing above got the pawn/bishop slots wrong - two of the
+    numbered "pawn variant" files were actually a bishop (mitre-topped
+    piece) and a second, differently-expressioned pawn, not 3 genuine
+    pawn variants. Re-sorted and renamed to match actual content:
+    `white-pawn-1.png`/`black-pawn-2.png` are the one real pawn face per
+    color (`Components/ChessGame.razor` and `ChessPuzzles.razor` render
+    every pawn of a color with this same single image, no more
+    per-square variant rotation), `white-bishop-3.png`/`black-bishop-3.png`
+    are real bishop art (replacing the old styled-Unicode-glyph
+    placeholder ♗/♝ this component used to fall back to), and
+    `white-pawn-elite-2.png`/`black-pawn-elite-1.png` are a spare
+    happier-faced pawn variant, not currently used by either chess
+    component. `chess/tile-dark.png`/`tile-light.png` are a more
     ornate carved-wood/marble board pair (kept visually distinct from
     checkers' plainer tiles). `chess/selected-glow.png` is a teal magic
     rune ring used as the selected-square/legal-move highlight.

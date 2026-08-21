@@ -84,14 +84,7 @@
                             @onclick="() => HandleTap(row, col)">
                         @if (cell != ChessRules.Empty)
                         {
-                            if (ChessRules.PieceType(cell) == ChessRules.Bishop)
-                            {
-                                <span class="cg-piece cg-bishop-glyph @(ChessRules.IsWhite(cell) ? "white" : "black") @(isSelected ? "selected" : "")">@(ChessRules.IsWhite(cell) ? "♗" : "♝")</span>
-                            }
-                            else
-                            {
-                                <img class="cg-piece @(isSelected ? "selected" : "")" src="images/chess/@PieceImagePath(cell, row, col)" alt="" />
-                            }
+                            <img class="cg-piece @(isSelected ? "selected" : "")" src="images/chess/@PieceImagePath(cell, row, col)" alt="" />
                         }
                         else if (isDestination)
                         {
@@ -317,15 +310,21 @@
         }
     }
 
+    // Pawn and Bishop each have exactly one real image file per color (not
+    // several numbered variants) - the numbered filenames that remain
+    // (white-pawn-1.png, black-pawn-2.png, white/black-bishop-3.png) are
+    // just what survived after sorting out which numbered file actually
+    // contained which piece's art. Queen still has two genuine variants.
     private static string? PieceImagePath(int cell, int row, int col)
     {
         var color = ChessRules.IsWhite(cell) ? "white" : "black";
         var variantSeed = row * ChessRules.Size + col;
         return ChessRules.PieceType(cell) switch
         {
-            ChessRules.Pawn => $"{color}-pawn-{variantSeed % 3 + 1}.png",
+            ChessRules.Pawn => ChessRules.IsWhite(cell) ? "white-pawn-1.png" : "black-pawn-2.png",
             ChessRules.Knight => $"{color}-knight.png",
             ChessRules.Rook => $"{color}-rook.png",
+            ChessRules.Bishop => $"{color}-bishop-3.png",
             ChessRules.Queen => $"{color}-queen-{variantSeed % 2 + 1}.png",
             ChessRules.King => $"{color}-king.png",
             _ => null,

@@ -1047,6 +1047,21 @@ h1[tabindex="-1"]:focus {
   color: var(--text);
 }
 
+/* The closed <select> box picks up the app's dark styling above, but the
+   opened native dropdown list is drawn by the OS/browser, not by our CSS -
+   `color-scheme: dark` on :root isn't enough on its own once a select has
+   an explicit (semi-transparent) background, so without an explicit
+   background on <option> some browsers fall back to a plain white popup
+   with barely-visible light text. Every <select> in this app is dark-only
+   (no light theme to match), so give every <option> a solid dark
+   background + light text directly. */
+.access-sort select option,
+.access-row-difficulty select option,
+.pin-modal select option {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
 .access-search input {
   min-width: 12rem;
 }
@@ -1318,4 +1333,40 @@ h1[tabindex="-1"]:focus {
   .game-host-bar {
     flex-wrap: wrap;
   }
+}
+
+/* ============================================================
+   JS-injected effects
+   ============================================================
+   Elements a component's own JS creates directly via
+   document.createElement rather than through Blazor's render tree -
+   Blazor CSS isolation (Components/*.razor.css) rewrites selectors to
+   require a scope attribute it only stamps onto elements it renders
+   itself, so anything appended by hand-written JS needs its styling
+   here in the unscoped global sheet instead, or the rules silently
+   never match. */
+
+/* FruitSlice.razor: attachSliceTracking in interop.js drops one of these
+   into .fs-field on every armed pointermove so a swipe reads as an actual
+   blade trail, not an invisible hit-test. Centered on the pointer via
+   negative margin rather than a transform so the inline left/top JS sets
+   stay a plain pixel offset. */
+.fs-trail-dot {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 70%);
+    box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.55);
+    pointer-events: none;
+    z-index: 5;
+    animation: fs-trail-fade 0.26s ease-out forwards;
+}
+
+@keyframes fs-trail-fade {
+    0% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.25); }
 }

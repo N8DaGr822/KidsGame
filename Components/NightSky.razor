@@ -1,0 +1,117 @@
+@*
+    NightSky.razor
+    A toddler cause-and-effect toy (~1 year old target): tap the dark sky
+    to place a star right where you tapped; tap an existing star to make
+    it twinkle. Stars never disappear (up to a generous cap), so the sky
+    only ever fills up, never empties - no score, no timer, no fail state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many stars
+    were placed and how long the child played, then returns to the setup
+    screen.
+
+    Usage:
+        <NightSky OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="nsk-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="nsk-setup game-setup-panel">
+            <h2>🌌 Night Sky</h2>
+            <p>Tap the sky to add a star - tap a star to make it twinkle!</p>
+            <button class="nsk-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="nsk-hud game-hud">
+            <span class="nsk-title">Night Sky</span>
+            <button class="nsk-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="nsk-field" @onclick="OnSkyTap">
+            @for (var i = 0; i < stars.Count; i++)
+            {
+                var idx = i;
+                var s = stars[idx];
+                <button class="nsk-star @(s.Twinkling ? "twinkling" : "")"
+                        style="left:@(s.X)px; top:@(s.Y)px; font-size:@(s.Size)px;"
+                        @onclick="() => TwinkleStar(idx)" @onclick:stopPropagation="true">⭐</button>
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<NightSkyResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private class Star
+    {
+        public double X;
+        public double Y;
+        public double Size;
+        public bool Twinkling;
+    }
+
+    private const int MaxStars = 30;
+
+    private Phase phase = Phase.Setup;
+    private readonly List<Star> stars = new();
+    private readonly Random rng = new();
+    private int starsPlaced;
+    private DateTime startedAtUtc;
+
+    private void StartGame()
+    {
+        stars.Clear();
+        starsPlaced = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task OnSkyTap(MouseEventArgs e)
+    {
+        if (stars.Count >= MaxStars) return;
+
+        starsPlaced++;
+        var star = new Star { X = e.OffsetX, Y = e.OffsetY, Size = 22 + rng.NextDouble() * 14 };
+        stars.Add(star);
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playCatchSound");
+    }
+
+    private async Task TwinkleStar(int index)
+    {
+        var star = stars[index];
+        if (star.Twinkling) return;
+
+        star.Twinkling = true;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playMatchSound");
+
+        await Task.Delay(700);
+        star.Twinkling = false;
+        StateHasChanged();
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new NightSkyResult(
+                StarsPlaced: starsPlaced,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record NightSkyResult(int StarsPlaced, int ElapsedSeconds);
+}

@@ -94,12 +94,13 @@ and multi-step rules.
 
 ### Peek/reveal
 
-- [ ] Where Did It Go? - an object slowly hides behind something; tap the
-  hiding place to reveal it.
+- [x] Where Did It Go? - an object slowly hides behind something; tap the
+  hiding place to reveal it. (Covered by `PeekReveal.razor`'s "Egg
+  Surprise" theme - already shipped, just not checked off here.)
 
 ### Big tap targets and sensory feedback
 
-- [ ] Lights On / Lights Off - tap lamps, switches, stars, or windows to toggle
+- [x] Lights On / Lights Off - tap lamps, switches, stars, or windows to toggle
   them on and off.
 - [x] Big / Small - tap a tiny object and it becomes huge; tap again and it
   shrinks.
@@ -107,37 +108,39 @@ and multi-step rules.
   soft sound or animation.
 - [x] Finger Trails - drag a finger and leave stars, bubbles, snowflakes, paint,
   or sparkles behind.
-- [ ] Fireworks Touch - tap anywhere for a soft colorful burst; keep it gentle,
+- [x] Fireworks Touch - tap anywhere for a soft colorful burst; keep it gentle,
   not realistic or loud.
 - [ ] Spin the Wheel - swipe or tap a large wheel, fan, pinwheel, or carousel
   and watch it spin.
 
 ### Animals, body, and sound
 
-- [ ] Wake Up the Animals - sleeping animals wake, stretch, make a sound, then
-  eventually fall asleep again.
+- [x] Wake Up the Animals - sleeping animals wake, stretch, make a sound, then
+  eventually fall asleep again. (`SleepyAnimals.razor`'s "Wake Up" mode.)
 - [ ] Funny Faces - tap parts of a face; nose honks, ears wiggle, eyes blink,
   tongue pops out.
 - [ ] Touch the Body Part - a friendly character highlights "nose", "hand",
   "foot", etc.; exploratory rather than a correct-answer quiz.
-- [ ] Bedtime Animals - tap animals to tuck them into bed, turn off the lamp,
-  and hear a tiny sleepy sound.
+- [x] Bedtime Animals - tap animals to tuck them into bed, turn off the lamp,
+  and hear a tiny sleepy sound. (`SleepyAnimals.razor`'s "Bedtime" mode.)
 
 ### Gentle worlds
 
-- [ ] Touch the Fish - fish swim slowly around an aquarium; touching one makes
-  it wiggle, bubble, or swim away.
+- [x] Touch the Fish - fish swim slowly around an aquarium; touching one makes
+  it wiggle, bubble, or swim away. (`GentleCreatures.razor`'s "Fish Tank" theme.)
 - [ ] Make It Rain - tap clouds for rain, then sunshine, rainbows, puddles,
   etc.
-- [ ] Baby Aquarium - mostly passive fish, bubbles, and plants; touching
-  anything causes a small response.
-- [ ] Night Sky - tap the dark sky to add stars; tap stars to make them
+- [x] Baby Aquarium - mostly passive fish, bubbles, and plants; touching
+  anything causes a small response. (Same "Fish Tank" theme as Touch the
+  Fish - identical roadmap idea, one component.)
+- [x] Night Sky - tap the dark sky to add stars; tap stars to make them
   twinkle.
 - [ ] Snow Day - tap to make snow fall, create footprints, or reveal objects
   beneath snow.
 - [ ] Puddle Splash - tap puddles and watch a character jump into them.
-- [ ] Follow the Butterfly - a butterfly moves slowly around; touching it makes
-  it flutter somewhere else.
+- [x] Follow the Butterfly - a butterfly moves slowly around; touching it makes
+  it flutter somewhere else. (`GentleCreatures.razor`'s "Follow the
+  Butterfly" theme.)
 
 ### Food, music, and physical play
 

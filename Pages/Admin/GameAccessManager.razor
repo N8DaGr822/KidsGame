@@ -35,8 +35,10 @@
                     <label class="access-sort">
                         <span class="muted">Sort by</span>
                         <select value="@_sortKey" @onchange="e => SetSortKey((string)e.Value!)">
-                            <option value="@nameof(GameSortKey.Name)">Name</option>
-                            <option value="@nameof(GameSortKey.Age)">Age</option>
+                            <option value="@nameof(GameSortKey.NameAsc)">Name (A-Z)</option>
+                            <option value="@nameof(GameSortKey.NameDesc)">Name (Z-A)</option>
+                            <option value="@nameof(GameSortKey.AgeAsc)">Age (youngest to oldest)</option>
+                            <option value="@nameof(GameSortKey.AgeDesc)">Age (oldest to youngest)</option>
                             <option value="@nameof(GameSortKey.Enabled)">Enabled first</option>
                         </select>
                     </label>
@@ -262,11 +264,11 @@
     // Extend with more cases (e.g. play count, difficulty) as new sortable
     // fields get added to Game - the dropdown and SortedGames() below are
     // the only two places a new key needs wiring.
-    private enum GameSortKey { Name, Age, Enabled }
+    private enum GameSortKey { NameAsc, NameDesc, AgeAsc, AgeDesc, Enabled }
 
     private Profile? _profile;
     private List<Game>? _allGames;
-    private GameSortKey _sortKey = GameSortKey.Name;
+    private GameSortKey _sortKey = GameSortKey.NameAsc;
     private string _searchText = "";
     private List<string> _allowedIds = new();
     private Dictionary<string, string> _difficultyOverrides = new();
@@ -315,7 +317,7 @@
 
     private void SetSortKey(string value)
     {
-        _sortKey = Enum.TryParse<GameSortKey>(value, out var key) ? key : GameSortKey.Name;
+        _sortKey = Enum.TryParse<GameSortKey>(value, out var key) ? key : GameSortKey.NameAsc;
     }
 
     private IEnumerable<Game> FilteredGames() =>
@@ -323,11 +325,15 @@
             ? _allGames!
             : _allGames!.Where(g => g.Title.Contains(_searchText, StringComparison.OrdinalIgnoreCase));
 
-    // Games without an age set sort after ones that have it, regardless of
-    // sort direction, so unrated catalog entries don't scatter to the top.
+    // Games without an age set sort after ones that have it regardless of
+    // sort direction (both AgeAsc and AgeDesc use OrderBy on the same
+    // "missing age" flag), so unrated catalog entries don't scatter to the
+    // top when flipping direction.
     private IEnumerable<Game> SortedGames() => _sortKey switch
     {
-        GameSortKey.Age => FilteredGames().OrderBy(g => g.MinAge is null).ThenBy(g => g.MinAge).ThenBy(g => g.Title),
+        GameSortKey.NameDesc => FilteredGames().OrderByDescending(g => g.Title),
+        GameSortKey.AgeAsc => FilteredGames().OrderBy(g => g.MinAge is null).ThenBy(g => g.MinAge).ThenBy(g => g.Title),
+        GameSortKey.AgeDesc => FilteredGames().OrderBy(g => g.MinAge is null).ThenByDescending(g => g.MinAge).ThenBy(g => g.Title),
         GameSortKey.Enabled => FilteredGames().OrderByDescending(g => _allowedIds.Contains(g.Id)).ThenBy(g => g.Title),
         _ => FilteredGames().OrderBy(g => g.Title),
     };

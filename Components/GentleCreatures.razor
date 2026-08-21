@@ -1,0 +1,151 @@
+@*
+    GentleCreatures.razor
+    A toddler cause-and-effect toy (~1 year old target) covering three
+    roadmap ideas with one component: "Touch the Fish" and "Baby Aquarium"
+    are the same passive-fish-tank idea (so they share the Fish theme, with
+    Fish adding a few purely decorative rising bubbles for the "aquarium"
+    feel), and "Follow the Butterfly" is the second theme. Creatures drift
+    slowly on their own; tapping one makes it react in place, then glide to
+    a new spot - never disappears, never a fail state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many taps
+    happened and how long the child played, then returns to the theme
+    picker.
+
+    Usage:
+        <GentleCreatures OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="gc-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="gc-setup game-setup-panel">
+            <h2>🐠 Gentle Creatures</h2>
+            <p>Watch them drift by - tap one and see what it does!</p>
+
+            <h3 class="gc-section-title game-section-title">Choose a theme</h3>
+            <div class="gc-theme-select game-option-grid">
+                @foreach (var t in Themes)
+                {
+                    <button class="gc-theme-btn game-option-button @(t.Name == selectedTheme.Name ? "selected" : "")" @onclick="() => selectedTheme = t">
+                        <span class="gc-theme-icon">@t.Icon</span>
+                        <span class="gc-theme-name">@t.Name</span>
+                    </button>
+                }
+            </div>
+
+            <button class="gc-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="gc-hud game-hud">
+            <span class="gc-title">@selectedTheme.Name</span>
+            <button class="gc-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="gc-field">
+            @if (selectedTheme.Kind == ThemeKind.Fish)
+            {
+                @for (var i = 0; i < BubbleCount; i++)
+                {
+                    var idx = i;
+                    <span class="gc-bubble" style="left:@(BubbleLeftPct(idx))%; animation-delay:@(idx * 0.9)s;"></span>
+                }
+            }
+            @for (var i = 0; i < creatures.Length; i++)
+            {
+                var idx = i;
+                var c = creatures[idx];
+                <button class="gc-creature-wrap" style="left:@(c.Left.ToString("0.#", Inv))%; top:@(c.Top.ToString("0.#", Inv))%;" @onclick="() => TapCreature(idx)">
+                    <span class="gc-creature @(c.Reacting ? "reacting" : "")">@selectedTheme.Icon</span>
+                </button>
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<GentleCreaturesResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+    private enum ThemeKind { Fish, Butterfly }
+
+    private record ThemeDefinition(string Name, string Icon, ThemeKind Kind);
+
+    private static readonly ThemeDefinition[] Themes =
+    {
+        new("Fish Tank", "🐠", ThemeKind.Fish),
+        new("Follow the Butterfly", "🦋", ThemeKind.Butterfly),
+    };
+
+    private const int CreatureCount = 3;
+    private const int BubbleCount = 5;
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    private class Creature
+    {
+        public double Left;
+        public double Top;
+        public bool Reacting;
+    }
+
+    private Phase phase = Phase.Setup;
+    private ThemeDefinition selectedTheme = Themes[0];
+    private Creature[] creatures = Array.Empty<Creature>();
+    private readonly Random rng = new();
+    private int taps;
+    private DateTime startedAtUtc;
+
+    private void StartGame()
+    {
+        taps = 0;
+        creatures = Enumerable.Range(0, CreatureCount).Select(_ => NewCreature()).ToArray();
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private Creature NewCreature() => new()
+    {
+        Left = 12 + rng.NextDouble() * 76,
+        Top = 15 + rng.NextDouble() * 60,
+    };
+
+    private static double BubbleLeftPct(int index) => 10 + (index * 80.0 / (BubbleCount - 1));
+
+    private async Task TapCreature(int index)
+    {
+        var creature = creatures[index];
+        taps++;
+
+        creature.Reacting = true;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playCatchSound");
+
+        await Task.Delay(400);
+        creature.Reacting = false;
+        creature.Left = 12 + rng.NextDouble() * 76;
+        creature.Top = 15 + rng.NextDouble() * 60;
+        StateHasChanged();
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new GentleCreaturesResult(
+                Theme: selectedTheme.Name,
+                Taps: taps,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record GentleCreaturesResult(string Theme, int Taps, int ElapsedSeconds);
+}

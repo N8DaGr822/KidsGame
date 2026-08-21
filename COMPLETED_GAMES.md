@@ -32,14 +32,17 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Dungeon Crawler
 - Feed the Animal
 - Finger Trails
+- Fireworks Touch
 - Fishing Catch
 - Flag Guessing Game
 - Follow the Cups
 - Fruit Slice
+- Gentle Creatures
 - Guess the Word
 - Higher or Lower
 - Hot and Cold
 - Laser Maze
+- Lights On, Lights Off
 - Magic Garden
 - Manners Garden
 - Mastermind
@@ -49,6 +52,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Mini RPG Battle
 - Minesweeper
 - Morse Code Challenge
+- Night Sky
 - Number Sequence
 - Odd One Out
 - Pattern Complete
@@ -64,6 +68,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Rock Paper Scissors
 - Shadow Match
 - Shape Sorter
+- Sleepy Animals
 - Simon Says
 - Sliding Puzzle
 - Sound Buttons

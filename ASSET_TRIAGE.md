@@ -278,10 +278,20 @@ games rather than tied to one:
 - `craftpix-net-799827-free-mountain-backgrounds-pixel-art-unity.zip`
 - `craftpix-net-381103-free-simple-summer-top-down-vector-tileset.zip`
 - `craftpix-net-686291-free-pixel-art-fantasy-2d-battlegrounds-unity.zip` -
-  each scene ships as 5-8 separate depth layers (`Layer_1.png`...`Layer_8.png`)
-  for true parallax scrolling, not a flat image. The best-suited background
-  pack here for the roadmap's Endless Runner, or a scrolling RPG battle
-  screen.
+  each of the 4 scenes ships as 5-8 separate depth layers (`Layer_1.png`
+  near-ground...`Layer_7`/`8.png` far sky) for true parallax scrolling, not
+  a flat image, and layer semantics aren't consistent across scenes (e.g.
+  scene 4's `Layer_1` turned out to be a floating bone-scatter overlay, not
+  ground - verified by viewing each layer individually, not assumed from
+  numbering). **Used** (2026-08-21) by `Components/RpgBattle.razor` - one
+  static backdrop per journey "sequence", but only each scene's confirmed
+  full-bleed sky/backdrop layer (`lakeside.png`=scene1 `Layer_7`,
+  `twilight-road.png`=scene2 `Layer_7`, `haunted-woods.png`=scene3
+  `Layer_8`, `bone-desert.png`=scene4 `Layer_7`), not the full parallax
+  stack - simpler and guaranteed gap-free. The near/mid layers (grass,
+  standing stones, giant carved tree trunks, bone scatter, etc.) are still
+  available for a real multi-layer parallax treatment later, or for the
+  roadmap's Endless Runner.
 - `kenney_background-elements-remastered.zip` and
   `kenney_foliage-sprites.zip` - lighter-weight decoration/scene-dressing
   pieces rather than full scenes.

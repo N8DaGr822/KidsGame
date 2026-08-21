@@ -1,0 +1,117 @@
+@*
+    FireworksTouch.razor
+    A toddler cause-and-effect toy (~1 year old target): tap anywhere and a
+    soft, colorful firework bursts open right where you tapped - a bright
+    flash at the center plus a ring of sparks shooting outward, all fading
+    together in under a second. Same tap-anywhere shape as ColorSplash, but
+    a distinct radiating-burst visual rather than a blob, so it reads as
+    its own toy rather than a reskin. No score, no timer, no fail state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many bursts
+    were made and how long the child played, then returns to the setup
+    screen.
+
+    Usage:
+        <FireworksTouch OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="fw-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="fw-setup game-setup-panel">
+            <h2>🎆 Fireworks Touch</h2>
+            <p>Tap anywhere and watch a soft firework burst open!</p>
+            <button class="fw-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="fw-hud game-hud">
+            <span class="fw-title">Fireworks Touch</span>
+            <button class="fw-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="fw-field" @onclick="OnFieldTap">
+            @foreach (var burst in bursts)
+            {
+                <div class="fw-flash" style="left:@(burst.X)px; top:@(burst.Y)px; --fw-color:@burst.Color;"></div>
+                @foreach (var spark in burst.Sparks)
+                {
+                    <span class="fw-spark" style="left:@(burst.X)px; top:@(burst.Y)px; --fw-dx:@(spark.Dx)px; --fw-dy:@(spark.Dy)px; --fw-color:@burst.Color;"></span>
+                }
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<FireworksTouchResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private record Spark(double Dx, double Dy);
+    private record Burst(int Id, double X, double Y, string Color, Spark[] Sparks);
+
+    private static readonly string[] Palette =
+    {
+        "#FFD60A", "#FF6B6B", "#4ECDC4", "#9D4EDD", "#63C7FF", "#FF8FB1", "#8CE99A",
+    };
+
+    private const int SparkCount = 10;
+
+    private Phase phase = Phase.Setup;
+    private readonly List<Burst> bursts = new();
+    private readonly Random rng = new();
+    private int nextId;
+    private int burstsMade;
+    private DateTime startedAtUtc;
+
+    private void StartGame()
+    {
+        bursts.Clear();
+        burstsMade = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task OnFieldTap(MouseEventArgs e)
+    {
+        var id = nextId++;
+        burstsMade++;
+
+        var color = Palette[rng.Next(Palette.Length)];
+        var distance = 55 + rng.NextDouble() * 30;
+        var sparks = Enumerable.Range(0, SparkCount).Select(i =>
+        {
+            var angle = (Math.PI * 2 / SparkCount) * i + rng.NextDouble() * 0.3;
+            return new Spark(Math.Cos(angle) * distance, Math.Sin(angle) * distance);
+        }).ToArray();
+
+        bursts.Add(new Burst(id, e.OffsetX, e.OffsetY, color, sparks));
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playMatchSound");
+
+        await Task.Delay(750);
+        bursts.RemoveAll(b => b.Id == id);
+        StateHasChanged();
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new FireworksTouchResult(
+                Bursts: burstsMade,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record FireworksTouchResult(int Bursts, int ElapsedSeconds);
+}

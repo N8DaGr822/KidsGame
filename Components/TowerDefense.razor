@@ -21,12 +21,17 @@
     face whatever they're aiming at (or their last target, if nothing's
     in range right now) and auto-fire at the enemy furthest along the
     path that's within range, with a small traveling dot standing in for
-    the shot so hits read clearly. The first wave needs a manual "Start
-    Wave" tap to give the player time to set up, but every wave after
-    that auto-starts a few seconds after the previous one clears -
-    "Start Now" on the wave button skips the wait. Reach the end of the
-    path and an enemy costs you lives instead of gold; run out of lives
-    and the run ends.
+    the shot so hits read clearly. The first wave of a run - and the
+    first wave of every new level - needs a manual "Start Wave" tap to
+    give the player time to see the board before anything spawns; every
+    wave after that within the same level auto-starts a few seconds
+    after the previous one clears ("Start Now" on the wave button skips
+    the wait). A confident player can also tap the wave button while a
+    wave is still on the field to stack another one early ("Start Wave
+    Early") - a deliberate speed-run risk, rewarded with a small gold
+    bonus per early start and capped at MaxWaveStack concurrent waves.
+    Reach the end of the path and an enemy costs you lives instead of
+    gold; run out of lives and the run ends.
 
     Tap a placed tower to select it - a range circle shows its coverage
     and a small panel offers Upgrade (stronger/faster, up to
@@ -85,9 +90,9 @@
             <span class="td-stat"><img class="td-coin-icon" src="images/tower-defense/coin.png" alt="" />@gold</span>
             <span class="td-stat">❤️ @lives</span>
             <span class="td-stat">🗺️ Level @levelNumber</span>
-            <span class="td-stat">Wave @(waveInLevel + 1)/@WavesPerLevel</span>
+            <span class="td-stat">@WaveLabel()</span>
             <button class="td-wave-btn game-primary-action" disabled="@(!CanStartWave())" @onclick="StartWave">
-                @(waveInProgress ? "Wave in progress…" : nextWaveCountdownMs > 0 ? $"Start Now ({Math.Ceiling(nextWaveCountdownMs / 1000.0)}s)" : "Start Wave")
+                @WaveButtonLabel()
             </button>
             <button class="td-info-btn game-secondary-action" @onclick="() => showLegend = true" aria-label="How tower merges work">❓</button>
             <button class="td-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
@@ -452,6 +457,15 @@
     private const int SpawnIntervalMs = 550;
     private const int AutoWaveDelayMs = 8000;
 
+    // "Start Wave Early" lets a confident player stack another wave's
+    // worth of enemies on top of the one still on the field instead of
+    // waiting it out - a deliberate speed-run/risk choice, rewarded with a
+    // small gold bonus. Capped at MaxWaveStack concurrent waves so the
+    // button can't be spammed for infinite gold and the field doesn't fill
+    // with an unbounded pile of enemies.
+    private const int EarlyWaveBonusGold = 20;
+    private const int MaxWaveStack = 3;
+
     /// <summary>Random left-to-right route with 3-5 turns: enters at a
     /// random row on the left edge, zig-zags through strictly increasing
     /// columns (so it can never cross or retrace itself), exits at a
@@ -585,6 +599,7 @@
     private int waveInLevel;
     private int totalWavesCleared;
     private bool waveInProgress;
+    private int wavesStartedSinceClear;
     private int spawnCooldownMs;
     private int nextWaveCountdownMs;
     private bool won;
@@ -618,6 +633,7 @@
         waveInLevel = 0;
         totalWavesCleared = 0;
         waveInProgress = false;
+        wavesStartedSinceClear = 0;
         spawnCooldownMs = 0;
         nextWaveCountdownMs = 0;
         won = false;
@@ -655,21 +671,58 @@
         phase = Phase.Setup;
     }
 
-    private bool CanStartWave() => phase == Phase.Playing && !waveInProgress;
+    private bool CanStartWave() => phase == Phase.Playing && wavesStartedSinceClear < MaxWaveStack;
 
-    private void StartWave()
+    private string WaveLabel()
+    {
+        var first = waveInLevel + 1;
+        var stacked = Math.Max(1, wavesStartedSinceClear);
+        var last = waveInLevel + stacked;
+        return stacked > 1 ? $"Wave {first}-{last}/{WavesPerLevel}" : $"Wave {first}/{WavesPerLevel}";
+    }
+
+    private string WaveButtonLabel()
+    {
+        if (!waveInProgress)
+        {
+            return nextWaveCountdownMs > 0 ? $"Start Now ({Math.Ceiling(nextWaveCountdownMs / 1000.0)}s)" : "Start Wave";
+        }
+
+        return CanStartWave() ? $"Start Wave Early (+{EarlyWaveBonusGold}g)" : "Wave in progress…";
+    }
+
+    private async Task StartWave()
     {
         if (!CanStartWave()) return;
 
-        var count = 5 + totalWavesCleared * 2;
+        // Starting on top of a wave that's still on the field is the
+        // "early start" case that earns the bonus - starting fresh (no
+        // wave active) or skipping the between-wave countdown via "Start
+        // Now" doesn't, since nothing is actually at risk yet.
+        var earlyStart = waveInProgress;
+
+        // Each stacked wave uses its own position in the sequence (current
+        // total plus however many are already stacked on top of it) for
+        // enemy count/type scaling, so a third wave stacked early is
+        // harder than the first - the same escalation it would've gotten
+        // clearing them one at a time.
+        var effectiveWave = totalWavesCleared + wavesStartedSinceClear;
+        var count = 5 + effectiveWave * 2;
         for (var i = 0; i < count; i++)
         {
-            pendingSpawns.Enqueue(PickEnemyType(totalWavesCleared));
+            pendingSpawns.Enqueue(PickEnemyType(effectiveWave));
         }
 
+        wavesStartedSinceClear++;
         waveInProgress = true;
         spawnCooldownMs = 0;
         nextWaveCountdownMs = 0;
+
+        if (earlyStart)
+        {
+            gold += EarlyWaveBonusGold;
+            await Interop.InvokeVoidAsync("playMatchSound");
+        }
     }
 
     /// <summary>A rule doesn't enter the roll until wave &gt;= MinWave (0
@@ -913,7 +966,7 @@
             if (nextWaveCountdownMs <= 0)
             {
                 nextWaveCountdownMs = 0;
-                StartWave();
+                await StartWave();
             }
         }
 
@@ -1054,8 +1107,15 @@
         if (waveInProgress && pendingSpawns.Count == 0 && enemies.Count == 0)
         {
             waveInProgress = false;
-            waveInLevel++;
-            totalWavesCleared++;
+
+            // Usually just 1, but a player who stacked early starts
+            // cleared that many waves' worth of enemies in one go - credit
+            // all of them, not just the last one, so the wave counter and
+            // future difficulty scaling reflect what was actually fought.
+            var wavesCleared = Math.Max(1, wavesStartedSinceClear);
+            wavesStartedSinceClear = 0;
+            waveInLevel += wavesCleared;
+            totalWavesCleared += wavesCleared;
 
             if (waveInLevel >= WavesPerLevel)
             {
@@ -1075,9 +1135,18 @@
                 selectedPlacedTowerPos = null;
                 selectedTowerType = null;
                 (pathCells, pathSet) = GenerateLevel();
-            }
 
-            nextWaveCountdownMs = AutoWaveDelayMs;
+                // A new level needs a fresh look at the board before
+                // anything spawns - same reason the very first wave of a
+                // run never auto-starts (see StartGame). Auto-continuing
+                // straight into wave 1 of a level the player hasn't seen
+                // yet doesn't give them time to place opening towers.
+                nextWaveCountdownMs = 0;
+            }
+            else
+            {
+                nextWaveCountdownMs = AutoWaveDelayMs;
+            }
         }
 
         StateHasChanged();

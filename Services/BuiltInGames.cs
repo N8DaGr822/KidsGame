@@ -88,6 +88,11 @@ public static class BuiltInGames
     public const string BigSmall = "big-small";
     public const string ColorSplash = "color-splash";
     public const string FingerTrails = "finger-trails";
+    public const string SleepyAnimals = "sleepy-animals";
+    public const string GentleCreatures = "gentle-creatures";
+    public const string NightSky = "night-sky";
+    public const string FireworksTouch = "fireworks-touch";
+    public const string LightsOnOff = "lights-on-off";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -168,5 +173,10 @@ public static class BuiltInGames
         new BuiltInGame("Big & Small", "🔵", BigSmall, "images/shapes/blue-circle.png", MinAge: 1, MaxAge: 3),
         new BuiltInGame("Color Splash", "🎨", ColorSplash, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Finger Trails", "✨", FingerTrails, MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Sleepy Animals", "😴", SleepyAnimals, "images/memory/animals/dog.png", MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Gentle Creatures", "🐠", GentleCreatures, MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Night Sky", "🌌", NightSky, MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Fireworks Touch", "🎆", FireworksTouch, MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Lights On, Lights Off", "💡", LightsOnOff, MinAge: 1, MaxAge: 3),
     };
 }

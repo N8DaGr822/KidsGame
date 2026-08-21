@@ -1,0 +1,92 @@
+@*
+    LightsOnOff.razor
+    A toddler cause-and-effect toy (~1 year old target): a small grid of
+    lamps, switches, and stars - tap any one to toggle it on or off, with a
+    soft glow and a click sound. Every tap is valid in both directions, no
+    "correct" pattern to solve. No score, no timer, no fail state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many toggles
+    happened and how long the child played, then returns to the setup
+    screen.
+
+    Usage:
+        <LightsOnOff OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="lof-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="lof-setup game-setup-panel">
+            <h2>💡 Lights On, Lights Off</h2>
+            <p>Tap a light to turn it on - tap again to turn it off!</p>
+            <button class="lof-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="lof-hud game-hud">
+            <span class="lof-title">Lights On, Lights Off</span>
+            <button class="lof-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="lof-grid">
+            @for (var i = 0; i < lights.Length; i++)
+            {
+                var idx = i;
+                var lit = lights[idx];
+                <button class="lof-light @(lit ? "on" : "off")" @onclick="() => ToggleLight(idx)">
+                    <span class="lof-glyph">@LightGlyphs[idx % LightGlyphs.Length]</span>
+                </button>
+            }
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<LightsOnOffResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private static readonly string[] LightGlyphs = { "💡", "🌟", "🔦", "🪔", "✨", "💡" };
+    private const int LightCount = 6;
+
+    private Phase phase = Phase.Setup;
+    private bool[] lights = new bool[LightCount];
+    private int toggles;
+    private DateTime startedAtUtc;
+
+    private void StartGame()
+    {
+        lights = new bool[LightCount];
+        toggles = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task ToggleLight(int index)
+    {
+        lights[index] = !lights[index];
+        toggles++;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync(lights[index] ? "playCatchSound" : "playImpactSound");
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new LightsOnOffResult(
+                Toggles: toggles,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record LightsOnOffResult(int Toggles, int ElapsedSeconds);
+}
