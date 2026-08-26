@@ -51,6 +51,19 @@
                 </div>
             }
 
+            <h3 class="game-section-title">Training mode</h3>
+            <p class="cg-scope-note">Adds an Undo button during the game, so you can take back a move and try something else - good for learning better moves.</p>
+            <div class="game-option-grid">
+                <button class="game-option-button @(!trainingMode ? "selected" : "")" @onclick="() => trainingMode = false">
+                    <span class="cg-diff-name">Off</span>
+                    <span class="cg-diff-detail">Standard play</span>
+                </button>
+                <button class="game-option-button @(trainingMode ? "selected" : "")" @onclick="() => trainingMode = true">
+                    <span class="cg-diff-name">On</span>
+                    <span class="cg-diff-detail">Undo enabled, no personal best</span>
+                </button>
+            </div>
+
             <button class="game-primary-action" @onclick="StartGame">Start Game</button>
         </div>
     }
@@ -61,6 +74,10 @@
             <span class="game-stat">⚪ You @whiteCount</span>
             <span class="game-stat">⚫ CPU @blackCount</span>
             <span class="game-stat">Turn @playerTurnsTaken</span>
+            @if (trainingMode)
+            {
+                <button class="game-secondary-action" disabled="@(!CanUndo)" @onclick="UndoLastMove">↩ Undo</button>
+            }
             <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
@@ -149,6 +166,8 @@
 
     private Phase phase = Phase.Setup;
     private GameAi.Difficulty selectedDifficulty = GameAi.Difficulty.Easy;
+    private bool trainingMode;
+    private readonly Stack<(int[,] Board, int PlayerTurnsTaken)> undoStack = new();
     private Turn turn = Turn.Player;
     private int[,] board = new int[ChessRules.Size, ChessRules.Size];
     private (int Row, int Col)? selectedSquare;
@@ -175,6 +194,7 @@
         turn = Turn.Player;
         selectedSquare = null;
         legalDestinations = new();
+        undoStack.Clear();
         animating = false;
         playerTurnsTaken = 0;
         outcome = Outcome.None;
@@ -229,6 +249,11 @@
         animating = true;
         selectedSquare = null;
         legalDestinations = new();
+
+        if (trainingMode)
+        {
+            undoStack.Push(((int[,])board.Clone(), playerTurnsTaken));
+        }
 
         var wasCapture = board[toRow, toCol] != ChessRules.Empty;
         ChessRules.ApplyMove(board, new ChessRules.Move(fromRow, fromCol, toRow, toCol));
@@ -295,6 +320,26 @@
         StateHasChanged();
     }
 
+    private bool CanUndo => trainingMode && phase == Phase.Playing && turn == Turn.Player && !animating && undoStack.Count > 0;
+
+    // Pops the snapshot taken right before the player's last move (see
+    // ApplyPlayerMoveAsync), restoring the board to that point so the CPU's
+    // reply is undone along with it - the player gets a clean shot at a
+    // different move rather than just visually rewinding one ply.
+    private void UndoLastMove()
+    {
+        if (!CanUndo) return;
+
+        var (prevBoard, prevTurns) = undoStack.Pop();
+        board = prevBoard;
+        playerTurnsTaken = prevTurns;
+        selectedSquare = null;
+        legalDestinations = new();
+        UpdateCounts();
+        statusText = ChessRules.IsInCheck(board, false) ? "Check! Your move." : "Your move.";
+        StateHasChanged();
+    }
+
     private void UpdateCounts()
     {
         whiteCount = 0;
@@ -336,7 +381,10 @@
         phase = Phase.Finished;
         statusText = "";
 
-        if (!string.IsNullOrEmpty(ProfileId))
+        // Training mode's undo lets a run's turn count be gamed (retry
+        // until a short win), so it's excluded from the personal best
+        // entirely rather than just skipping the record-if-better check.
+        if (!trainingMode && !string.IsNullOrEmpty(ProfileId))
         {
             var key = $"fewest-turns-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
             bestTurns = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.ChessGame, key);
