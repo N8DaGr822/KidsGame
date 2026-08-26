@@ -1,5 +1,5 @@
 .c4-game {
-    width: min(640px, 100%);
+    width: min(900px, 96vw);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -99,7 +99,7 @@
     display: grid;
     grid-template-columns: repeat(var(--c4-cols), 1fr);
     gap: clamp(3px, 1vw, 6px);
-    width: min(480px, 94vw);
+    width: min(760px, 90vw, 70vh);
     aspect-ratio: 7 / 6;
     margin: 0 auto;
     padding: clamp(4px, 1.5vw, 10px);

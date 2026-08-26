@@ -1,5 +1,5 @@
 .ck-game {
-    width: min(480px, 100%);
+    width: min(860px, 94vw);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -24,7 +24,7 @@
     display: grid;
     grid-template-columns: repeat(8, 1fr);
     grid-template-rows: repeat(8, 1fr);
-    width: min(420px, 100%);
+    width: min(820px, 90vw, 74vh);
     aspect-ratio: 1;
     margin: 0 auto;
     border: 3px solid #5c3a21;

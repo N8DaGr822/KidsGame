@@ -1,5 +1,5 @@
 .bk-game {
-    width: min(560px, 100%);
+    width: min(1100px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -22,7 +22,7 @@
 
 .bk-field {
     position: relative;
-    width: 100%;
+    width: min(1000px, 92vw, 118vh);
     aspect-ratio: 16 / 10;
     border-radius: var(--radius-md);
     overflow: hidden;

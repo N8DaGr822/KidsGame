@@ -1,5 +1,5 @@
 .sla-game {
-    width: min(640px, 100%);
+    width: min(1100px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -80,7 +80,7 @@
 
 .sla-scene {
     position: relative;
-    width: min(560px, 96vw);
+    width: min(1000px, 92vw);
     margin: 0 auto;
     border-radius: var(--radius-lg);
     background: linear-gradient(180deg, rgba(120, 130, 220, 0.14), rgba(120, 130, 220, 0.03));
@@ -114,8 +114,8 @@
 }
 
 .sla-animal-img {
-    width: 72px;
-    height: 72px;
+    width: clamp(56px, 9vw, 130px);
+    height: clamp(56px, 9vw, 130px);
     object-fit: contain;
     filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2));
     transition: filter 0.4s ease, opacity 0.4s ease, transform 0.3s ease;

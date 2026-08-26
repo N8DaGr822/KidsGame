@@ -1,5 +1,5 @@
 .bs-game {
-    width: min(640px, 100%);
+    width: min(1100px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -34,7 +34,7 @@
 
 .bs-stage {
     position: relative;
-    width: min(560px, 96vw);
+    width: min(1000px, 92vw, 98vh);
     aspect-ratio: 4 / 3;
     margin: 0 auto;
     display: grid;
@@ -66,8 +66,8 @@
 }
 
 .bs-character.big {
-    width: min(70vw, 320px);
-    height: min(70vw, 320px);
+    width: min(60vw, 55vh, 480px);
+    height: min(60vw, 55vh, 480px);
 }
 
 .bs-body {

@@ -1,5 +1,5 @@
 .cg-game {
-    width: min(560px, 100%);
+    width: min(820px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -68,7 +68,7 @@
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 0.35rem;
-    width: min(480px, 100%);
+    width: min(620px, 100%);
     margin: 0 auto;
 }
 

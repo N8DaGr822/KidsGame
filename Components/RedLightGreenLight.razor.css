@@ -1,5 +1,5 @@
 .rg-game {
-    width: min(640px, 100%);
+    width: min(960px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -100,7 +100,7 @@
 
 .rg-track {
     position: relative;
-    width: min(560px, 96vw);
+    width: min(900px, 96vw);
     height: 4.5rem;
     margin: 0 auto;
     border-radius: var(--radius-lg);

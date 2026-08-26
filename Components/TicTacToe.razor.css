@@ -1,5 +1,5 @@
 .tt-game {
-    width: min(560px, 100%);
+    width: min(700px, 92vw);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -99,7 +99,7 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 0.6rem;
-    width: min(360px, 88vw);
+    width: min(560px, 80vw, 56vh);
     aspect-ratio: 1;
     margin: 0 auto;
     padding: 0.6rem;

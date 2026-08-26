@@ -1,5 +1,5 @@
 .bpn-game {
-    width: min(640px, 100%);
+    width: min(1100px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -82,8 +82,9 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: clamp(0.5rem, 2.5vw, 0.9rem);
-    width: min(560px, 94vw);
+    width: min(760px, 92vw, 110vh);
     margin: 0 auto;
+    touch-action: none;
 }
 
 .bpn-key {
@@ -92,7 +93,10 @@
     border-radius: var(--radius-lg);
     background: var(--bpn-color);
     box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25), var(--shadow-sm);
-    touch-action: manipulation;
+    /* none, not manipulation: a toddler's touch-then-slide must not be
+       interpreted as a pan/scroll gesture, which can swallow the pointerdown
+       and make the key feel unresponsive. */
+    touch-action: none;
     transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
 

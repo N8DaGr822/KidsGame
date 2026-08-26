@@ -1,5 +1,5 @@
 .ftc-game {
-    width: min(480px, 100%);
+    width: min(780px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -30,24 +30,25 @@
 
 .ftc-table {
     position: relative;
-    height: 160px;
+    width: min(680px, 92vw);
+    height: clamp(160px, 26vw, 260px);
     margin: 0.5rem auto 0;
 }
 
 .ftc-slot {
     position: absolute;
     bottom: 0;
-    width: 110px;
-    height: 90px;
+    width: calc(100% / var(--ftc-count, 3) * 0.82);
+    height: 82%;
     transition: left 0.35s ease;
 }
 
 .ftc-ball {
     position: absolute;
     left: 50%;
-    bottom: 6px;
+    bottom: 4%;
     transform: translateX(-50%);
-    font-size: 1.6rem;
+    font-size: clamp(1.6rem, 5vw, 2.4rem);
     line-height: 1;
     z-index: 1;
 }
@@ -74,7 +75,7 @@
 }
 
 .ftc-cup.lifted {
-    transform: translateY(-58px) rotate(-4deg);
+    transform: translateY(-64%) rotate(-4deg);
 }
 
 .ftc-cup.correct {
@@ -87,7 +88,7 @@
 }
 
 @keyframes ftc-shake {
-    0%, 100% { transform: translateY(-58px) rotate(-4deg) translateX(0); }
-    25% { transform: translateY(-58px) rotate(-4deg) translateX(-6px); }
-    75% { transform: translateY(-58px) rotate(-4deg) translateX(6px); }
+    0%, 100% { transform: translateY(-64%) rotate(-4deg) translateX(0); }
+    25% { transform: translateY(-64%) rotate(-4deg) translateX(-6px); }
+    75% { transform: translateY(-64%) rotate(-4deg) translateX(6px); }
 }

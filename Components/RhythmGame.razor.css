@@ -1,5 +1,5 @@
 .rg-game {
-    width: min(420px, 100%);
+    width: min(480px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -23,8 +23,8 @@
 
 .rg-lane {
     position: relative;
-    width: min(160px, 40vw);
-    height: min(260px, 45vh);
+    width: min(220px, 42vw);
+    height: min(560px, 68vh);
     background: linear-gradient(180deg, #1c2436 0%, #10151f 100%);
     border: 1px solid var(--line);
     border-radius: var(--radius-md);

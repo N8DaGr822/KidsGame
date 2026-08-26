@@ -1,5 +1,5 @@
 .sk-game {
-    width: min(560px, 100%);
+    width: min(860px, 94vw);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -112,7 +112,7 @@
     display: grid;
     grid-template-columns: repeat(var(--sk-size), 1fr);
     gap: 1px;
-    width: min(440px, 92vw);
+    width: min(820px, 90vw, 74vh);
     aspect-ratio: 1;
     margin: 0 auto;
     padding: 2px;

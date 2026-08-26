@@ -1,5 +1,5 @@
 .cg-game {
-    width: min(640px, 100%);
+    width: min(1100px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -96,7 +96,7 @@
     display: grid;
     grid-template-columns: repeat(var(--cg-lanes), 1fr);
     grid-template-rows: 1fr;
-    width: min(480px, 92vw);
+    width: min(720px, 90vw, 58vh);
     aspect-ratio: 3 / 4;
     margin: 0 auto;
     border-radius: var(--radius-md);

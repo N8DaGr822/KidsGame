@@ -1,5 +1,5 @@
 .mng-game {
-    width: min(760px, 100%);
+    width: min(900px, 100%);
     margin: 0 auto;
     color: var(--text);
 }
@@ -365,7 +365,7 @@
 .mng-cleanup-area {
     position: relative;
     width: 100%;
-    height: 16rem;
+    height: clamp(16rem, 32vh, 22rem);
     touch-action: none;
 }
 
@@ -402,7 +402,7 @@
 .mng-achoo-area {
     position: relative;
     width: 100%;
-    height: 14rem;
+    height: clamp(14rem, 28vh, 19rem);
     touch-action: none;
 }
 

@@ -1,5 +1,5 @@
 .ds-game {
-    width: min(640px, 100%);
+    width: min(1100px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -44,7 +44,7 @@
 
 .ds-field {
     position: relative;
-    width: min(560px, 96vw);
+    width: min(1000px, 92vw, 118vh);
     aspect-ratio: 16 / 10;
     margin: 0 auto;
     border-radius: var(--radius-md);

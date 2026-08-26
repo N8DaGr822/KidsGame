@@ -1,5 +1,5 @@
 .hl-game {
-    width: min(560px, 100%);
+    width: min(760px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -146,7 +146,7 @@
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 0.7rem;
-    width: min(420px, 92vw);
+    width: min(480px, 92vw);
     margin: 0 auto;
 }
 

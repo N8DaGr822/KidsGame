@@ -1,5 +1,5 @@
 .sm-game {
-    width: min(560px, 100%);
+    width: min(820px, 94vw);
     margin: 0 auto;
     color: var(--text);
     display: grid;

@@ -1,5 +1,5 @@
 .pc-game {
-    width: min(620px, 100%);
+    width: min(880px, 94vw);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -46,7 +46,7 @@
 
 .pc-choices {
     grid-template-columns: repeat(4, 1fr) !important;
-    width: min(420px, 100%);
+    width: min(640px, 90vw);
     margin: 0 auto;
 }
 

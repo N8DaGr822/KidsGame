@@ -1,5 +1,5 @@
 .cb-game {
-    width: min(480px, 100%);
+    width: min(780px, 92vw);
     margin: 0 auto;
     color: var(--text);
     display: grid;

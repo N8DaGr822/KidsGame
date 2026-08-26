@@ -1,5 +1,5 @@
 .bs-game {
-    width: min(520px, 100%);
+    width: min(900px, 96vw);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -33,7 +33,7 @@
 .bs-grid {
     display: grid;
     grid-template-columns: repeat(var(--bs-size), 1fr);
-    width: min(420px, 100%);
+    width: min(640px, 90vw, 50vh);
     aspect-ratio: 1;
     margin: 0 auto;
     border: 1px solid var(--line);
@@ -43,7 +43,7 @@
 }
 
 .bs-grid-own {
-    width: min(260px, 70%);
+    width: min(400px, 70%);
     background: #1b2a4a;
     opacity: 0.9;
 }
@@ -79,14 +79,14 @@
 
 .bs-board-wrap {
     position: relative;
-    width: min(420px, 100%);
+    width: min(640px, 90vw, 50vh);
     margin: 0 auto;
     border-radius: var(--radius-md);
     overflow: hidden;
 }
 
 .bs-board-wrap-own {
-    width: min(260px, 70%);
+    width: min(400px, 70%);
 }
 
 /* Inside a board-wrap, the grid just fills it and turns its own

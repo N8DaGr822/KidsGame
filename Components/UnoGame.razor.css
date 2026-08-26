@@ -1,5 +1,5 @@
 .uno-game {
-    width: min(780px, 100%);
+    width: min(960px, 97vw);
     margin: 0 auto;
     color: var(--text);
 }

@@ -1,5 +1,5 @@
 .ma-game {
-    width: min(440px, 100%);
+    width: min(720px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;

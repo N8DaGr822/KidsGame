@@ -1,5 +1,5 @@
 .dc-game {
-    width: min(480px, 100%);
+    width: min(740px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -32,7 +32,7 @@
     display: grid;
     grid-template-columns: repeat(var(--dc-cols), 1fr);
     grid-template-rows: repeat(var(--dc-rows), 1fr);
-    width: min(420px, 100%);
+    width: min(680px, 92vw, 75vh);
     aspect-ratio: var(--dc-cols) / var(--dc-rows);
     margin: 0 auto;
     border: 3px solid #2a2036;

@@ -57,7 +57,7 @@
 
         <p class="ftc-status">@StatusText</p>
 
-        <div class="ftc-table" style="width:@(Math.Max(1, cups.Count) * CupStepPx)px">
+        <div class="ftc-table" style="--ftc-count:@Math.Max(1, cups.Count)">
             @foreach (var cup in cups)
             {
                 var isBallCup = cup.Id == ballCupId;
@@ -65,7 +65,7 @@
                 var isWrongGuess = roundState == RoundState.Revealing && cup.Id == guessedCupId && !isBallCup;
                 var isCorrectGuess = roundState == RoundState.Revealing && cup.Id == guessedCupId && isBallCup;
 
-                <div class="ftc-slot" @key="cup.Id" style="left:@(cup.Position * CupStepPx)px">
+                <div class="ftc-slot" @key="cup.Id" style="left:@((cup.Position * 100.0 / cups.Count).ToString(Inv))%">
                     @if (isBallCup)
                     {
                         <span class="ftc-ball">🔴</span>
@@ -101,6 +101,8 @@
 </div>
 
 @code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
     [Parameter] public string? PlayerName { get; set; }
     [Parameter] public EventCallback<FollowTheCupsResult> OnComplete { get; set; }
 
@@ -124,7 +126,6 @@
     }
 
     private const int SessionSize = 6;
-    private const int CupStepPx = 130;
 
     private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
 

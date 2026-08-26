@@ -1,5 +1,5 @@
 .pr-game {
-    width: min(640px, 100%);
+    width: min(1100px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -81,12 +81,12 @@
 .pr-scene {
     display: grid;
     place-items: center;
-    min-height: min(320px, 60vw);
+    min-height: min(480px, 60vw, 60vh);
 }
 
 .pr-single-spot,
 .pr-egg-spot {
-    width: min(260px, 70vw);
+    width: min(420px, 60vw, 55vh);
     aspect-ratio: 1;
     border: none;
     border-radius: 50%;
@@ -132,7 +132,7 @@
 }
 
 .pr-door {
-    width: min(140px, 26vw);
+    width: min(220px, 24vw, 40vh);
     aspect-ratio: 3 / 5;
     border: none;
     border-radius: var(--radius-md);

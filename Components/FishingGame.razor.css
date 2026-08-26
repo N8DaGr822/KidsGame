@@ -1,5 +1,5 @@
 .fishing-game {
-    width: min(780px, 100%);
+    width: min(1100px, 100%);
     margin: 0 auto;
     color: var(--text);
 }
@@ -236,7 +236,7 @@
 
 .fg-water {
     position: relative;
-    height: clamp(320px, 55vh, 430px);
+    height: clamp(340px, 62vh, 620px);
     overflow: hidden;
     background:
         repeating-linear-gradient(100deg, rgba(255, 255, 255, 0.08) 0 2px, transparent 2px 46px),

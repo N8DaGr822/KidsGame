@@ -1,5 +1,5 @@
 .bm-game {
-    width: min(420px, 100%);
+    width: min(720px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -12,7 +12,7 @@
 
 .bm-canvas {
     position: relative;
-    width: min(320px, 82vw);
+    width: min(560px, 85vw, 74vh);
     aspect-ratio: 1;
     margin: 0 auto;
     border-radius: var(--radius-lg);

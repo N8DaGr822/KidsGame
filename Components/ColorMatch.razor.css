@@ -1,5 +1,5 @@
 .cm-game {
-    width: min(560px, 100%);
+    width: min(860px, 94vw);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -32,7 +32,7 @@
 .cm-choices {
     display: grid;
     gap: 0.8rem;
-    width: min(480px, 100%);
+    width: min(760px, 90vw);
     margin: 0 auto;
 }
 

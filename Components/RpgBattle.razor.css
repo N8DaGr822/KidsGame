@@ -1,5 +1,5 @@
 .rb-game {
-    width: min(480px, 100%);
+    width: min(640px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;

@@ -1,5 +1,5 @@
 .rc-game {
-    width: min(560px, 100%);
+    width: min(760px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -23,7 +23,7 @@
 .rc-grid {
     display: grid;
     grid-template-columns: repeat(var(--rc-size), 1fr);
-    width: min(360px, 100%);
+    width: min(420px, 100%);
     aspect-ratio: 1;
     margin: 0 auto;
     border: 1px solid var(--line);

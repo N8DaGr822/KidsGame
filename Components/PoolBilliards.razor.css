@@ -1,5 +1,5 @@
 .pb-game {
-    width: min(560px, 100%);
+    width: min(920px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -22,7 +22,7 @@
 
 .pb-field {
     position: relative;
-    width: min(520px, 100%);
+    width: min(860px, 92vw, 140vh);
     aspect-ratio: 2 / 1;
     margin: 0 auto;
     border-radius: var(--radius-sm);

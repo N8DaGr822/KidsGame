@@ -48,7 +48,7 @@
             @for (var i = 0; i < KeyColors.Length; i++)
             {
                 var idx = i;
-                <button class="bpn-key @(activeIndex == idx ? "active" : "")" style="--bpn-color:@KeyColors[idx];" @onclick="() => Tap(idx)"></button>
+                <button class="bpn-key @(activeIndex == idx ? "active" : "")" style="--bpn-color:@KeyColors[idx];" @onpointerdown="() => Tap(idx)"></button>
             }
         </div>
     }

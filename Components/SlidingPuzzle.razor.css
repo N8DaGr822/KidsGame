@@ -1,5 +1,5 @@
 .sp-game {
-    width: min(640px, 100%);
+    width: min(900px, 96vw);
     margin: 0 auto;
     color: var(--text);
 }
@@ -95,7 +95,7 @@
     display: grid;
     grid-template-columns: repeat(var(--sp-size), 1fr);
     gap: 4px;
-    width: min(480px, 92vw);
+    width: min(820px, 90vw, 74vh);
     aspect-ratio: 1;
     padding: 4px;
     border: 1px solid var(--line);

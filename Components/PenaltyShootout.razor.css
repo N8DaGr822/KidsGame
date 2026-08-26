@@ -1,5 +1,5 @@
 .ps-game {
-    width: min(560px, 100%);
+    width: min(1100px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -22,7 +22,7 @@
 
 .ps-field {
     position: relative;
-    width: 100%;
+    width: min(1000px, 92vw, 130vh);
     aspect-ratio: 16 / 9;
     border-radius: var(--radius-md);
     overflow: hidden;

@@ -1,5 +1,5 @@
 .sg-game {
-    width: min(480px, 100%);
+    width: min(680px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -37,7 +37,7 @@
 
 .sg-field {
     position: relative;
-    width: min(420px, 92vw);
+    width: min(620px, 90vw, 50vh);
     aspect-ratio: 100 / 140;
     margin: 0 auto;
     border-radius: var(--radius-md);

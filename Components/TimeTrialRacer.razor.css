@@ -1,5 +1,5 @@
 .tt-game {
-    width: min(480px, 100%);
+    width: min(1100px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -39,7 +39,7 @@
 
 .tt-field {
     position: relative;
-    width: min(360px, 88vw);
+    width: min(760px, 92vw, 55vh);
     aspect-ratio: 200 / 300;
     margin: 0 auto;
     border-radius: var(--radius-md);

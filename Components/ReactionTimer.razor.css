@@ -1,5 +1,5 @@
 .rt-game {
-    width: min(640px, 100%);
+    width: min(820px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -87,7 +87,7 @@
 }
 
 .rt-panel {
-    width: min(480px, 92vw);
+    width: min(760px, 90vw, 110vh);
     aspect-ratio: 16 / 9;
     margin: 0 auto;
     border: none;

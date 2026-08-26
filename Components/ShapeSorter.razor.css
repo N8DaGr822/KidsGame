@@ -1,5 +1,5 @@
 .ss-game {
-    width: min(620px, 100%);
+    width: min(860px, 94vw);
     margin: 0 auto;
     color: var(--text);
     display: grid;

@@ -1,5 +1,5 @@
 .sb-game {
-    width: min(640px, 100%);
+    width: min(1100px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -82,7 +82,7 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: clamp(0.6rem, 3vw, 1.1rem);
-    width: min(560px, 94vw);
+    width: min(820px, 92vw, 76vh);
     margin: 0 auto;
 }
 

@@ -1,5 +1,5 @@
 .oo-game {
-    width: min(560px, 100%);
+    width: min(820px, 94vw);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -23,7 +23,7 @@
 .oo-grid {
     display: grid;
     gap: 0.8rem;
-    width: min(480px, 100%);
+    width: min(640px, 90vw, 62vh);
     margin: 0 auto;
 }
 

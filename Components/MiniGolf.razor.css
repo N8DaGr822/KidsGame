@@ -1,5 +1,5 @@
 .mg-game {
-    width: min(420px, 100%);
+    width: min(640px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -22,7 +22,7 @@
 
 .mg-field {
     position: relative;
-    width: min(300px, 78vw);
+    width: min(560px, 85vw, 53vh);
     aspect-ratio: 110 / 170;
     margin: 0 auto;
     border-radius: var(--radius-md);

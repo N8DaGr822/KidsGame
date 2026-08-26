@@ -1,5 +1,5 @@
 .tk-game {
-    width: min(780px, 100%);
+    width: min(1160px, 100%);
     margin: 0 auto;
     color: var(--text);
 }
@@ -122,6 +122,8 @@
 
 .tk-battlefield {
     position: relative;
+    width: min(1100px, 96vw, 110vh);
+    margin: 0 auto;
     aspect-ratio: 16 / 10;
     overflow: hidden;
     border: 1px solid var(--line);

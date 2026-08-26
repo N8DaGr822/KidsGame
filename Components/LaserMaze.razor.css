@@ -1,5 +1,5 @@
 .lm-game {
-    width: min(560px, 100%);
+    width: min(760px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -22,6 +22,8 @@
 
 .lm-grid-wrap {
     position: relative;
+    width: min(640px, 88vw, 72vh);
+    margin: 0 auto;
     background: #10151f;
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
