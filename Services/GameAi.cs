@@ -785,6 +785,17 @@ public static class GameAi
         [ChessRules.King] = 20000,
     };
 
+    // Medium's search is just as tactically sharp as Hard's per-move, which
+    // made it play flawlessly within its shorter horizon - never hanging a
+    // piece, always grabbing a free one - and that reads as "unbeatable" to
+    // a kid rather than "a couple ply shallower." Instead of only tying on
+    // the exact best score, Medium treats anything within this many
+    // centipawns of the best as a fair pick and chooses among those at
+    // random, so it sometimes misses the sharpest continuation or accepts a
+    // slightly worse trade - a human-feeling mistake, not a piece randomly
+    // hung for no reason. Hard keeps a margin of 0 (always the true best).
+    private const int ChessNearBestMargin = 100;
+
     public static ChessRules.Move? ChessMove(int[,] board, bool aiIsWhite, Difficulty difficulty)
     {
         var moves = ChessRules.LegalMovesForColor(board, aiIsWhite);
@@ -798,8 +809,8 @@ public static class GameAi
         }
 
         var depth = difficulty == Difficulty.Medium ? 2 : 3;
-        var bestScore = int.MinValue;
-        var bestMoves = new List<ChessRules.Move>();
+        var margin = difficulty == Difficulty.Medium ? ChessNearBestMargin : 0;
+        var scoredMoves = new List<(ChessRules.Move Move, int Score)>();
 
         // Trying captures first tightens alpha-beta pruning a lot, same
         // idea as Reversi ordering by corner/edge weight before searching.
@@ -808,20 +819,12 @@ public static class GameAi
             var copy = (int[,])board.Clone();
             ChessRules.ApplyMove(copy, move);
             var score = ChessMinimax(copy, depth - 1, false, aiIsWhite, int.MinValue, int.MaxValue);
-
-            if (score > bestScore)
-            {
-                bestScore = score;
-                bestMoves.Clear();
-                bestMoves.Add(move);
-            }
-            else if (score == bestScore)
-            {
-                bestMoves.Add(move);
-            }
+            scoredMoves.Add((move, score));
         }
 
-        return bestMoves[Rng.Next(bestMoves.Count)];
+        var bestScore = scoredMoves.Max(m => m.Score);
+        var nearBest = scoredMoves.Where(m => m.Score >= bestScore - margin).Select(m => m.Move).ToList();
+        return nearBest[Rng.Next(nearBest.Count)];
     }
 
     private static int CapturedValue(int[,] board, ChessRules.Move move)

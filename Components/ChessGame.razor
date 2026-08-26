@@ -4,9 +4,9 @@
     played from the standard starting position with normal turn-by-turn
     play. You're always White. Reuses Services/ChessRules.cs for legal
     move generation and check/checkmate/stalemate detection (see that
-    file's own doc comment: full piece rules, but no castling or en
-    passant, and pawns always auto-promote to a queen - the same scoped
-    engine Chess Puzzles already uses, just played as a whole game
+    file's own doc comment: full piece rules including castling, but no
+    en passant, and pawns always auto-promote to a queen - the same
+    scoped engine Chess Puzzles already uses, just played as a whole game
     instead of solved position-by-position). CPU move selection lives in
     Services/GameAi.cs (ChessMove/ChessMinimax/ChessEvaluate), same
     alpha-beta minimax shape as Reversi/Checkers - Easy plays a legal
@@ -31,7 +31,7 @@
         <div class="cg-setup game-setup-panel">
             <h2>♞ Chess</h2>
             <p>A real game of chess against the CPU - you're always White. Checkmate the black king to win!</p>
-            <p class="cg-scope-note">No castling or en passant yet - everything else is real, including check, checkmate, and stalemate.</p>
+            <p class="cg-scope-note">No en passant yet - everything else is real, including castling, check, checkmate, and stalemate.</p>
 
             <h3 class="game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)

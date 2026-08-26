@@ -2,15 +2,17 @@ namespace KidsGameLauncher.Services;
 
 /// <summary>
 /// A real (if intentionally scoped) chess rules engine backing
-/// Components/ChessPuzzles.razor: full legal move generation per piece
-/// type with proper check/pin filtering (a move that leaves your own
-/// king in check is illegal), plus check/checkmate/stalemate detection.
-/// Deliberately omits castling and en passant - the curated mate-in-1/
-/// mate-in-2 puzzle bank never needs either, and every puzzle position is
-/// hand-placed rather than reached by playing from the start, so there
-/// are no castling rights to track in the first place. Pawn promotion
-/// always promotes to a queen (no underpromotion UI) since no puzzle in
-/// the bank needs anything else.
+/// Components/ChessPuzzles.razor and Components/ChessGame.razor: full
+/// legal move generation per piece type with proper check/pin filtering
+/// (a move that leaves your own king in check is illegal), plus
+/// check/checkmate/stalemate detection. Supports castling, inferred from
+/// the current position (king and rook both still on their home squares)
+/// rather than tracked move history - see CanCastleKingside/
+/// CanCastleQueenside. Still deliberately omits en passant - the curated
+/// mate-in-1/mate-in-2 puzzle bank never needs it, and every puzzle
+/// position is hand-placed rather than reached by playing from the start.
+/// Pawn promotion always promotes to a queen (no underpromotion UI) since
+/// no puzzle in the bank needs anything else.
 ///
 /// Board encoding: int[8,8], row 0 = rank 8 (black's back rank, top of
 /// the board as normally drawn), row 7 = rank 1 (white's back rank,
@@ -201,6 +203,8 @@ public static class ChessRules
                     var r = row + dr; var c = col + dc;
                     if (InBounds(r, c) && !FriendlyAt(r, c)) moves.Add(new Move(row, col, r, c));
                 }
+                if (CanCastleKingside(board, row, col, white)) moves.Add(new Move(row, col, row, col + 2));
+                if (CanCastleQueenside(board, row, col, white)) moves.Add(new Move(row, col, row, col - 2));
                 break;
 
             case Bishop:
@@ -224,12 +228,22 @@ public static class ChessRules
     }
 
     /// <summary>Applies a move to the board (mutating it), including
-    /// auto-queen promotion. Does not validate legality - callers must
-    /// only pass moves from LegalMovesFor/LegalMovesForColor.</summary>
+    /// auto-queen promotion and (for a king moving two squares) sliding the
+    /// castling rook to its post-castle square alongside it. Does not
+    /// validate legality - callers must only pass moves from
+    /// LegalMovesFor/LegalMovesForColor.</summary>
     public static void ApplyMove(int[,] board, Move move)
     {
         var piece = board[move.FromRow, move.FromCol];
         board[move.FromRow, move.FromCol] = Empty;
+
+        if (PieceType(piece) == King && Math.Abs(move.ToCol - move.FromCol) == 2)
+        {
+            var rookFromCol = move.ToCol > move.FromCol ? Size - 1 : 0;
+            var rookToCol = move.ToCol > move.FromCol ? move.ToCol - 1 : move.ToCol + 1;
+            board[move.FromRow, rookToCol] = board[move.FromRow, rookFromCol];
+            board[move.FromRow, rookFromCol] = Empty;
+        }
 
         if (PieceType(piece) == Pawn && (move.ToRow == 0 || move.ToRow == Size - 1))
         {
@@ -237,6 +251,40 @@ public static class ChessRules
         }
 
         board[move.ToRow, move.ToCol] = piece;
+    }
+
+    /// <summary>Castling rights are inferred from the current position
+    /// (king and rook both still on their home squares) rather than
+    /// tracked as separate move-history state - the board is a plain
+    /// int[8,8] with no side channel for "has this piece ever moved," and
+    /// Chess Game's Undo works by cloning that array, so keeping castling
+    /// a pure function of position lets Undo restore rights for free. The
+    /// one real-chess case this can't catch: a king that walked away from
+    /// e1/e8 and legally walked back before the rook moved would still show
+    /// as eligible here. Once a side castles the rook is no longer on its
+    /// home square, so this can't re-trigger for the same side/direction.</summary>
+    private static bool CanCastleKingside(int[,] board, int kingRow, int kingCol, bool white)
+    {
+        var homeRow = white ? Size - 1 : 0;
+        if (kingRow != homeRow || kingCol != 4) return false;
+        if (board[homeRow, 7] != (white ? Rook : -Rook)) return false;
+        if (board[homeRow, 5] != Empty || board[homeRow, 6] != Empty) return false;
+        if (IsSquareAttacked(board, homeRow, 4, !white)) return false;
+        if (IsSquareAttacked(board, homeRow, 5, !white)) return false;
+        if (IsSquareAttacked(board, homeRow, 6, !white)) return false;
+        return true;
+    }
+
+    private static bool CanCastleQueenside(int[,] board, int kingRow, int kingCol, bool white)
+    {
+        var homeRow = white ? Size - 1 : 0;
+        if (kingRow != homeRow || kingCol != 4) return false;
+        if (board[homeRow, 0] != (white ? Rook : -Rook)) return false;
+        if (board[homeRow, 1] != Empty || board[homeRow, 2] != Empty || board[homeRow, 3] != Empty) return false;
+        if (IsSquareAttacked(board, homeRow, 4, !white)) return false;
+        if (IsSquareAttacked(board, homeRow, 3, !white)) return false;
+        if (IsSquareAttacked(board, homeRow, 2, !white)) return false;
+        return true;
     }
 
     /// <summary>Legal moves for the piece at (row, col): pseudo-legal moves
