@@ -1,0 +1,113 @@
+.sol-game {
+    width: min(760px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1rem;
+}
+
+.sol-diff-name {
+    font-weight: 900;
+}
+
+.sol-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.sol-title {
+    font-weight: 900;
+}
+
+/* ---- Table ---- */
+
+.sol-table {
+    overflow-x: auto;
+    padding: 0.9rem;
+    border-radius: var(--radius-lg);
+    background: radial-gradient(120% 100% at 50% -10%, rgba(255, 255, 255, 0.05), transparent 60%), #0f3d24;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
+}
+
+.sol-top-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    width: fit-content;
+    min-width: 100%;
+    margin-bottom: 0.9rem;
+}
+
+.sol-foundations,
+.sol-stockwaste {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.sol-tableau {
+    display: flex;
+    gap: 0.5rem;
+    width: fit-content;
+    min-width: 100%;
+}
+
+.sol-column {
+    position: relative;
+    width: 68px;
+}
+
+.sol-column-card {
+    position: absolute;
+    left: 0;
+    right: 0;
+    cursor: pointer;
+}
+
+/* ---- Slots (foundation / waste / stock / empty column) ---- */
+
+.sol-slot {
+    width: 68px;
+    height: 96px;
+    border-radius: 8px;
+    border: 2px dashed rgba(255, 255, 255, 0.25);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    flex: none;
+}
+
+.sol-slot-glyph {
+    font-size: 1.5rem;
+    color: rgba(255, 255, 255, 0.35);
+    font-weight: 900;
+}
+
+.sol-slot-glyph.sol-red {
+    color: rgba(255, 120, 120, 0.45);
+}
+
+.sol-slot-glyph.sol-black {
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.sol-empty-column {
+    position: absolute;
+    inset: 0;
+}
+
+/* ---- Message + autofinish ---- */
+
+.sol-message {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+    margin: 0;
+}
+
+.sol-autofinish-row {
+    display: grid;
+    place-items: center;
+}

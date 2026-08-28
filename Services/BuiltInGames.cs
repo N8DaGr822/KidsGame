@@ -93,6 +93,8 @@ public static class BuiltInGames
     public const string NightSky = "night-sky";
     public const string FireworksTouch = "fireworks-touch";
     public const string LightsOnOff = "lights-on-off";
+    public const string SlotMachine = "slot-machine";
+    public const string Solitaire = "solitaire";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -178,5 +180,7 @@ public static class BuiltInGames
         new BuiltInGame("Night Sky", "🌌", NightSky, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Fireworks Touch", "🎆", FireworksTouch, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Lights On, Lights Off", "💡", LightsOnOff, MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Lucky Spin Slots", "🎰", SlotMachine, MinAge: 18),
+        new BuiltInGame("Solitaire", "♠️", Solitaire, MinAge: 6),
     };
 }

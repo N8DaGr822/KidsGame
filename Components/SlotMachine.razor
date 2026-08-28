@@ -1,0 +1,649 @@
+@*
+    SlotMachine.razor
+    A classic Vegas-style video slot cabinet: 5 reels x 3 rows, up to 9
+    selectable paylines, a Lines/Bet stepper pair, and a lever alongside
+    the big SPIN button - modeled after the layout of oldmario's "Phaser 3
+    Slot Machine" asset (itch.io). Pure play-money - credits are never
+    worth anything real, and running out just means a free refill, so
+    this is about the spin/reveal thrill rather than an actual wager.
+
+    A payline only pays for a run that starts at reel 1 (leftmost) and
+    stays unbroken - Wild (the diamond) matches any symbol in a run.
+    Runs until the player cashes out, so like the original 3-reel version
+    this has no natural end - only Cash Out closes the session.
+
+    Usage:
+        <SlotMachine OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="slot-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="slot-setup game-setup-panel">
+            <h2>🎰 Lucky Spin Slots</h2>
+            <p>Line up symbols across up to 9 paylines to win credits. It's all play money - spin as much as you like, and a free refill is always one tap away.</p>
+
+            <h3 class="game-section-title">Choose your stake</h3>
+            @if (LockedStake is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@StakeName(locked)</strong> (@StakeDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var stake in Stakes)
+                    {
+                        <button class="game-option-button @(stake == selectedStake ? "selected" : "")" @onclick="() => selectedStake = stake">
+                            <span class="slot-stake-name">@StakeName(stake)</span>
+                            <span class="slot-stake-detail">@StakeDetail(stake)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">🪙 Start Playing</button>
+        </div>
+    }
+    else
+    {
+        <div class="slot-cabinet">
+            <div class="slot-topbar">
+                <span class="slot-balance">💰 <strong>@credits</strong></span>
+                <span class="slot-balance-label">credits</span>
+                <button class="slot-icon-btn" @onclick="() => showPayout = !showPayout">📜 Payout</button>
+                <button class="slot-icon-btn" @onclick="() => muted = !muted">@(muted ? "🔇" : "🔊")</button>
+                <button class="slot-icon-btn" @onclick="CashOut">💵 Cash Out</button>
+            </div>
+
+            <div class="slot-marquee"><span>LUCKY SPIN SLOTS</span></div>
+
+            <div class="slot-frame">
+                <div class="slot-rail">
+                    @for (var i = 9; i >= 1; i--)
+                    {
+                        <span class="slot-rail-dot @(i <= lines ? "lit" : "")">@i</span>
+                    }
+                </div>
+
+                <div class="slot-reels-wrap">
+                    <div class="slot-reels-grid">
+                        @for (var r = 0; r < ReelsCount; r++)
+                        {
+                            var reel = reels[r];
+                            <div class="slot-reel-col @(reel.Spinning ? "spinning" : "")">
+                                @for (var row = 0; row < RowsCount; row++)
+                                {
+                                    var sym = reel.Rows[row];
+                                    <div class="slot-cell @(reel.Won[row] ? "won" : "")">
+                                        @if (GlyphFor(sym) is { } glyph)
+                                        {
+                                            <span class="slot-symbol slot-symbol-glyph slot-symbol-@sym.ToString().ToLowerInvariant()">@glyph</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="slot-symbol">@Emoji(sym)</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @if (lastWinLines.Count > 0)
+                    {
+                        <svg class="slot-winlines" viewBox="0 0 100 60" preserveAspectRatio="none">
+                            @foreach (var wl in lastWinLines)
+                            {
+                                <polyline points="@PolylinePoints(wl)" stroke="@LineColor(wl.LineIndex)" class="slot-winline-path" />
+                            }
+                        </svg>
+                    }
+                </div>
+
+                <div class="slot-rail">
+                    @for (var i = 9; i >= 1; i--)
+                    {
+                        <span class="slot-rail-dot @(i <= lines ? "lit" : "")">@i</span>
+                    }
+                </div>
+
+                <button class="slot-lever @(spinning ? "pulled" : "")" disabled="@(!CanSpin)" @onclick="Spin" aria-label="Pull lever to spin">
+                    <span class="slot-lever-rod"></span>
+                    <span class="slot-lever-ball"></span>
+                </button>
+            </div>
+
+            <p class="slot-message @(lastWinLines.Count > 0 ? "win" : "")">@message</p>
+
+            <div class="slot-controls-bar">
+                <div class="slot-stepper">
+                    <span class="slot-stepper-label">Lines</span>
+                    <div class="slot-stepper-row">
+                        <button class="slot-step-btn" disabled="@spinning" @onclick="() => AdjustLines(-1)">−</button>
+                        <span class="slot-stepper-value">@lines</span>
+                        <button class="slot-step-btn" disabled="@spinning" @onclick="() => AdjustLines(1)">+</button>
+                    </div>
+                </div>
+                <div class="slot-stepper">
+                    <span class="slot-stepper-label">Bet</span>
+                    <div class="slot-stepper-row">
+                        <button class="slot-step-btn" disabled="@spinning" @onclick="() => AdjustBet(-1)">−</button>
+                        <span class="slot-stepper-value">@BetPerLine</span>
+                        <button class="slot-step-btn" disabled="@spinning" @onclick="() => AdjustBet(1)">+</button>
+                    </div>
+                </div>
+                <div class="slot-total-box">
+                    <span class="slot-total-label">Total bet</span>
+                    <span class="slot-total-value">@TotalBet</span>
+                </div>
+                <button class="slot-max-btn" disabled="@spinning" @onclick="MaxBet">Max Bet</button>
+                <button class="slot-spin-btn" disabled="@(!CanSpin)" @onclick="Spin">
+                    @(spinning ? "Spinning…" : "🎰 SPIN")
+                </button>
+            </div>
+
+            @if (credits < TotalBet && !spinning)
+            {
+                <div class="slot-broke game-choice-locked">
+                    <p>Out of credits! It's only play money - here's a free refill.</p>
+                    <button class="game-secondary-action" @onclick="Refill">🪙 Free Refill</button>
+                </div>
+            }
+        </div>
+
+        @if (bigWinActive)
+        {
+            <div class="slot-bigwin-overlay">
+                <div class="slot-coins">
+                    @for (var i = 0; i < 20; i++)
+                    {
+                        <span class="slot-coin" style="left:@(i * 5 + rng.Next(-2, 3))%; animation-delay:@((i % 7) * 0.12)s;">🪙</span>
+                    }
+                </div>
+                <div class="slot-bigwin-badge">
+                    <span>BIG</span>
+                    <span>WIN</span>
+                </div>
+            </div>
+        }
+
+        @if (showPayout)
+        {
+            <div class="game-result-overlay" @onclick="() => showPayout = false">
+                <div class="game-result-panel slot-payout-panel" @onclick:stopPropagation="true">
+                    <h2>📜 Payout Table</h2>
+                    <p class="muted">Multiplier x bet-per-line, for a run starting at reel 1. 💎 Wild matches anything.</p>
+                    <div class="slot-payout-list">
+                        @foreach (var entry in SymbolTable)
+                        {
+                            <div class="slot-payout-row">
+                                <span class="slot-payout-symbol">@(GlyphFor(entry.Symbol) ?? Emoji(entry.Symbol))</span>
+                                <span>@(entry.Pay2 > 0 ? $"x2: {entry.Pay2}" : "")</span>
+                                <span>x3: @entry.Pay3</span>
+                                <span>x4: @entry.Pay4</span>
+                                <span>x5: @entry.Pay5</span>
+                            </div>
+                        }
+                    </div>
+                    <button class="game-primary-action" @onclick="() => showPayout = false">Close</button>
+                </div>
+            </div>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>💰 Cashed Out!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Thanks for playing" : PlayerName + ", thanks for playing")!</p>
+                    <div class="game-result-stats">
+                        <div><span class="game-stat-label">Spins</span><span class="game-stat-value">@totalSpins</span></div>
+                        <div><span class="game-stat-label">Ending credits</span><span class="game-stat-value">@credits</span></div>
+                        <div><span class="game-stat-label">Biggest win</span><span class="game-stat-value">@biggestWin</span></div>
+                    </div>
+                    <PersonalBestBadge Value="@((persistedBestWin ?? biggestWin).ToString())" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<SlotMachineResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked stake name ("Easy"/"Medium"/"Hard" -
+    /// Penny/Dollar/High Roller) from the admin panel; when set, the
+    /// picker is replaced with a locked note and that stake's bet range
+    /// is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current profile's id, for the personal-best record
+    /// (biggest single win per stake) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Stake { Easy, Medium, Hard }
+
+    private enum Symbol { Cherry, Lemon, Orange, Watermelon, Grape, Bell, Star, Bar, Seven, Wild }
+
+    private const int ReelsCount = 5;
+    private const int RowsCount = 3;
+    private const int BigWinMultiplier = 8;
+    private const int StartingCredits = 2000;
+
+    private class ReelColumn
+    {
+        public readonly Symbol[] Rows = new Symbol[RowsCount];
+        public readonly bool[] Won = new bool[RowsCount];
+        public bool Spinning;
+    }
+
+    private record WinLine(int LineIndex, Symbol Symbol, int Run, int Payout);
+
+    // Each entry is a row index (0=top,1=mid,2=bottom) per reel, left to
+    // right - 9 fixed lines, matching the 9 numbered rail dots either
+    // side of the reels. "Lines" activates the first N of these in order.
+    private static readonly int[][] Paylines =
+    {
+        new[] { 1, 1, 1, 1, 1 },
+        new[] { 0, 0, 0, 0, 0 },
+        new[] { 2, 2, 2, 2, 2 },
+        new[] { 0, 1, 2, 1, 0 },
+        new[] { 2, 1, 0, 1, 2 },
+        new[] { 0, 0, 1, 2, 2 },
+        new[] { 2, 2, 1, 0, 0 },
+        new[] { 1, 0, 1, 2, 1 },
+        new[] { 1, 2, 1, 0, 1 },
+    };
+
+    private static readonly string[] LinePalette =
+    {
+        "#ffd60a", "#00e5ff", "#ff5da2", "#7cff6b", "#ff8c42", "#c77dff", "#4ecdc4", "#ff4d4d", "#ffffff",
+    };
+
+    // Weight is out of 200 (sum below); Pay2/3/4/5 are bet-per-line
+    // multipliers for a run of that length starting at reel 1 (0 means
+    // that run length doesn't pay for this symbol). With 5 independent
+    // reels, requiring 3-in-a-row to pay makes wins too rare to feel
+    // good, so the common fruit symbols also pay a small amount on just
+    // 2-in-a-row - like the classic "any two cherries" rule, generalized.
+    // Bar/Seven/Wild stay 3-and-up only, so they're still the rare,
+    // high-drama hits.
+    private static readonly (Symbol Symbol, int Weight, int Pay2, int Pay3, int Pay4, int Pay5)[] SymbolTable =
+    {
+        (Symbol.Cherry, 44, 2, 5, 12, 25),
+        (Symbol.Lemon, 36, 3, 8, 20, 40),
+        (Symbol.Orange, 32, 4, 10, 25, 50),
+        (Symbol.Watermelon, 26, 5, 15, 35, 70),
+        (Symbol.Grape, 22, 8, 20, 50, 100),
+        (Symbol.Bell, 18, 10, 35, 90, 180),
+        (Symbol.Star, 12, 15, 60, 150, 300),
+        (Symbol.Bar, 6, 0, 100, 250, 500),
+        (Symbol.Seven, 3, 0, 200, 500, 1000),
+        (Symbol.Wild, 1, 0, 300, 750, 1500),
+    };
+
+    private static readonly Stake[] Stakes = { Stake.Easy, Stake.Medium, Stake.Hard };
+
+    private Stake? LockedStake => Enum.TryParse<Stake>(ForcedDifficulty, out var s) ? s : null;
+
+    private static int[] BetStepsFor(Stake s) => s switch
+    {
+        Stake.Easy => new[] { 1, 2, 3, 5, 10 },
+        Stake.Medium => new[] { 5, 10, 15, 20, 25 },
+        _ => new[] { 10, 20, 30, 40, 50 },
+    };
+
+    private Phase phase = Phase.Setup;
+    private Stake selectedStake = Stake.Easy;
+    private readonly ReelColumn[] reels = { new(), new(), new(), new(), new() };
+    private bool spinning;
+    private bool muted;
+    private bool showPayout;
+    private bool bigWinActive;
+    private int credits;
+    private int betIndex;
+    private int lines = 5;
+    private int biggestWin;
+    private int totalSpins;
+    private string message = "Pull the lever to spin!";
+    private List<WinLine> lastWinLines = new();
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private double? persistedBestWin;
+    private bool isNewBest;
+
+    private int[] BetSteps => BetStepsFor(selectedStake);
+    private int BetPerLine => BetSteps[Math.Clamp(betIndex, 0, BetSteps.Length - 1)];
+    private int TotalBet => BetPerLine * lines;
+    private bool CanSpin => !spinning && phase == Phase.Playing && credits >= TotalBet;
+
+    protected override void OnInitialized()
+    {
+        if (LockedStake is { } locked) selectedStake = locked;
+    }
+
+    private void StartGame()
+    {
+        credits = StartingCredits;
+        betIndex = 0;
+        lines = 5;
+        biggestWin = 0;
+        totalSpins = 0;
+        message = "Pull the lever to spin!";
+        lastWinLines = new List<WinLine>();
+        persistedBestWin = null;
+        isNewBest = false;
+        bigWinActive = false;
+        foreach (var reel in reels)
+        {
+            for (var row = 0; row < RowsCount; row++)
+            {
+                reel.Rows[row] = RandomSymbol();
+                reel.Won[row] = false;
+            }
+            reel.Spinning = false;
+        }
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private void AdjustLines(int delta)
+    {
+        if (spinning) return;
+        lines = Math.Clamp(lines + delta, 1, Paylines.Length);
+    }
+
+    private void AdjustBet(int delta)
+    {
+        if (spinning) return;
+        betIndex = Math.Clamp(betIndex + delta, 0, BetSteps.Length - 1);
+    }
+
+    private void MaxBet()
+    {
+        if (spinning) return;
+        betIndex = BetSteps.Length - 1;
+        lines = Paylines.Length;
+    }
+
+    private void Refill()
+    {
+        credits = StartingCredits;
+        message = "Fresh credits - good luck!";
+    }
+
+    private async Task CashOut()
+    {
+        if (phase != Phase.Playing) return;
+        await FinishGame();
+    }
+
+    private void ExitToSetup()
+    {
+        phase = Phase.Setup;
+    }
+
+    private async Task Spin()
+    {
+        if (!CanSpin) return;
+
+        var totalBet = TotalBet;
+        var betPerLine = BetPerLine;
+        var activeLines = lines;
+
+        credits -= totalBet;
+        spinning = true;
+        bigWinActive = false;
+        totalSpins++;
+        message = "Spinning…";
+        lastWinLines = new List<WinLine>();
+        foreach (var reel in reels)
+        {
+            reel.Spinning = true;
+            Array.Clear(reel.Won);
+        }
+        StateHasChanged();
+
+        // Cycle random symbols across the whole grid briefly, then stop
+        // reels one at a time (left to right) - the staggered stop is
+        // what reads as a slot machine rather than dice landing at once.
+        for (var tick = 0; tick < 8; tick++)
+        {
+            foreach (var reel in reels)
+            {
+                if (!reel.Spinning) continue;
+                for (var row = 0; row < RowsCount; row++) reel.Rows[row] = RandomSymbol();
+            }
+            StateHasChanged();
+            await Task.Delay(90);
+        }
+
+        var finalGrid = new Symbol[ReelsCount, RowsCount];
+        for (var r = 0; r < ReelsCount; r++)
+            for (var row = 0; row < RowsCount; row++)
+                finalGrid[r, row] = RandomSymbol();
+
+        for (var r = 0; r < ReelsCount; r++)
+        {
+            reels[r].Spinning = false;
+            for (var row = 0; row < RowsCount; row++) reels[r].Rows[row] = finalGrid[r, row];
+            StateHasChanged();
+            await PlaySound("playImpactSound");
+            await Task.Delay(280);
+        }
+
+        spinning = false;
+        await SettleAsync(finalGrid, activeLines, betPerLine, totalBet);
+    }
+
+    private async Task SettleAsync(Symbol[,] grid, int activeLines, int betPerLine, int totalBet)
+    {
+        var winLines = EvaluateWins(grid, activeLines, betPerLine);
+        lastWinLines = winLines;
+
+        var payout = 0;
+        foreach (var wl in winLines)
+        {
+            payout += wl.Payout;
+            var pattern = Paylines[wl.LineIndex];
+            for (var r = 0; r < wl.Run; r++) reels[r].Won[pattern[r]] = true;
+        }
+
+        if (payout > 0)
+        {
+            credits += payout;
+            biggestWin = Math.Max(biggestWin, payout);
+            message = winLines.Count == 1
+                ? $"{SymbolName(winLines[0].Symbol)} x{winLines[0].Run}! +{payout} credits"
+                : $"{winLines.Count} winning lines! +{payout} credits";
+
+            var isBig = payout >= totalBet * BigWinMultiplier;
+            await PlaySound(isBig ? "playExplosionSound" : "playMatchSound");
+
+            if (isBig)
+            {
+                bigWinActive = true;
+                StateHasChanged();
+                await Task.Delay(2400);
+                bigWinActive = false;
+            }
+        }
+        else
+        {
+            message = "No win this spin - try again!";
+            await PlaySound("playMismatchSound");
+        }
+
+        StateHasChanged();
+    }
+
+    // A payline pays for an unbroken run starting at reel 1 (2-or-more for
+    // most symbols, 3-or-more for Bar/Seven/Wild - see SymbolTable). Wild
+    // matches whatever the run's symbol turns out to be; a run of only
+    // Wilds counts as Wild itself, the rarest and highest-paying symbol.
+    private static List<WinLine> EvaluateWins(Symbol[,] grid, int activeLines, int betPerLine)
+    {
+        var results = new List<WinLine>();
+
+        for (var li = 0; li < activeLines; li++)
+        {
+            var pattern = Paylines[li];
+            Symbol? effective = null;
+            var run = 0;
+
+            for (var r = 0; r < ReelsCount; r++)
+            {
+                var s = grid[r, pattern[r]];
+                if (s == Symbol.Wild) { run++; continue; }
+                if (effective is null) { effective = s; run++; continue; }
+                if (s == effective) { run++; continue; }
+                break;
+            }
+
+            if (run < 2) continue;
+
+            var paySymbol = effective ?? Symbol.Wild;
+            var mult = PayoutFor(paySymbol, run);
+            if (mult <= 0) continue;
+
+            results.Add(new WinLine(li, paySymbol, run, mult * betPerLine));
+        }
+
+        return results;
+    }
+
+    private static int PayoutFor(Symbol symbol, int run)
+    {
+        var entry = SymbolTable.First(e => e.Symbol == symbol);
+        return run switch
+        {
+            5 => entry.Pay5,
+            4 => entry.Pay4,
+            3 => entry.Pay3,
+            2 => entry.Pay2,
+            _ => 0,
+        };
+    }
+
+    private static string SymbolName(Symbol s) => s switch
+    {
+        Symbol.Cherry => "Cherry",
+        Symbol.Lemon => "Lemon",
+        Symbol.Orange => "Orange",
+        Symbol.Watermelon => "Watermelon",
+        Symbol.Grape => "Grape",
+        Symbol.Bell => "Bell",
+        Symbol.Star => "Star",
+        Symbol.Bar => "Bar",
+        Symbol.Seven => "Seven",
+        _ => "Wild",
+    };
+
+    private static string Emoji(Symbol s) => s switch
+    {
+        Symbol.Cherry => "🍒",
+        Symbol.Lemon => "🍋",
+        Symbol.Orange => "🍊",
+        Symbol.Watermelon => "🍉",
+        Symbol.Grape => "🍇",
+        Symbol.Bell => "🔔",
+        Symbol.Star => "⭐",
+        _ => "💎",
+    };
+
+    // Bar and Seven render as styled text rather than emoji - the "7️⃣"
+    // keycap emoji falls back to a tiny mismatched glyph in some fonts,
+    // and a plain red "7"/"BAR" chip reads better here anyway, closer to
+    // a classic slot cabinet's painted reel symbols.
+    private static string? GlyphFor(Symbol s) => s switch
+    {
+        Symbol.Bar => "BAR",
+        Symbol.Seven => "7",
+        _ => null,
+    };
+
+    private static string LineColor(int lineIndex) => LinePalette[lineIndex % LinePalette.Length];
+
+    private static string PolylinePoints(WinLine wl)
+    {
+        var pattern = Paylines[wl.LineIndex];
+        var points = new List<string>();
+        for (var r = 0; r < wl.Run; r++)
+        {
+            var x = (r + 0.5) / ReelsCount * 100.0;
+            var y = (pattern[r] + 0.5) / RowsCount * 60.0;
+            points.Add($"{x.ToString(Inv)},{y.ToString(Inv)}");
+        }
+        return string.Join(" ", points);
+    }
+
+    private Symbol RandomSymbol()
+    {
+        var roll = rng.Next(200);
+        var cumulative = 0;
+        foreach (var entry in SymbolTable)
+        {
+            cumulative += entry.Weight;
+            if (roll < cumulative) return entry.Symbol;
+        }
+        return SymbolTable[^1].Symbol;
+    }
+
+    private async Task PlaySound(string name)
+    {
+        if (muted) return;
+        await Interop.InvokeVoidAsync(name);
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"biggest-win:{StakeName(selectedStake)}";
+            persistedBestWin = await Data.GetBestAsync(ProfileId, BuiltInGames.SlotMachine, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.SlotMachine, key, biggestWin, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SlotMachineResult(
+                Stake: StakeName(selectedStake),
+                TotalSpins: totalSpins,
+                BiggestWin: biggestWin,
+                EndingCredits: credits,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string StakeName(Stake s) => s switch
+    {
+        Stake.Easy => "Easy",
+        Stake.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string StakeDetail(Stake s) => s switch
+    {
+        Stake.Easy => "Penny Slots - bet 1 to 10 per line",
+        Stake.Medium => "Dollar Slots - bet 5 to 25 per line",
+        _ => "High Roller - bet 10 to 50 per line",
+    };
+
+    public record SlotMachineResult(string Stake, int TotalSpins, int BiggestWin, int EndingCredits, int ElapsedSeconds);
+}

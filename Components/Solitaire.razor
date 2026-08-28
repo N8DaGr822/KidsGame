@@ -1,0 +1,628 @@
+@*
+    Solitaire.razor
+    Classic Klondike: 7 tableau columns, 4 suit foundations, and a
+    stock/waste pile. Tap-to-select then tap-to-place (no dragging) -
+    tap a face-up card (or a properly-sequenced run starting at it) to
+    pick it up, then tap the pile you want to drop it on. Tap the stock
+    to draw, and tap it again once empty to recycle the waste back into
+    a new stock (redeals may be limited - see Difficulty).
+
+    "Difficulty" doubles as classic Klondike's draw-count/redeal-limit
+    options, reusing the same parent-lockable difficulty mechanism other
+    games use for puzzle difficulty:
+      Easy:   draw 1, unlimited redeals (very forgiving)
+      Medium: draw 1, 2 redeals
+      Hard:   draw 3, 2 redeals (the classic "Vegas" rules)
+
+    Usage:
+        <Solitaire OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="sol-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="sol-setup game-setup-panel">
+            <h2>🃏 Solitaire</h2>
+            <p>Build each foundation up from Ace to King. Tap a card, then tap where you'd like to play it.</p>
+
+            <h3 class="game-section-title">Choose your rules</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="sol-diff-name">@DifficultyName(diff)</span>
+                            <span class="sol-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Deal</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="sol-title">@DifficultyName(selectedDifficulty)</span>
+            <span class="game-stat"><span class="game-stat-label">Moves</span><span class="game-stat-value">@moves</span></span>
+            <span class="game-stat"><span class="game-stat-label">Redeals</span><span class="game-stat-value">@redeals@(RedealLimitLabel)</span></span>
+            <button class="game-secondary-action" disabled="@(undoStack.Count == 0)" @onclick="Undo">↩ Undo</button>
+            <button class="game-secondary-action" @onclick="RestartGame">🔄 New Game</button>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="sol-table">
+            <div class="sol-top-row">
+                <div class="sol-foundations">
+                    @for (var s = 0; s < 4; s++)
+                    {
+                        var suitIndex = s;
+                        <div class="sol-slot sol-foundation" @onclick="() => OnCardClick(PileType.Foundation, suitIndex, 0)">
+                            @if (foundations[suitIndex].Count > 0)
+                            {
+                                <SolCardView Card="foundations[suitIndex][^1]" />
+                            }
+                            else
+                            {
+                                <span class="sol-slot-glyph @(IsRed((CardSuit)suitIndex) ? "sol-red" : "sol-black")">@SuitGlyph((CardSuit)suitIndex)</span>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <div class="sol-stockwaste">
+                    <div class="sol-slot sol-waste" @onclick="() => OnCardClick(PileType.Waste, 0, Math.Max(0, waste.Count - 1))">
+                        @if (waste.Count > 0)
+                        {
+                            <SolCardView Card="waste[^1]" Selected="IsSelected(PileType.Waste, 0, waste.Count - 1)" />
+                        }
+                    </div>
+                    <div class="sol-slot sol-stock" @onclick="() => OnCardClick(PileType.Stock, 0, 0)">
+                        @if (stock.Count > 0)
+                        {
+                            <SolCardView Card="stock[^1]" />
+                        }
+                        else
+                        {
+                            <span class="sol-slot-glyph">↺</span>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div class="sol-tableau">
+                @for (var c = 0; c < 7; c++)
+                {
+                    var colIndex = c;
+                    var column = tableau[colIndex];
+                    <div class="sol-column" style="min-height:@(ColumnHeightPx(column.Count))px">
+                        @if (column.Count == 0)
+                        {
+                            <div class="sol-slot sol-empty-column" @onclick="() => OnCardClick(PileType.Tableau, colIndex, 0)"></div>
+                        }
+                        else
+                        {
+                            @for (var i = 0; i < column.Count; i++)
+                            {
+                                var cardIndex = i;
+                                <div class="sol-column-card" style="top:@(i * OverlapPx)px; z-index:@i" @onclick="() => OnCardClick(PileType.Tableau, colIndex, cardIndex)">
+                                    <SolCardView Card="column[cardIndex]" Selected="IsSelected(PileType.Tableau, colIndex, cardIndex)" />
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <p class="sol-message">@message</p>
+
+        @if (CanAutoFinish && !autoFinishing)
+        {
+            <div class="sol-autofinish-row">
+                <button class="game-primary-action" @onclick="AutoFinishAsync">✨ Auto Finish</button>
+            </div>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>🎉 Solved!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great game" : PlayerName + ", great game")!</p>
+                    <div class="game-result-stats">
+                        <div><span class="game-stat-label">Moves</span><span class="game-stat-value">@moves</span></div>
+                        <div><span class="game-stat-label">Time</span><span class="game-stat-value">@ElapsedLabel</span></div>
+                    </div>
+                    <PersonalBestBadge Value="@FormatSeconds((int)(persistedBestSeconds ?? elapsedAtWinSeconds))" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<SolitaireResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty's draw/redeal rules are used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current profile's id, for the personal-best record
+    /// (fastest win, per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+    private enum PileType { Tableau, Waste, Foundation, Stock }
+
+    private const int OverlapPx = 26;
+    private const int CardHeightPx = 96;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int DrawCountFor(Difficulty d) => d == Difficulty.Hard ? 3 : 1;
+
+    private static int RedealLimitFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => int.MaxValue,
+        Difficulty.Medium => 2,
+        _ => 2,
+    };
+
+    private class Snapshot
+    {
+        public required List<PlayingCard>[] Tableau;
+        public required List<PlayingCard>[] Foundations;
+        public required List<PlayingCard> Stock;
+        public required List<PlayingCard> Waste;
+        public required int Redeals;
+        public required int Moves;
+    }
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+
+    private List<PlayingCard>[] tableau = Array.Empty<List<PlayingCard>>();
+    private List<PlayingCard>[] foundations = Array.Empty<List<PlayingCard>>();
+    private List<PlayingCard> stock = new();
+    private List<PlayingCard> waste = new();
+    private (PileType Type, int Index, int CardIndex)? selected;
+    private readonly Stack<Snapshot> undoStack = new();
+
+    private int moves;
+    private int redeals;
+    private bool autoFinishing;
+    private string message = "Tap a card, then tap where to play it.";
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private int elapsedAtWinSeconds;
+    private double? persistedBestSeconds;
+    private bool isNewBest;
+
+    private string RedealLimitLabel
+    {
+        get
+        {
+            var limit = RedealLimitFor(selectedDifficulty);
+            return limit == int.MaxValue ? "" : $"/{limit}";
+        }
+    }
+
+    private string ElapsedLabel => FormatSeconds(elapsedAtWinSeconds);
+
+    private static string FormatSeconds(int totalSeconds)
+    {
+        var span = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
+        return $"{(int)span.TotalMinutes}:{span.Seconds:00}";
+    }
+
+    // Auto Finish only offers once every hidden card is already flipped -
+    // at that point the remaining game is just mechanically feeding
+    // foundations/stock, so it's safe to automate without second-guessing
+    // a move the player might have wanted to make differently.
+    private bool CanAutoFinish => phase == Phase.Playing && tableau.All(col => col.TrueForAll(card => card.FaceUp));
+
+    private static int ColumnHeightPx(int cardCount) =>
+        cardCount == 0 ? CardHeightPx : (cardCount - 1) * OverlapPx + CardHeightPx;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        var deck = BuildShuffledDeck();
+
+        tableau = new List<PlayingCard>[7];
+        for (var c = 0; c < 7; c++)
+        {
+            tableau[c] = new List<PlayingCard>();
+            for (var n = 0; n <= c; n++)
+            {
+                var card = deck[^1];
+                deck.RemoveAt(deck.Count - 1);
+                card.FaceUp = n == c;
+                tableau[c].Add(card);
+            }
+        }
+
+        foundations = new List<PlayingCard>[4];
+        for (var s = 0; s < 4; s++) foundations[s] = new List<PlayingCard>();
+
+        stock = deck;
+        waste = new List<PlayingCard>();
+        selected = null;
+        undoStack.Clear();
+        moves = 0;
+        redeals = 0;
+        autoFinishing = false;
+        message = "Tap a card, then tap where to play it.";
+        persistedBestSeconds = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private List<PlayingCard> BuildShuffledDeck()
+    {
+        var deck = new List<PlayingCard>(52);
+        foreach (CardSuit suit in Enum.GetValues<CardSuit>())
+            for (var rank = 1; rank <= 13; rank++)
+                deck.Add(new PlayingCard { Suit = suit, Rank = rank, FaceUp = false });
+
+        for (var i = deck.Count - 1; i > 0; i--)
+        {
+            var j = rng.Next(i + 1);
+            (deck[i], deck[j]) = (deck[j], deck[i]);
+        }
+
+        return deck;
+    }
+
+    private void RestartGame()
+    {
+        if (phase == Phase.Playing) _ = LogAbandonedAsync();
+        StartGame();
+    }
+
+    private void ExitToSetup()
+    {
+        if (phase == Phase.Playing) _ = LogAbandonedAsync();
+        phase = Phase.Setup;
+    }
+
+    private async Task LogAbandonedAsync()
+    {
+        if (OnComplete.HasDelegate) await OnComplete.InvokeAsync(BuildResult(won: false));
+    }
+
+    private SolitaireResult BuildResult(bool won) => new(
+        Difficulty: DifficultyName(selectedDifficulty),
+        Won: won,
+        Moves: moves,
+        ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds);
+
+    private bool IsSelected(PileType type, int index, int cardIndex) =>
+        selected is { } sel && sel.Type == type && sel.Index == index && cardIndex >= sel.CardIndex;
+
+    private static bool IsRed(CardSuit s) => s is CardSuit.Hearts or CardSuit.Diamonds;
+
+    private static string SuitGlyph(CardSuit s) => s switch
+    {
+        CardSuit.Spades => "♠",
+        CardSuit.Hearts => "♥",
+        CardSuit.Diamonds => "♦",
+        _ => "♣",
+    };
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Draw 1, unlimited redeals",
+        Difficulty.Medium => "Draw 1, 2 redeals",
+        _ => "Draw 3, 2 redeals - classic rules",
+    };
+
+    private bool IsValidRun(List<PlayingCard> column, int startIndex)
+    {
+        if (startIndex < 0 || startIndex >= column.Count || !column[startIndex].FaceUp) return false;
+        for (var i = startIndex; i < column.Count - 1; i++)
+        {
+            var a = column[i];
+            var b = column[i + 1];
+            if (!a.FaceUp || !b.FaceUp) return false;
+            if (a.Rank != b.Rank + 1) return false;
+            if (a.IsRed == b.IsRed) return false;
+        }
+        return true;
+    }
+
+    private static bool CanPlaceOnTableau(PlayingCard moving, List<PlayingCard> destColumn)
+    {
+        if (destColumn.Count == 0) return moving.Rank == 13;
+        var top = destColumn[^1];
+        return top.FaceUp && top.Rank == moving.Rank + 1 && top.IsRed != moving.IsRed;
+    }
+
+    private static bool CanPlaceOnFoundation(PlayingCard moving, CardSuit foundationSuit, List<PlayingCard> foundation)
+    {
+        if (moving.Suit != foundationSuit) return false;
+        return foundation.Count == 0 ? moving.Rank == 1 : foundation[^1].Rank == moving.Rank - 1;
+    }
+
+    private void PushUndo()
+    {
+        undoStack.Push(new Snapshot
+        {
+            Tableau = tableau.Select(col => col.Select(CloneCard).ToList()).ToArray(),
+            Foundations = foundations.Select(f => f.Select(CloneCard).ToList()).ToArray(),
+            Stock = stock.Select(CloneCard).ToList(),
+            Waste = waste.Select(CloneCard).ToList(),
+            Redeals = redeals,
+            Moves = moves,
+        });
+    }
+
+    private static PlayingCard CloneCard(PlayingCard c) => new() { Suit = c.Suit, Rank = c.Rank, FaceUp = c.FaceUp };
+
+    private void Undo()
+    {
+        if (undoStack.Count == 0) return;
+        var snap = undoStack.Pop();
+        tableau = snap.Tableau;
+        foundations = snap.Foundations;
+        stock = snap.Stock;
+        waste = snap.Waste;
+        redeals = snap.Redeals;
+        moves = snap.Moves;
+        selected = null;
+        message = "Move undone.";
+    }
+
+    private async Task OnCardClick(PileType type, int index, int cardIndex)
+    {
+        if (phase != Phase.Playing || autoFinishing) return;
+
+        if (type == PileType.Stock)
+        {
+            await DrawStockAsync();
+            return;
+        }
+
+        if (selected is null)
+        {
+            SelectIfPossible(type, index, cardIndex);
+            return;
+        }
+
+        var sel = selected.Value;
+        if (sel.Type == type && sel.Index == index && sel.CardIndex == cardIndex)
+        {
+            selected = null;
+            return;
+        }
+
+        var movingCards = sel.Type switch
+        {
+            PileType.Waste when waste.Count > 0 => new List<PlayingCard> { waste[^1] },
+            PileType.Tableau => tableau[sel.Index].Skip(sel.CardIndex).ToList(),
+            _ => new List<PlayingCard>(),
+        };
+
+        if (movingCards.Count == 0)
+        {
+            selected = null;
+            return;
+        }
+
+        var moved = false;
+
+        if (type == PileType.Foundation && movingCards.Count == 1 &&
+            CanPlaceOnFoundation(movingCards[0], (CardSuit)index, foundations[index]))
+        {
+            PushUndo();
+            RemoveFromSource(sel);
+            foundations[index].Add(movingCards[0]);
+            moved = true;
+            await PlaySound("playMatchSound");
+        }
+        else if (type == PileType.Tableau && !(sel.Type == PileType.Tableau && sel.Index == index) &&
+                 CanPlaceOnTableau(movingCards[0], tableau[index]))
+        {
+            PushUndo();
+            RemoveFromSource(sel);
+            tableau[index].AddRange(movingCards);
+            moved = true;
+            await PlaySound("playImpactSound");
+        }
+
+        if (moved)
+        {
+            if (sel.Type == PileType.Tableau)
+            {
+                var sourceColumn = tableau[sel.Index];
+                if (sourceColumn.Count > 0 && !sourceColumn[^1].FaceUp) sourceColumn[^1].FaceUp = true;
+            }
+            moves++;
+            selected = null;
+            message = "";
+            await CheckWinAsync();
+        }
+        else
+        {
+            SelectIfPossible(type, index, cardIndex);
+        }
+    }
+
+    private void SelectIfPossible(PileType type, int index, int cardIndex)
+    {
+        selected = type switch
+        {
+            PileType.Waste when waste.Count > 0 => (PileType.Waste, 0, waste.Count - 1),
+            PileType.Tableau when IsValidRun(tableau[index], cardIndex) => (PileType.Tableau, index, cardIndex),
+            _ => null,
+        };
+    }
+
+    private void RemoveFromSource((PileType Type, int Index, int CardIndex) sel)
+    {
+        if (sel.Type == PileType.Waste) waste.RemoveAt(waste.Count - 1);
+        else if (sel.Type == PileType.Tableau)
+        {
+            var col = tableau[sel.Index];
+            col.RemoveRange(sel.CardIndex, col.Count - sel.CardIndex);
+        }
+    }
+
+    private async Task DrawStockAsync()
+    {
+        selected = null;
+
+        if (stock.Count == 0)
+        {
+            if (waste.Count == 0) return;
+            if (redeals >= RedealLimitFor(selectedDifficulty))
+            {
+                message = "No more redeals left!";
+                return;
+            }
+            PushUndo();
+            waste.Reverse();
+            foreach (var c in waste) c.FaceUp = false;
+            stock = waste;
+            waste = new List<PlayingCard>();
+            redeals++;
+            message = "Stock reshuffled from the waste pile.";
+        }
+        else
+        {
+            PushUndo();
+            var count = Math.Min(DrawCountFor(selectedDifficulty), stock.Count);
+            for (var i = 0; i < count; i++)
+            {
+                var card = stock[^1];
+                stock.RemoveAt(stock.Count - 1);
+                card.FaceUp = true;
+                waste.Add(card);
+            }
+            message = "";
+        }
+
+        moves++;
+        await PlaySound("playImpactSound");
+    }
+
+    private async Task CheckWinAsync()
+    {
+        if (foundations.Sum(f => f.Count) != 52) return;
+
+        phase = Phase.Finished;
+        elapsedAtWinSeconds = (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds;
+        await PlaySound("playExplosionSound");
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"fastest-win:{DifficultyName(selectedDifficulty)}";
+            persistedBestSeconds = await Data.GetBestAsync(ProfileId, BuiltInGames.Solitaire, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Solitaire, key, elapsedAtWinSeconds, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate) await OnComplete.InvokeAsync(BuildResult(won: true));
+    }
+
+    // Repeatedly feeds any legally-playable top card into its foundation
+    // (tableau tops first, then waste, drawing fresh from the stock when
+    // both are stuck) until the board is solved or genuinely has no move
+    // left - only ever offered once every card is already face-up, so
+    // there's no hidden information left for the player to have played
+    // around differently.
+    private async Task AutoFinishAsync()
+    {
+        autoFinishing = true;
+        StateHasChanged();
+
+        for (var guard = 0; guard < 300 && phase == Phase.Playing; guard++)
+        {
+            var progressed = false;
+
+            foreach (var col in tableau)
+            {
+                if (col.Count == 0) continue;
+                var top = col[^1];
+                if (!CanPlaceOnFoundation(top, top.Suit, foundations[(int)top.Suit])) continue;
+                col.RemoveAt(col.Count - 1);
+                foundations[(int)top.Suit].Add(top);
+                moves++;
+                progressed = true;
+                await PlaySound("playMatchSound");
+                StateHasChanged();
+                await Task.Delay(90);
+            }
+
+            if (waste.Count > 0)
+            {
+                var top = waste[^1];
+                if (CanPlaceOnFoundation(top, top.Suit, foundations[(int)top.Suit]))
+                {
+                    waste.RemoveAt(waste.Count - 1);
+                    foundations[(int)top.Suit].Add(top);
+                    moves++;
+                    progressed = true;
+                    await PlaySound("playMatchSound");
+                    StateHasChanged();
+                    await Task.Delay(90);
+                }
+            }
+
+            if (!progressed && stock.Count > 0)
+            {
+                var card = stock[^1];
+                stock.RemoveAt(stock.Count - 1);
+                card.FaceUp = true;
+                waste.Add(card);
+                progressed = true;
+                StateHasChanged();
+                await Task.Delay(60);
+            }
+
+            if (!progressed) break;
+            await CheckWinAsync();
+        }
+
+        autoFinishing = false;
+        StateHasChanged();
+    }
+
+    private async Task PlaySound(string name) => await Interop.InvokeVoidAsync(name);
+
+    public record SolitaireResult(string Difficulty, bool Won, int Moves, int ElapsedSeconds);
+}

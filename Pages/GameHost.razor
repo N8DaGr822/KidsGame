@@ -350,6 +350,14 @@
             {
                 <TowerDefense Theme="cat" PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTowerDefenseComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.SlotMachine)
+            {
+                <SlotMachine PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSlotMachineComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.Solitaire)
+            {
+                <Solitaire PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSolitaireComplete" />
+            }
             else
             {
                 @* Internal-route games are expected to be their own routed
@@ -1599,6 +1607,36 @@
             Theme = result.Difficulty,
             Difficulty = $"Scored {result.Score}/{result.SessionSize}",
             Moves = result.Score,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleSlotMachineComplete(SlotMachine.SlotMachineResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Stake,
+            Difficulty = $"Biggest win {result.BiggestWin}, ended with {result.EndingCredits}",
+            Moves = result.TotalSpins,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleSolitaireComplete(Solitaire.SolitaireResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Won ? $"Solved in {result.Moves} moves" : $"Abandoned after {result.Moves} moves",
+            Moves = result.Moves,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

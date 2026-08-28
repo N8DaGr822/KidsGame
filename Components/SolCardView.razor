@@ -1,0 +1,23 @@
+@*
+    SolCardView.razor
+    Presentational-only rendering for one PlayingCard, face up or down -
+    used everywhere a card appears in Solitaire (foundations, stock,
+    waste, tableau) so the visual only needs to be built once. Click
+    handling lives on the wrapping pile slot in the parent, not here.
+*@
+<div class="sol-card @(Card.FaceUp ? (Card.IsRed ? "sol-red" : "sol-black") : "sol-back") @(Selected ? "selected" : "")">
+    @if (Card.FaceUp)
+    {
+        <span class="sol-card-rank">@Card.RankLabel</span>
+        <span class="sol-card-suit">@Card.SuitGlyph</span>
+    }
+    else
+    {
+        <span class="sol-card-back-pattern"></span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PlayingCard Card { get; set; } = null!;
+    [Parameter] public bool Selected { get; set; }
+}
