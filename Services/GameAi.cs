@@ -1164,4 +1164,176 @@ public static class GameAi
 
         return score;
     }
+
+    // ---- Hex ---------------------------------------------------------------
+    //
+    // Board is a flat char[size*size] row-major array ('\0' empty, 'R'/'B'
+    // occupied). Red connects the top row to the bottom row; Blue connects
+    // the left column to the right column. Rows are meant to render offset
+    // half a cell to the right of the row above (the classic Hex rhombus),
+    // which gives each cell six neighbors instead of four: same row
+    // left/right, the two cells "above" it, and the two cells "below" it.
+
+    private static IEnumerable<int> HexNeighbors(int idx, int size)
+    {
+        var r = idx / size;
+        var c = idx % size;
+        (int dr, int dc)[] deltas = { (0, -1), (0, 1), (-1, 0), (-1, 1), (1, -1), (1, 0) };
+        foreach (var (dr, dc) in deltas)
+        {
+            var nr = r + dr;
+            var nc = c + dc;
+            if (nr >= 0 && nr < size && nc >= 0 && nc < size) yield return nr * size + nc;
+        }
+    }
+
+    /// <summary>Returns 'R', 'B', or '\0' if neither side has connected yet.</summary>
+    public static char HexWinner(char[] board, int size)
+    {
+        if (HexIsConnected(board, size, 'R')) return 'R';
+        if (HexIsConnected(board, size, 'B')) return 'B';
+        return '\0';
+    }
+
+    private static bool HexIsConnected(char[] board, int size, char color)
+    {
+        var visited = new bool[board.Length];
+        var stack = new Stack<int>();
+
+        for (var i = 0; i < size; i++)
+        {
+            var startIdx = color == 'R' ? i : i * size; // R starts along row 0; B starts along column 0
+            if (board[startIdx] == color && !visited[startIdx])
+            {
+                visited[startIdx] = true;
+                stack.Push(startIdx);
+            }
+        }
+
+        while (stack.Count > 0)
+        {
+            var u = stack.Pop();
+            var r = u / size;
+            var c = u % size;
+            if (color == 'R' && r == size - 1) return true;
+            if (color == 'B' && c == size - 1) return true;
+
+            foreach (var v in HexNeighbors(u, size))
+            {
+                if (!visited[v] && board[v] == color)
+                {
+                    visited[v] = true;
+                    stack.Push(v);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    // Cheapest cost to connect `color`'s two sides, walking through empty
+    // cells at cost 1 and the color's own stones for free, with the
+    // opponent's stones impassable - a standard basic-Hex-bot heuristic
+    // (favor moves that shorten your own path and deny the opponent's).
+    // Plain O(n^2) Dijkstra rather than a priority queue: boards here are
+    // at most 9x9 (81 cells), so the simpler implementation is plenty fast
+    // and easier to trust.
+    private const int HexUnreachable = 999;
+
+    private static int HexShortestConnectionCost(char[] board, int size, char color, char opponent)
+    {
+        var n = board.Length;
+        var dist = new int[n];
+        Array.Fill(dist, HexUnreachable);
+        var visited = new bool[n];
+
+        bool IsStart(int idx) => color == 'R' ? idx / size == 0 : idx % size == 0;
+        bool IsEnd(int idx) => color == 'R' ? idx / size == size - 1 : idx % size == size - 1;
+
+        for (var idx = 0; idx < n; idx++)
+        {
+            if (board[idx] == opponent) continue;
+            if (IsStart(idx)) dist[idx] = board[idx] == color ? 0 : 1;
+        }
+
+        for (var iter = 0; iter < n; iter++)
+        {
+            var u = -1;
+            var best = HexUnreachable;
+            for (var i = 0; i < n; i++)
+            {
+                if (!visited[i] && dist[i] < best) { best = dist[i]; u = i; }
+            }
+            if (u == -1) break;
+            visited[u] = true;
+            if (IsEnd(u)) return dist[u];
+
+            foreach (var v in HexNeighbors(u, size))
+            {
+                if (visited[v] || board[v] == opponent) continue;
+                var stepCost = board[v] == color ? 0 : 1;
+                var nd = dist[u] + stepCost;
+                if (nd < dist[v]) dist[v] = nd;
+            }
+        }
+
+        var minEnd = HexUnreachable;
+        for (var idx = 0; idx < n; idx++)
+        {
+            if (IsEnd(idx) && dist[idx] < minEnd) minEnd = dist[idx];
+        }
+        return minEnd;
+    }
+
+    public static int HexMove(char[] board, int size, char ai, char human, Difficulty difficulty)
+    {
+        var empty = new List<int>();
+        for (var i = 0; i < board.Length; i++) if (board[i] == '\0') empty.Add(i);
+        if (empty.Count == 0) return -1;
+
+        // Easy is fully random; Medium plays the heuristic 60% of the time
+        // so it's beatable but not a pushover; Hard always uses it - same
+        // "weakened good play" trick TicTacToeMove uses.
+        if (difficulty == Difficulty.Easy || (difficulty == Difficulty.Medium && Rng.NextDouble() < 0.4))
+        {
+            return empty[Rng.Next(empty.Count)];
+        }
+
+        var aiCostBefore = HexShortestConnectionCost(board, size, ai, human);
+
+        var bestScore = double.MinValue;
+        var bestMoves = new List<int>();
+
+        foreach (var idx in empty)
+        {
+            board[idx] = ai;
+            var aiCostAfter = HexShortestConnectionCost(board, size, ai, human);
+            board[idx] = '\0';
+
+            board[idx] = human;
+            var humanCostIfTaken = HexShortestConnectionCost(board, size, human, ai);
+            board[idx] = '\0';
+
+            // Offense: how much this move shortens the AI's own remaining
+            // path. Defense: how short the human's path would have been
+            // had they taken this cell instead - a bigger number here
+            // means denying it is more valuable.
+            var offense = aiCostBefore - aiCostAfter;
+            var defense = size - Math.Min(humanCostIfTaken, size);
+            var score = offense * 3.0 + defense + Rng.NextDouble() * 0.5;
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestMoves.Clear();
+                bestMoves.Add(idx);
+            }
+            else if (score == bestScore)
+            {
+                bestMoves.Add(idx);
+            }
+        }
+
+        return bestMoves[Rng.Next(bestMoves.Count)];
+    }
 }

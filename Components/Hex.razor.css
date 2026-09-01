@@ -1,0 +1,89 @@
+.hex-game {
+    width: min(680px, 96vw);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.75rem;
+}
+
+.hex-diff-name {
+    font-weight: 900;
+}
+
+.hex-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.hex-title {
+    font-weight: 900;
+}
+
+.hex-status {
+    text-align: center;
+    font-weight: 900;
+    color: var(--text-muted);
+    min-height: 1.4rem;
+    margin: 0;
+}
+
+.hex-board-wrap {
+    overflow-x: auto;
+    padding: 1rem 0.5rem;
+    display: flex;
+    justify-content: center;
+}
+
+.hex-board {
+    display: grid;
+    gap: 0;
+    /* Board sits on a subtle red-top/blue-side gradient frame so the two
+       goals (top-to-bottom for red, left-to-right for blue) read visually
+       without needing a separate legend. */
+    padding: 0.6rem;
+    border-radius: var(--radius-md);
+    background:
+        linear-gradient(180deg, rgba(230, 57, 70, 0.35), transparent 18%, transparent 82%, rgba(230, 57, 70, 0.35)),
+        linear-gradient(90deg, rgba(56, 182, 255, 0.3), transparent 18%, transparent 82%, rgba(56, 182, 255, 0.3));
+}
+
+.hex-row {
+    display: flex;
+}
+
+.hex-cell {
+    width: 38px;
+    height: 44px;
+    margin: 1px;
+    padding: 0;
+    border: none;
+    background: var(--control-bg-subtle);
+    clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+    transition: background 0.15s ease, transform 0.1s ease;
+    flex-shrink: 0;
+}
+
+.hex-cell:not(:disabled):hover {
+    background: rgba(78, 205, 196, 0.35);
+    transform: scale(1.06);
+}
+
+.hex-cell:disabled {
+    cursor: default;
+}
+
+.hex-cell.red {
+    background: #e63946;
+}
+
+.hex-cell.blue {
+    background: #38b6ff;
+}
+
+@media (max-width: 520px) {
+    .hex-cell {
+        width: 28px;
+        height: 33px;
+    }
+}

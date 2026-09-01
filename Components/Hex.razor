@@ -1,0 +1,257 @@
+@*
+    Hex.razor
+    The classic connection board game: you (red) try to link the top and
+    bottom edges with a chain of your own stones; the computer (blue)
+    tries to link the left and right edges. Each row of the board is
+    offset half a cell to the right of the row above (the classic Hex
+    rhombus), which gives every cell six neighbors instead of four - a
+    genuinely different adjacency shape from every other grid game here.
+    No draws are possible in Hex (a mathematical property of the game -
+    once the board fills, exactly one side is always connected), so
+    unlike Tic-Tac-Toe/Connect Four there's no draw outcome to handle.
+
+    Usage:
+        <Hex OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="hex-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <GameSetupPanel Title="⬡ Hex" Description="Connect your two sides with a chain of stones before the computer connects theirs! You (red) link top to bottom - the computer (blue) links left to right.">
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <GameChoiceButton Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
+                            <span class="hex-diff-name">@DifficultyName(diff)</span>
+                            <span class="hex-diff-detail">@DifficultyDetail(diff)</span>
+                        </GameChoiceButton>
+                    }
+                </div>
+            </LockedChoiceNotice>
+
+            <PrimaryActionButton OnClick="StartGame">Start Game</PrimaryActionButton>
+        </GameSetupPanel>
+    }
+    else
+    {
+        <GameHud>
+            <span class="hex-title">Hex</span>
+            <StatPill Label="Streak" Value="@streak.ToString()" />
+            <StatPill Label="Record" Value="@($"{wins}-{losses}")" />
+            <SecondaryActionButton OnClick="ExitToSetup">← Exit</SecondaryActionButton>
+        </GameHud>
+
+        <p class="hex-status">@StatusText()</p>
+
+        <div class="hex-board-wrap">
+            <div class="hex-board" style="--hex-size:@size;">
+                @for (var r = 0; r < size; r++)
+                {
+                    var row = r;
+                    <div class="hex-row" style="margin-left:@(row * HexHalfWidthPx)px;">
+                        @for (var c = 0; c < size; c++)
+                        {
+                            var col = c;
+                            var idx = row * size + col;
+                            var val = board[idx];
+                            <button class="hex-cell @(val == 'R' ? "red" : val == 'B' ? "blue" : "")"
+                                    disabled="@(phase != Phase.Playing || aiThinking || val != '\0')"
+                                    @onclick="() => PlayerMove(idx)">
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <GameOverlay>
+                <h2>@(won ? "🎉 You Connected It!" : "🤖 Computer Wins")</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@(won ? "your chain reached top to bottom!" : "the computer linked left to right first.")</p>
+                <div class="game-result-stats">
+                    <StatPill Label="Moves" Value="@movesPlayed.ToString()" />
+                </div>
+                <PersonalBestBadge Value="@(persistedBestStreak is { } bs ? $"{bs} streak" : null)" IsNew="isNewBest" />
+                <div class="game-result-actions">
+                    <PrimaryActionButton OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton OnClick="() => phase = Phase.Setup">Exit</SecondaryActionButton>
+                </div>
+            </GameOverlay>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<HexResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (longest win streak per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? persistedBestStreak;
+    private bool isNewBest;
+
+    private enum Phase { Setup, Playing, Finished }
+
+    private const double HexHalfWidthPx = 21;
+
+    private static readonly GameAi.Difficulty[] Difficulties =
+        { GameAi.Difficulty.Easy, GameAi.Difficulty.Medium, GameAi.Difficulty.Hard };
+
+    private GameAi.Difficulty? LockedDifficulty =>
+        Enum.TryParse<GameAi.Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int SizeFor(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => 5,
+        GameAi.Difficulty.Medium => 7,
+        _ => 9,
+    };
+
+    private Phase phase = Phase.Setup;
+    private GameAi.Difficulty selectedDifficulty = GameAi.Difficulty.Easy;
+    private int size = 5;
+    private char[] board = Array.Empty<char>();
+    private bool aiThinking;
+    private bool won;
+    private int movesPlayed;
+    private int wins;
+    private int losses;
+    private int streak;
+    private int bestStreak;
+    private DateTime startedAtUtc;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        size = SizeFor(selectedDifficulty);
+        board = new char[size * size];
+        movesPlayed = 0;
+        aiThinking = false;
+        phase = Phase.Playing;
+        startedAtUtc = DateTime.UtcNow;
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - same convention every
+    // other CPU board game here uses.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new HexResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                MovesPlayed: movesPlayed,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task PlayerMove(int idx)
+    {
+        if (phase != Phase.Playing || aiThinking || board[idx] != '\0') return;
+
+        board[idx] = 'R';
+        movesPlayed++;
+        await Interop.InvokeVoidAsync("playImpactSound");
+
+        if (await CheckOverAsync()) return;
+
+        aiThinking = true;
+        StateHasChanged();
+        await Task.Delay(500);
+
+        var move = GameAi.HexMove(board, size, 'B', 'R', selectedDifficulty);
+        if (move >= 0)
+        {
+            board[move] = 'B';
+            movesPlayed++;
+        }
+        aiThinking = false;
+
+        await CheckOverAsync();
+    }
+
+    private async Task<bool> CheckOverAsync()
+    {
+        var winner = GameAi.HexWinner(board, size);
+        if (winner == 'R')
+        {
+            wins++;
+            streak++;
+            bestStreak = Math.Max(bestStreak, streak);
+            await FinishGame(true);
+            return true;
+        }
+        if (winner == 'B')
+        {
+            losses++;
+            streak = 0;
+            await FinishGame(false);
+            return true;
+        }
+
+        StateHasChanged();
+        return false;
+    }
+
+    private async Task FinishGame(bool didWin)
+    {
+        won = didWin;
+        phase = Phase.Finished;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync(didWin ? "playMatchSound" : "playMismatchSound");
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"streak:{DifficultyName(selectedDifficulty)}";
+            persistedBestStreak = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Hex, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Hex, key, bestStreak, lowerIsBetter: false);
+        }
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new HexResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: didWin,
+                MovesPlayed: movesPlayed,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private string StatusText() => aiThinking ? "The computer is thinking..." : "Link top to bottom before the computer links left to right!";
+
+    private static string DifficultyName(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "Easy",
+        GameAi.Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "5x5 board, computer plays randomly",
+        GameAi.Difficulty.Medium => "7x7 board, computer plays pretty well",
+        _ => "9x9 board, computer plays its best",
+    };
+
+    public record HexResult(string Difficulty, bool Won, int MovesPlayed, int ElapsedSeconds);
+}

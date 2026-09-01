@@ -48,6 +48,7 @@ public static class BuiltInGames
     public const string SpotTheDifference = "spot-the-difference";
     public const string RoguelikeArena = "roguelike-arena";
     public const string UltimateTicTacToe = "ultimate-tic-tac-toe";
+    public const string Hex = "hex";
     public const string ColorMatch = "color-match";
     public const string ShapeSorter = "shape-sorter";
     public const string ShadowMatch = "shadow-match";
@@ -123,6 +124,7 @@ public static class BuiltInGames
         new BuiltInGame("Red Light, Green Light", "🚦", RedLightGreenLight, MinAge: 4, MaxAge: 9),
         new BuiltInGame("Tic-Tac-Toe", "⭕", TicTacToe, MinAge: 4, MaxAge: 10),
         new BuiltInGame("Ultimate Tic-Tac-Toe", "🎲", UltimateTicTacToe, MinAge: 8, MaxAge: 14),
+        new BuiltInGame("Hex", "⬡", Hex, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Connect Four", "🔴", ConnectFour, MinAge: 5, MaxAge: 11),
         new BuiltInGame("Rock Paper Scissors", "✊", RockPaperScissors, MinAge: 4, MaxAge: 10),
         new BuiltInGame("Higher or Lower", "🎴", HigherOrLower, MinAge: 5, MaxAge: 11),
