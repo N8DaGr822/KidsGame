@@ -50,6 +50,7 @@ public static class BuiltInGames
     public const string UltimateTicTacToe = "ultimate-tic-tac-toe";
     public const string Hex = "hex";
     public const string SequencePuzzle = "sequence-puzzle";
+    public const string LogicGridPuzzle = "logic-grid-puzzle";
     public const string ColorMatch = "color-match";
     public const string ShapeSorter = "shape-sorter";
     public const string ShadowMatch = "shadow-match";
@@ -127,6 +128,7 @@ public static class BuiltInGames
         new BuiltInGame("Ultimate Tic-Tac-Toe", "🎲", UltimateTicTacToe, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Hex", "⬡", Hex, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Sequence Puzzle", "🧠", SequencePuzzle, MinAge: 8, MaxAge: 14),
+        new BuiltInGame("Logic Grid Puzzle", "🔍", LogicGridPuzzle, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Connect Four", "🔴", ConnectFour, MinAge: 5, MaxAge: 11),
         new BuiltInGame("Rock Paper Scissors", "✊", RockPaperScissors, MinAge: 4, MaxAge: 10),
         new BuiltInGame("Higher or Lower", "🎴", HigherOrLower, MinAge: 5, MaxAge: 11),

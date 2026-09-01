@@ -109,6 +109,10 @@
             {
                 <SequencePuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSequencePuzzleComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.LogicGridPuzzle)
+            {
+                <LogicGridPuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleLogicGridPuzzleComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.ConnectFour)
             {
                 <ConnectFour PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleConnectFourComplete" />
@@ -750,6 +754,21 @@
             Theme = result.Difficulty,
             Difficulty = result.Won ? $"Solved in {result.ChecksUsed}" : "Gave up",
             Moves = result.ChecksUsed,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleLogicGridPuzzleComplete(LogicGridPuzzle.LogicGridResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Won ? "Solved" : "Gave up",
+            Moves = result.Won ? 1 : 0,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

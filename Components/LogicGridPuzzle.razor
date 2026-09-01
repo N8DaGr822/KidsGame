@@ -1,0 +1,405 @@
+@*
+    LogicGridPuzzle.razor
+    A classic "who owns which pet" deduction puzzle: N kids and N pets
+    have a hidden one-to-one matching, revealed only through negative
+    clues ("Alex does not have the Cat"). Tap a grid cell to cycle it
+    empty -> checkmark -> cross -> empty; marking a cell "yes" auto-marks
+    the rest of its row and column "no" for a satisfying elimination
+    feel. Check compares the grid's marked matches against the hidden
+    solution with no per-cell feedback - same "reason it out, then
+    submit" shape as Sequence Puzzle, not a guess-and-narrow loop.
+
+    Clue generation reuses Sequence Puzzle's brute-force-uniqueness
+    technique: every possible negative fact about the hidden matching
+    forms the candidate pool (the full pool alone always determines the
+    matching by elimination, so this is guaranteed to terminate),
+    greedily add random clues one at a time until the growing clue set
+    determines a unique matching among all N! possibilities.
+
+    Usage:
+        <LogicGridPuzzle OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="lg-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <GameSetupPanel Title="🔍 Logic Grid Puzzle" Description="Each kid owns exactly one pet - use the clues to figure out who owns what! Tap a cell to mark yes (✓) or no (✗).">
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <GameChoiceButton Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
+                            <span class="lg-diff-name">@DifficultyName(diff)</span>
+                            <span class="lg-diff-detail">@DifficultyDetail(diff)</span>
+                        </GameChoiceButton>
+                    }
+                </div>
+            </LockedChoiceNotice>
+
+            <PrimaryActionButton OnClick="StartGame">Start Game</PrimaryActionButton>
+        </GameSetupPanel>
+    }
+    else
+    {
+        <GameHud>
+            <span class="lg-title">Logic Grid Puzzle</span>
+            <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
+            <SecondaryActionButton OnClick="ExitToSetup">← Exit</SecondaryActionButton>
+        </GameHud>
+
+        <ul class="lg-clues">
+            @foreach (var clue in selectedClues)
+            {
+                <li>@clue.Text</li>
+            }
+        </ul>
+
+        <div class="lg-grid-wrap">
+            <table class="lg-grid">
+                <thead>
+                    <tr>
+                        <th></th>
+                        @foreach (var pet in pets)
+                        {
+                            <th><span class="lg-header-emoji">@pet.Emoji</span><span class="lg-header-name">@pet.Name</span></th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var k = 0; k < itemCount; k++)
+                    {
+                        var kid = k;
+                        <tr>
+                            <th class="lg-row-header">@kids[kid]</th>
+                            @for (var p = 0; p < itemCount; p++)
+                            {
+                                var pet = p;
+                                var mark = marks[kid, pet];
+                                <td>
+                                    <button class="lg-cell @(mark == CellMark.Yes ? "yes" : mark == CellMark.No ? "no" : "")" @onclick="() => TapCell(kid, pet)">
+                                        @(mark == CellMark.Yes ? "✓" : mark == CellMark.No ? "✗" : "")
+                                    </button>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <p class="lg-message">@message</p>
+        }
+
+        <div class="lg-actions">
+            <SecondaryActionButton OnClick="ResetGrid">Reset</SecondaryActionButton>
+            <PrimaryActionButton Disabled="@(!IsComplete())" OnClick="CheckAnswer">Check Solution</PrimaryActionButton>
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <GameOverlay>
+                <h2>🎉 Solved It!</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great deducing" : PlayerName + ", great deducing")!</p>
+                <div class="game-result-stats">
+                    <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
+                </div>
+                <PersonalBestBadge Value="@FormatTime(bestTimeSeconds ?? elapsedSeconds)" IsNew="isNewBest" />
+                <div class="game-result-actions">
+                    <PrimaryActionButton OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton OnClick="ExitToSetup">Exit</SecondaryActionButton>
+                </div>
+            </GameOverlay>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<LogicGridResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fastest solve time, per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestTimeSeconds;
+    private bool isNewBest;
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+    private enum CellMark { Unknown, Yes, No }
+
+    private record PetDef(string Emoji, string Name);
+    private record Clue(string Text, Func<int[], bool> IsTrue);
+
+    private static readonly string[] KidPool = { "Alex", "Sam", "Jamie", "Riley", "Taylor", "Morgan" };
+    private static readonly PetDef[] PetPool =
+    {
+        new("🐶", "Dog"), new("🐱", "Cat"), new("🐰", "Rabbit"),
+        new("🐹", "Hamster"), new("🐦", "Bird"), new("🐢", "Turtle"),
+    };
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int ItemCountFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 3,
+        Difficulty.Medium => 4,
+        _ => 5,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int itemCount;
+    private List<string> kids = new();
+    private List<PetDef> pets = new();
+    private int[] hiddenPetOf = Array.Empty<int>(); // hiddenPetOf[kid] = pet index
+    private List<Clue> selectedClues = new();
+    private CellMark[,] marks = new CellMark[0, 0];
+    private string message = "";
+    private int elapsedSeconds;
+    private System.Threading.Timer? timer;
+    private readonly Random rng = new();
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        elapsedSeconds = 0;
+        message = "";
+        bestTimeSeconds = null;
+        isNewBest = false;
+        GeneratePuzzle();
+        phase = Phase.Playing;
+        StartTimer();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - same convention every
+    // other game here uses.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            StopTimer();
+            await OnComplete.InvokeAsync(new LogicGridResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                ElapsedSeconds: elapsedSeconds));
+        }
+        StopTimer();
+        phase = Phase.Setup;
+    }
+
+    private void GeneratePuzzle()
+    {
+        itemCount = ItemCountFor(selectedDifficulty);
+        kids = KidPool.OrderBy(_ => rng.Next()).Take(itemCount).ToList();
+        pets = PetPool.OrderBy(_ => rng.Next()).Take(itemCount).ToList();
+
+        hiddenPetOf = Enumerable.Range(0, itemCount).OrderBy(_ => rng.Next()).ToArray();
+
+        var pool = BuildCluePool().OrderBy(_ => rng.Next()).ToList();
+        selectedClues = new List<Clue>();
+        foreach (var clue in pool)
+        {
+            selectedClues.Add(clue);
+            if (CountSatisfying(selectedClues, itemCount) == 1) break;
+        }
+
+        marks = new CellMark[itemCount, itemCount];
+    }
+
+    // Every "kid does not have pet" fact about the hidden matching that
+    // isn't already true - taken all together, this pool alone always
+    // determines the matching by elimination, so the greedy selection in
+    // GeneratePuzzle is guaranteed to terminate. Deliberately negative
+    // only (no direct "X has Y" reveals) so this stays an elimination
+    // puzzle rather than handing out the answer.
+    private List<Clue> BuildCluePool()
+    {
+        var pool = new List<Clue>();
+        for (var kid = 0; kid < itemCount; kid++)
+        {
+            for (var pet = 0; pet < itemCount; pet++)
+            {
+                if (hiddenPetOf[kid] == pet) continue;
+                var (k, p) = (kid, pet);
+                pool.Add(new Clue($"{kids[k]} does not have the {pets[p].Name}", candidate => candidate[k] != p));
+            }
+        }
+        return pool;
+    }
+
+    // Brute-force over all N! matchings (N<=5, so <=120) - simplest
+    // possible way to be certain the generated clue set has exactly one
+    // solution, and cheap at this size. Same technique as Sequence Puzzle.
+    private static int CountSatisfying(List<Clue> clues, int n)
+    {
+        var count = 0;
+        var arr = Enumerable.Range(0, n).ToArray();
+        foreach (var candidate in AllPermutations(arr, 0))
+        {
+            if (clues.All(c => c.IsTrue(candidate)))
+            {
+                count++;
+                if (count > 1) return count;
+            }
+        }
+        return count;
+    }
+
+    private static IEnumerable<int[]> AllPermutations(int[] arr, int k)
+    {
+        if (k == arr.Length - 1)
+        {
+            yield return (int[])arr.Clone();
+            yield break;
+        }
+        for (var i = k; i < arr.Length; i++)
+        {
+            (arr[k], arr[i]) = (arr[i], arr[k]);
+            foreach (var p in AllPermutations(arr, k + 1)) yield return p;
+            (arr[k], arr[i]) = (arr[i], arr[k]);
+        }
+    }
+
+    private void TapCell(int kid, int pet)
+    {
+        if (phase != Phase.Playing) return;
+
+        var next = marks[kid, pet] switch
+        {
+            CellMark.Unknown => CellMark.Yes,
+            CellMark.Yes => CellMark.No,
+            _ => CellMark.Unknown,
+        };
+        marks[kid, pet] = next;
+
+        if (next == CellMark.Yes)
+        {
+            for (var p = 0; p < itemCount; p++) if (p != pet) marks[kid, p] = CellMark.No;
+            for (var k = 0; k < itemCount; k++) if (k != kid) marks[k, pet] = CellMark.No;
+        }
+
+        message = "";
+    }
+
+    private void ResetGrid()
+    {
+        if (phase != Phase.Playing) return;
+        marks = new CellMark[itemCount, itemCount];
+        message = "";
+    }
+
+    private bool IsComplete() =>
+        itemCount > 0 && Enumerable.Range(0, itemCount).All(kid =>
+            Enumerable.Range(0, itemCount).Count(pet => marks[kid, pet] == CellMark.Yes) == 1);
+
+    private async Task CheckAnswer()
+    {
+        if (phase != Phase.Playing || !IsComplete()) return;
+
+        var candidate = new int[itemCount];
+        for (var kid = 0; kid < itemCount; kid++)
+        {
+            candidate[kid] = Enumerable.Range(0, itemCount).First(pet => marks[kid, pet] == CellMark.Yes);
+        }
+
+        if (candidate.SequenceEqual(hiddenPetOf))
+        {
+            await Interop.InvokeVoidAsync("playMatchSound");
+            await FinishGame();
+        }
+        else
+        {
+            message = "Not quite - look at the clues again!";
+            await Interop.InvokeVoidAsync("playMismatchSound");
+        }
+    }
+
+    private async Task FinishGame()
+    {
+        StopTimer();
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"time-{DifficultyName(selectedDifficulty)}";
+            bestTimeSeconds = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.LogicGridPuzzle, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.LogicGridPuzzle, key, elapsedSeconds, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new LogicGridResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: true,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.Minutes > 0 ? $"{ts.Minutes}:{ts.Seconds:D2}" : $"{ts.Seconds}s";
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        StopTimer();
+        return ValueTask.CompletedTask;
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3 kids, 3 pets",
+        Difficulty.Medium => "4 kids, 4 pets",
+        _ => "5 kids, 5 pets",
+    };
+
+    public record LogicGridResult(string Difficulty, bool Won, int ElapsedSeconds);
+}

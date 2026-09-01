@@ -119,6 +119,7 @@ public static class GameThemes
         [BuiltInGames.UltimateTicTacToe] = "gh-theme-puzzle",
         [BuiltInGames.Hex] = "gh-theme-puzzle",
         [BuiltInGames.SequencePuzzle] = "gh-theme-puzzle",
+        [BuiltInGames.LogicGridPuzzle] = "gh-theme-puzzle",
     };
 
     public static string For(string launchTarget) =>

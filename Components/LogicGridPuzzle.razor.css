@@ -1,0 +1,114 @@
+.lg-game {
+    width: min(720px, 96vw);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1rem;
+}
+
+.lg-diff-name {
+    font-weight: 900;
+}
+
+.lg-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.lg-title {
+    font-weight: 900;
+}
+
+.lg-clues {
+    list-style: none;
+    display: grid;
+    gap: 0.4rem;
+    padding: 1rem 1.2rem;
+    margin: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--panel-bg);
+    color: var(--text-soft);
+    font-weight: 700;
+}
+
+.lg-clues li::before {
+    content: "💡 ";
+}
+
+.lg-grid-wrap {
+    overflow-x: auto;
+    display: flex;
+    justify-content: center;
+}
+
+.lg-grid {
+    border-collapse: separate;
+    border-spacing: 4px;
+}
+
+.lg-grid th {
+    font-weight: 800;
+    color: var(--text-soft);
+    text-align: center;
+    padding: 0.3rem;
+}
+
+.lg-header-emoji {
+    display: block;
+    font-size: 1.4rem;
+}
+
+.lg-header-name {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.lg-row-header {
+    white-space: nowrap;
+    padding-right: 0.6rem;
+    text-align: right;
+}
+
+.lg-cell {
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    font-weight: 900;
+    font-size: 1.3rem;
+    padding: 0;
+}
+
+.lg-cell:hover {
+    background: var(--control-bg-hover);
+}
+
+.lg-cell.yes {
+    background: rgba(78, 205, 196, 0.28);
+    border-color: rgba(78, 205, 196, 0.8);
+    color: #4ecdc4;
+}
+
+.lg-cell.no {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-muted);
+}
+
+.lg-message {
+    text-align: center;
+    font-weight: 800;
+    color: var(--text-soft);
+    margin: 0;
+}
+
+.lg-actions {
+    display: flex;
+    justify-content: center;
+}
