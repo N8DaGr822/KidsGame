@@ -365,6 +365,10 @@
             {
                 <RpgBattle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRpgBattleComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.RoguelikeArena)
+            {
+                <RoguelikeArena PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRoguelikeArenaComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.CatDefense)
             {
                 <TowerDefense Theme="cat" PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTowerDefenseComplete" />
@@ -1118,6 +1122,21 @@
             Theme = $"{result.GridSize}x{result.GridSize}",
             Difficulty = $"{result.Moves} swaps",
             Moves = result.Moves,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleRoguelikeArenaComplete(RoguelikeArena.RoguelikeArenaResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Floor {result.FloorReached} ({result.EnemiesDefeated} defeated)",
+            Moves = result.TurnsTaken,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

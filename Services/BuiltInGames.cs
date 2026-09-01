@@ -46,6 +46,7 @@ public static class BuiltInGames
     public const string MathTarget = "math-target";
     public const string JigsawPuzzle = "jigsaw-puzzle";
     public const string SpotTheDifference = "spot-the-difference";
+    public const string RoguelikeArena = "roguelike-arena";
     public const string ColorMatch = "color-match";
     public const string ShapeSorter = "shape-sorter";
     public const string ShadowMatch = "shadow-match";
@@ -179,6 +180,7 @@ public static class BuiltInGames
         new BuiltInGame("Dominoes", "🀫", Dominoes, MinAge: 5, MaxAge: 11),
         new BuiltInGame("Dungeon Crawler", "⚔️", DungeonCrawler, "images/dungeoncrawler/hero.png", MinAge: 9, MaxAge: 14),
         new BuiltInGame("Mini RPG Battle", "🐉", RpgBattle, "images/rpgbattle/monster-dragon.png", MinAge: 9, MaxAge: 14),
+        new BuiltInGame("Roguelike Arena", "🗡️", RoguelikeArena, "images/rpgbattle/hero-knight.png", MinAge: 9, MaxAge: 14),
         new BuiltInGame("Cat Defense", "🐱", CatDefense, "images/catdefense/tower-guardian.png", MinAge: 8, MaxAge: 14),
         new BuiltInGame("Big & Small", "🔵", BigSmall, "images/shapes/blue-circle.png", MinAge: 1, MaxAge: 3),
         new BuiltInGame("Color Splash", "🎨", ColorSplash, MinAge: 1, MaxAge: 3),

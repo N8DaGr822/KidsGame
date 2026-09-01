@@ -69,6 +69,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Rhythm Game
 - Robot Commands
 - Rock Paper Scissors
+- Roguelike Arena
 - Shadow Match
 - Shape Sorter
 - Sleepy Animals

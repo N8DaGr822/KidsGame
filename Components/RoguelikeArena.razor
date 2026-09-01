@@ -1,0 +1,629 @@
+@*
+    RoguelikeArena.razor
+    A tile-grid dungeon delve with true permadeath and no fixed floor
+    count - the roguelike genre trope neither sibling RPG game here has.
+    Reuses Dungeon Crawler's exact room-generation and bump-to-attack
+    combat shape (tap an adjacent tile to step there, tap an adjacent
+    enemy to attack it - no separate battle screen) rather than inventing
+    a third combat system, and Mini RPG Battle's existing hero/monster
+    portraits rather than sourcing new art. What's new: a hero choice at
+    setup (three stat spreads, tank/glass-cannon/balanced), and a
+    permanent-for-the-run upgrade pick after every floor (the classic
+    roguelike "build" mechanic) - HP hitting 0 ends the run immediately,
+    with no checkpoint heal like Mini RPG Battle's "regroup" beat. Floors
+    continue forever until death; personal best tracks deepest floor
+    reached, per difficulty.
+
+    Usage:
+        <RoguelikeArena OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="ra-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <GameSetupPanel Title="🗡️ Roguelike Arena" Description="Choose your hero, then delve as deep as you can! Tap a tile next to you to step there, or tap an enemy to attack. Pick an upgrade after every floor - but if you fall, the run is over.">
+            <h3 class="game-section-title">Choose your hero</h3>
+            <div class="game-option-grid">
+                @foreach (var hero in Heroes)
+                {
+                    <GameChoiceButton Selected="@(hero == selectedHero)" OnClick="() => selectedHero = hero">
+                        <img class="ra-hero-thumb" src="@hero.ImagePath" alt="" />
+                        <span class="ra-hero-name">@hero.Name</span>
+                        <span class="ra-hero-detail">❤️ @hero.MaxHp &nbsp; ⚔️ @hero.Attack</span>
+                    </GameChoiceButton>
+                }
+            </div>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <GameChoiceButton Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
+                            <span class="ra-diff-name">@DifficultyName(diff)</span>
+                            <span class="ra-diff-detail">@DifficultyDetail(diff)</span>
+                        </GameChoiceButton>
+                    }
+                </div>
+            </LockedChoiceNotice>
+
+            <PrimaryActionButton OnClick="StartGame">Start Game</PrimaryActionButton>
+        </GameSetupPanel>
+    }
+    else
+    {
+        <GameHud>
+            <span class="ra-title">Roguelike Arena</span>
+            <StatPill Label="Floor" Value="@floorNumber.ToString()" />
+            <StatPill Label="HP" Value="@($"{Math.Max(0, playerHp)}/{playerMaxHp}")" />
+            <StatPill Label="Turns" Value="@turnsTaken.ToString()" />
+            <SecondaryActionButton OnClick="ExitToSetup">← Exit</SecondaryActionButton>
+        </GameHud>
+
+        <p class="ra-status">@statusText</p>
+
+        <div class="ra-grid" style="--ra-cols:@room.Width; --ra-rows:@room.Height;">
+            @for (var r = 0; r < room.Height; r++)
+            {
+                for (var c = 0; c < room.Width; c++)
+                {
+                    var row = r; var col = c;
+                    var walkable = room.Floor[row, col];
+                    var isPlayer = row == playerRow && col == playerCol;
+                    var isDoor = row == room.DoorRow && col == room.DoorCol;
+                    var enemy = room.Enemies.FirstOrDefault(e => e.Row == row && e.Col == col);
+                    var reachable = phase == Phase.Playing && IsAdjacent(row, col) && (walkable || enemy is not null);
+
+                    <button class="ra-cell @(walkable ? "floor" : "wall") @(reachable ? "reachable" : "")"
+                            disabled="@(!reachable)"
+                            @onclick="() => OnTileTap(row, col)">
+                        @if (isPlayer)
+                        {
+                            <img class="ra-sprite ra-player @(playerHitFlashMs > 0 ? "hit" : "")" src="@selectedHero.ImagePath" alt="" />
+                        }
+                        else if (enemy is not null)
+                        {
+                            <div class="ra-enemy-wrap">
+                                <img class="ra-sprite @(enemy.IsElite ? "elite" : "") @(enemy.HitFlashMs > 0 ? "hit" : "")" src="@EnemySprite(enemy.Kind)" alt="" />
+                                <div class="ra-hp-track"><div class="ra-hp-fill" style="width:@((enemy.Hp * 100.0 / enemy.MaxHp).ToString(System.Globalization.CultureInfo.InvariantCulture))%;"></div></div>
+                            </div>
+                        }
+                        else if (isDoor)
+                        {
+                            <span class="ra-door">🚪</span>
+                        }
+                    </button>
+                }
+            }
+        </div>
+
+        @if (phase == Phase.ChoosingUpgrade)
+        {
+            <GameOverlay PanelClass="ra-upgrade-panel">
+                <h2>⭐ Choose an Upgrade</h2>
+                <p>Floor @floorNumber cleared! Pick one to carry with you for the rest of the run.</p>
+                <div class="ra-upgrade-grid">
+                    @foreach (var upgrade in upgradeChoices)
+                    {
+                        <GameChoiceButton Class="ra-upgrade-card" OnClick="() => ChooseUpgrade(upgrade)">
+                            <span class="ra-upgrade-icon">@upgrade.Icon</span>
+                            <span class="ra-upgrade-name">@upgrade.Name</span>
+                            <span class="ra-upgrade-desc">@upgrade.Description</span>
+                        </GameChoiceButton>
+                    }
+                </div>
+            </GameOverlay>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <GameOverlay>
+                <h2>💀 The Run Ends</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")you made it to floor @floorNumber as the @selectedHero.Name!</p>
+                <div class="game-result-stats">
+                    <StatPill Label="Enemies defeated" Value="@enemiesDefeated.ToString()" />
+                    <StatPill Label="Upgrades" Value="@upgradesCollected.ToString()" />
+                </div>
+                <PersonalBestBadge Value="@($"Floor {bestFloor ?? floorNumber}")" IsNew="isNewBest" />
+                <div class="game-result-actions">
+                    <PrimaryActionButton OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton OnClick="ExitToSetup">Exit</SecondaryActionButton>
+                </div>
+            </GameOverlay>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<RoguelikeArenaResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (deepest floor reached, per difficulty) - null skips
+    /// recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, ChoosingUpgrade, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int AggroRange = 3;
+
+    private record HeroDef(string Id, string Name, string ImagePath, int MaxHp, int Attack);
+
+    // Same tank/glass-cannon/balanced spread as Mini RPG Battle's own
+    // heroes, reusing its exact portrait art - simplified to just
+    // HP+Attack since bump-to-attack is a single action per beat here,
+    // not a Special/Guard/Item menu (that's Mini RPG Battle's job).
+    private static readonly HeroDef[] Heroes =
+    {
+        new("knight", "Knight", "images/rpgbattle/hero-knight.png", 26, 5),
+        new("mage", "Mage", "images/rpgbattle/hero-mage.png", 18, 8),
+        new("rogue", "Rogue", "images/rpgbattle/hero-rogue.png", 21, 6),
+    };
+
+    private record UpgradeDef(string Id, string Icon, string Name, string Description);
+
+    private static readonly UpgradeDef[] AllUpgrades =
+    {
+        new("max-hp", "❤️", "Vitality", "+6 Max HP, healed on the spot"),
+        new("attack", "💪", "Strength", "+2 Attack"),
+        new("full-heal", "✨", "Second Breath", "Heal to full HP"),
+        new("lifesteal", "🩸", "Lifesteal", "+15% of damage dealt heals you"),
+        new("crit", "🎯", "Precision", "+15% chance to deal double damage"),
+        new("second-wind", "🛡️", "Guardian Charm", "Survive one lethal hit at 1 HP (once per run)"),
+    };
+
+    private class EnemyState
+    {
+        public string Kind = "goblin";
+        public bool IsElite;
+        public int Row;
+        public int Col;
+        public int Hp;
+        public int MaxHp;
+        public int Damage;
+        public int HitFlashMs;
+    }
+
+    private class RoomState
+    {
+        public int Width;
+        public int Height;
+        public bool[,] Floor = new bool[0, 0];
+        public int DoorRow;
+        public int DoorCol;
+        public readonly List<EnemyState> Enemies = new();
+    }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static double HpMultFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 0.8,
+        Difficulty.Medium => 1.0,
+        _ => 1.3,
+    };
+
+    private static double DamageMultFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 0.8,
+        Difficulty.Medium => 1.0,
+        _ => 1.2,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private HeroDef selectedHero = Heroes[0];
+    private RoomState room = new();
+    private int floorNumber;
+    private int playerRow;
+    private int playerCol;
+    private int playerMaxHp;
+    private int playerHp;
+    private int playerAttack;
+    private double lifestealPct;
+    private double critChance;
+    private bool hasSecondWind;
+    private bool usedSecondWind;
+    private int playerHitFlashMs;
+    private int turnsTaken;
+    private int enemiesDefeated;
+    private int upgradesCollected;
+    private string statusText = "";
+    private List<UpgradeDef> upgradeChoices = new();
+    private int? bestFloor;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        floorNumber = 1;
+        playerMaxHp = selectedHero.MaxHp;
+        playerHp = playerMaxHp;
+        playerAttack = selectedHero.Attack;
+        lifestealPct = 0;
+        critChance = 0;
+        hasSecondWind = false;
+        usedSecondWind = false;
+        turnsTaken = 0;
+        enemiesDefeated = 0;
+        upgradesCollected = 0;
+        bestFloor = null;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        GenerateFloor();
+    }
+
+    // An early exit still logs to play history (with whatever floor was
+    // reached so far) rather than silently vanishing - same convention
+    // Dungeon Crawler and Mini RPG Battle both use for their own exits.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(BuildResult());
+        }
+        phase = Phase.Setup;
+    }
+
+    private RoguelikeArenaResult BuildResult() => new(
+        Difficulty: DifficultyName(selectedDifficulty),
+        Hero: selectedHero.Name,
+        FloorReached: floorNumber,
+        EnemiesDefeated: enemiesDefeated,
+        UpgradesCollected: upgradesCollected,
+        TurnsTaken: turnsTaken,
+        ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds);
+
+    // Same room-generation shape as Dungeon Crawler's GenerateRoom - a
+    // fresh random rectangle every floor, walls on the perimeter, player
+    // entering near one corner with the door near the opposite corner.
+    // Unlike Dungeon Crawler there's no total-floor cap: this keeps
+    // generating forever until the player dies, and from floor 4 onward
+    // a chance of tougher "elite" enemies (Mini RPG Battle's monster
+    // portraits, not Dungeon Crawler's goblin/ogre) can appear.
+    private void GenerateFloor()
+    {
+        var width = rng.Next(6, 10);
+        var height = rng.Next(6, 10);
+        room = new RoomState
+        {
+            Width = width,
+            Height = height,
+            Floor = new bool[height, width],
+            DoorRow = height - 2,
+            DoorCol = width - 2,
+        };
+
+        for (var r = 0; r < height; r++)
+        {
+            for (var c = 0; c < width; c++)
+            {
+                room.Floor[r, c] = r > 0 && c > 0 && r < height - 1 && c < width - 1;
+            }
+        }
+
+        playerRow = 1;
+        playerCol = 1;
+
+        var enemyCount = Math.Min(5, 1 + floorNumber / 2);
+        var hpMult = HpMultFor(selectedDifficulty);
+        var dmgMult = DamageMultFor(selectedDifficulty);
+        var baseHp = (8 + floorNumber * 4) * hpMult;
+        var baseDamage = (2 + floorNumber / 2) * dmgMult;
+        var basicKinds = new[] { "goblin", "ogre" };
+        var eliteKinds = new[] { "dragon", "lizard", "medusa", "small-dragon", "jinn" };
+        var eliteUnlocked = floorNumber >= 4;
+
+        for (var i = 0; i < enemyCount; i++)
+        {
+            (int Row, int Col) pos;
+            var attempts = 0;
+            do
+            {
+                pos = (rng.Next(1, height - 1), rng.Next(1, width - 1));
+                attempts++;
+            }
+            while (attempts < 50 && (Chebyshev(pos.Row, pos.Col, playerRow, playerCol) < 3
+                || (pos.Row == room.DoorRow && pos.Col == room.DoorCol)
+                || room.Enemies.Any(e => e.Row == pos.Row && e.Col == pos.Col)));
+
+            var isElite = eliteUnlocked && rng.NextDouble() < 0.35;
+            var kind = isElite ? eliteKinds[rng.Next(eliteKinds.Length)] : basicKinds[rng.Next(basicKinds.Length)];
+            var hp = (int)Math.Round(baseHp * (isElite ? 1.6 : 1.0));
+            var damage = (int)Math.Round(baseDamage * (isElite ? 1.4 : 1.0));
+
+            room.Enemies.Add(new EnemyState
+            {
+                Kind = kind,
+                IsElite = isElite,
+                Row = pos.Row,
+                Col = pos.Col,
+                Hp = Math.Max(4, hp),
+                MaxHp = Math.Max(4, hp),
+                Damage = Math.Max(1, damage),
+            });
+        }
+
+        statusText = $"Floor {floorNumber} - find the stairs!";
+    }
+
+    // Same shape as Dungeon Crawler's IsAdjacent (itself borrowed from
+    // TreasureHunt) - only orthogonally-adjacent tiles are legal taps.
+    private bool IsAdjacent(int row, int col)
+    {
+        if (row == playerRow && col == playerCol) return false;
+        return (Math.Abs(playerRow - row) == 1 && playerCol == col) || (Math.Abs(playerCol - col) == 1 && playerRow == row);
+    }
+
+    private bool IsWalkable(int row, int col) =>
+        row >= 0 && row < room.Height && col >= 0 && col < room.Width && room.Floor[row, col];
+
+    private static int Chebyshev(int r1, int c1, int r2, int c2) =>
+        Math.Max(Math.Abs(r1 - r2), Math.Abs(c1 - c2));
+
+    private async Task OnTileTap(int row, int col)
+    {
+        if (phase != Phase.Playing || !IsAdjacent(row, col)) return;
+
+        turnsTaken++;
+        var enemy = room.Enemies.FirstOrDefault(e => e.Row == row && e.Col == col);
+        EnemyState? actedEnemy = null;
+
+        if (enemy is not null)
+        {
+            actedEnemy = enemy;
+            await BumpAttackAsync(enemy);
+        }
+        else if (IsWalkable(row, col))
+        {
+            playerRow = row;
+            playerCol = col;
+            StateHasChanged();
+            await Interop.InvokeVoidAsync("playImpactSound");
+
+            if (row == room.DoorRow && col == room.DoorCol)
+            {
+                await Task.Delay(250);
+                OfferUpgrade();
+                return;
+            }
+        }
+        else
+        {
+            return;
+        }
+
+        if (playerHp <= 0 && !await HandleLethalAsync()) return;
+
+        await RunEnemyTurnAsync(actedEnemy);
+    }
+
+    // Bump-to-attack: the attacked enemy either dies here, or - since
+    // it's still adjacent - hits back immediately as part of the same
+    // action, matching Dungeon Crawler's exact combat shape. Crit chance
+    // and lifesteal (both run-scoped upgrades, 0 by default) layer on
+    // top without changing that shape.
+    private async Task BumpAttackAsync(EnemyState enemy)
+    {
+        var isCrit = critChance > 0 && rng.NextDouble() < critChance;
+        var dmg = isCrit ? playerAttack * 2 : playerAttack;
+        enemy.Hp -= dmg;
+        enemy.HitFlashMs = 250;
+        statusText = isCrit ? $"Critical hit on the {DisplayName(enemy.Kind)}!" : $"You hit the {DisplayName(enemy.Kind)}!";
+
+        if (lifestealPct > 0)
+        {
+            var healed = (int)Math.Round(dmg * lifestealPct);
+            if (healed > 0) playerHp = Math.Min(playerMaxHp, playerHp + healed);
+        }
+
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playImpactSound");
+        await Task.Delay(200);
+        enemy.HitFlashMs = 0;
+
+        if (enemy.Hp <= 0)
+        {
+            room.Enemies.Remove(enemy);
+            enemiesDefeated++;
+            statusText = "Enemy defeated!";
+            await Interop.InvokeVoidAsync("playMatchSound");
+        }
+        else
+        {
+            playerHp -= enemy.Damage;
+            playerHitFlashMs = 250;
+            statusText = $"The {DisplayName(enemy.Kind)} hits back!";
+            await Interop.InvokeVoidAsync("playMismatchSound");
+            StateHasChanged();
+            await Task.Delay(200);
+            playerHitFlashMs = 0;
+        }
+
+        StateHasChanged();
+    }
+
+    // Every enemy except the one that just fought either attacks if
+    // already adjacent, takes one greedy step toward the player if
+    // within aggro range, or does nothing - identical shape to Dungeon
+    // Crawler's RunEnemyTurnAsync.
+    private async Task RunEnemyTurnAsync(EnemyState? skip)
+    {
+        foreach (var enemy in room.Enemies.Where(e => e != skip).ToList())
+        {
+            if (phase != Phase.Playing) return;
+            if (!room.Enemies.Contains(enemy)) continue;
+
+            if (IsAdjacent(enemy.Row, enemy.Col) || (enemy.Row == playerRow && enemy.Col == playerCol))
+            {
+                playerHp -= enemy.Damage;
+                playerHitFlashMs = 250;
+                statusText = $"The {DisplayName(enemy.Kind)} attacks!";
+                StateHasChanged();
+                await Interop.InvokeVoidAsync("playMismatchSound");
+                await Task.Delay(200);
+                playerHitFlashMs = 0;
+
+                if (playerHp <= 0 && !await HandleLethalAsync()) return;
+            }
+            else if (Chebyshev(enemy.Row, enemy.Col, playerRow, playerCol) <= AggroRange)
+            {
+                var dr = playerRow - enemy.Row;
+                var dc = playerCol - enemy.Col;
+                int nr = enemy.Row, nc = enemy.Col;
+                if (Math.Abs(dr) >= Math.Abs(dc) && dr != 0) nr += Math.Sign(dr);
+                else if (dc != 0) nc += Math.Sign(dc);
+
+                if (IsWalkable(nr, nc) && !room.Enemies.Any(o => o != enemy && o.Row == nr && o.Col == nc))
+                {
+                    enemy.Row = nr;
+                    enemy.Col = nc;
+                }
+            }
+            StateHasChanged();
+            await Task.Delay(180);
+        }
+
+        if (phase == Phase.Playing)
+        {
+            statusText = $"Floor {floorNumber} - find the stairs!";
+            StateHasChanged();
+        }
+    }
+
+    // Centralizes the "player just hit 0 HP" check so the one-time
+    // Guardian Charm upgrade only needs handling in one place. Returns
+    // true if the run continues (revived at 1 HP), false if it ended.
+    private async Task<bool> HandleLethalAsync()
+    {
+        if (hasSecondWind && !usedSecondWind)
+        {
+            usedSecondWind = true;
+            playerHp = 1;
+            statusText = "Your guardian charm saves you at the last moment!";
+            StateHasChanged();
+            await Interop.InvokeVoidAsync("playMatchSound");
+            await Task.Delay(700);
+            return true;
+        }
+
+        await FinishGame();
+        return false;
+    }
+
+    private void OfferUpgrade()
+    {
+        upgradeChoices = AllUpgrades
+            .Where(u => u.Id != "second-wind" || !hasSecondWind)
+            .OrderBy(_ => rng.Next())
+            .Take(3)
+            .ToList();
+        phase = Phase.ChoosingUpgrade;
+    }
+
+    private void ChooseUpgrade(UpgradeDef upgrade)
+    {
+        upgradesCollected++;
+        switch (upgrade.Id)
+        {
+            case "max-hp":
+                playerMaxHp += 6;
+                playerHp = Math.Min(playerMaxHp, playerHp + 6);
+                break;
+            case "attack":
+                playerAttack += 2;
+                break;
+            case "full-heal":
+                playerHp = playerMaxHp;
+                break;
+            case "lifesteal":
+                lifestealPct += 0.15;
+                break;
+            case "crit":
+                critChance += 0.15;
+                break;
+            case "second-wind":
+                hasSecondWind = true;
+                break;
+        }
+
+        floorNumber++;
+        phase = Phase.Playing;
+        GenerateFloor();
+    }
+
+    private static string DisplayName(string kind) => kind switch
+    {
+        "lizard" => "lizard warrior",
+        "small-dragon" => "young dragon",
+        _ => kind,
+    };
+
+    private static string EnemySprite(string kind) => kind switch
+    {
+        "ogre" => "images/dungeoncrawler/enemy-ogre.png",
+        "dragon" => "images/rpgbattle/monster-dragon.png",
+        "lizard" => "images/rpgbattle/monster-lizard.png",
+        "medusa" => "images/rpgbattle/monster-medusa.png",
+        "small-dragon" => "images/rpgbattle/monster-small-dragon.png",
+        "jinn" => "images/rpgbattle/monster-jinn.png",
+        _ => "images/dungeoncrawler/enemy-goblin.png",
+    };
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playMismatchSound");
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"deepest-floor-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestFloor = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.RoguelikeArena, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.RoguelikeArena, key, floorNumber, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(BuildResult());
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Weaker enemies",
+        Difficulty.Medium => "Standard challenge",
+        _ => "Tougher enemies",
+    };
+
+    public record RoguelikeArenaResult(string Difficulty, string Hero, int FloorReached, int EnemiesDefeated, int UpgradesCollected, int TurnsTaken, int ElapsedSeconds);
+}
