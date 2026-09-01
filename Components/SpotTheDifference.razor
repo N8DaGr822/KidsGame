@@ -1,0 +1,337 @@
+@*
+    SpotTheDifference.razor
+    Two copies of the same scenic background sit side by side, each
+    dotted with small decorative markers at matching positions. Most
+    markers are identical on both sides; a few show a different icon
+    (or the same icon in a different color) - tap those to find them.
+    No pre-made "spot the difference" art pair exists (or is needed):
+    the differences are generated procedurally as an emoji overlay on
+    top of an existing background image, the same zero-asset trick
+    Jigsaw Puzzle and Sliding Puzzle use for their own pictures.
+
+    Usage:
+        <SpotTheDifference OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="sd-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <GameSetupPanel Title="🔍 Spot the Difference" Description="Two pictures look the same - but a few little icons don't match. Tap the ones that are different!">
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <GameChoiceButton Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
+                            <span class="sd-diff-name">@DifficultyName(diff)</span>
+                            <span class="sd-diff-detail">@DifficultyDetail(diff)</span>
+                        </GameChoiceButton>
+                    }
+                </div>
+            </LockedChoiceNotice>
+
+            <PrimaryActionButton OnClick="StartGame">Start Game</PrimaryActionButton>
+        </GameSetupPanel>
+    }
+    else
+    {
+        <GameHud>
+            <span class="sd-title">Spot the Difference</span>
+            <StatPill Label="Round" Value="@($"{Math.Min(round, TotalRounds)}/{TotalRounds}")" />
+            <StatPill Label="Found" Value="@($"{foundCount}/{spots.Count(s => s.IsDifference)}")" />
+            <StatPill Label="Taps" Value="@totalTaps.ToString()" />
+            <SecondaryActionButton OnClick="ExitToSetup">← Exit</SecondaryActionButton>
+        </GameHud>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="sd-message">@roundMessage</p>
+        }
+
+        <div class="sd-boards">
+            <div class="sd-board" style="background-image:url('@backgroundImage');">
+                @foreach (var spot in spots)
+                {
+                    var s = spot;
+                    <button class="sd-spot @(s.Found ? "found" : "")" style="left:@(s.X)%; top:@(s.Y)%;" disabled="@s.Found" @onclick="() => TapSpot(s, isLeft: true)">
+                        @s.LeftEmoji
+                    </button>
+                }
+            </div>
+            <div class="sd-board" style="background-image:url('@backgroundImage');">
+                @foreach (var spot in spots)
+                {
+                    var s = spot;
+                    <button class="sd-spot @(s.Found ? "found" : "")" style="left:@(s.X)%; top:@(s.Y)%;" disabled="@s.Found" @onclick="() => TapSpot(s, isLeft: false)">
+                        @s.RightEmoji
+                    </button>
+                }
+            </div>
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <GameOverlay>
+                <h2>🔍 Sharp Eyes!</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great spotting" : PlayerName + ", great spotting")!</p>
+                <div class="game-result-stats">
+                    <StatPill Label="Rounds" Value="@TotalRounds.ToString()" />
+                    <StatPill Label="Total taps" Value="@totalTaps.ToString()" />
+                </div>
+                <PersonalBestBadge Value="@((bestTaps ?? totalTaps).ToString())" IsNew="isNewBest" />
+                <div class="game-result-actions">
+                    <PrimaryActionButton OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton OnClick="ExitToSetup">Exit</SecondaryActionButton>
+                </div>
+            </GameOverlay>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<SpotTheDifferenceResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest total taps per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestTaps;
+    private bool isNewBest;
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int TotalRounds = 3;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    // A subset of the same zero-cost opaque scenic backgrounds Sliding
+    // Puzzle (Background{1,2,3,5,7,8}) and Jigsaw Puzzle
+    // (Background{4,6,9,11,13,16}) already draw from, kept disjoint from
+    // both so all three picture-based puzzles feel distinct from each
+    // other rather than recycling the same handful of images.
+    private static readonly string[] BackgroundImages =
+    {
+        "images/dressup/Background10.png",
+        "images/dressup/Background12.png",
+        "images/dressup/Background14.png",
+        "images/dressup/Background15.png",
+        "images/dressup/Background17.png",
+        "images/dressup/Background18.png",
+    };
+
+    private static readonly string[] MarkerEmojis =
+    {
+        "⭐", "🌸", "🍄", "🦋", "🐚", "🍁", "🌙", "🔔", "🍎", "🎈",
+        "🌺", "🐞", "🍀", "🧸", "🎀", "🍒",
+    };
+
+    private class Spot
+    {
+        public double X { get; set; }
+        public double Y { get; set; }
+        public string LeftEmoji { get; set; } = "";
+        public string RightEmoji { get; set; } = "";
+        public bool IsDifference { get; set; }
+        public bool Found { get; set; }
+    }
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private string backgroundImage = BackgroundImages[0];
+    private readonly List<Spot> spots = new();
+    private int foundCount;
+    private int round;
+    private int totalTaps;
+    private string roundMessage = "";
+    private readonly Random rng = new();
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        round = 0;
+        totalTaps = 0;
+        isNewBest = false;
+        phase = Phase.Playing;
+        NextRound();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SpotTheDifferenceResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                RoundsCompleted: round - 1,
+                TotalRounds: TotalRounds,
+                TotalTaps: totalTaps));
+        }
+        phase = Phase.Setup;
+    }
+
+    private void NextRound()
+    {
+        round++;
+        roundMessage = "";
+        foundCount = 0;
+        backgroundImage = BackgroundImages[rng.Next(BackgroundImages.Length)];
+
+        var (totalSpots, differenceCount) = CountsFor(selectedDifficulty);
+        var emojiPool = MarkerEmojis.OrderBy(_ => rng.Next()).ToList();
+        var differenceIndices = new HashSet<int>(
+            Enumerable.Range(0, totalSpots).OrderBy(_ => rng.Next()).Take(differenceCount));
+
+        spots.Clear();
+        var positions = GeneratePositions(totalSpots);
+        for (var i = 0; i < totalSpots; i++)
+        {
+            var emoji = emojiPool[i % emojiPool.Count];
+            var isDifference = differenceIndices.Contains(i);
+            // A different marker for the "different" spots - swap in the
+            // next emoji in the shuffled pool so it's a clearly distinct
+            // icon rather than a subtle recolor a young player can't spot.
+            var rightEmoji = isDifference ? emojiPool[(i + 1) % emojiPool.Count] : emoji;
+
+            spots.Add(new Spot
+            {
+                X = positions[i].X,
+                Y = positions[i].Y,
+                LeftEmoji = emoji,
+                RightEmoji = rightEmoji,
+                IsDifference = isDifference,
+            });
+        }
+    }
+
+    // Simple rejection-sampling layout: keep drawing random points until
+    // one lands far enough from every point already placed, so markers
+    // never overlap or crowd into an unreadable cluster.
+    private List<(double X, double Y)> GeneratePositions(int count)
+    {
+        const double minDistance = 16;
+        var points = new List<(double X, double Y)>();
+        var attempts = 0;
+
+        while (points.Count < count && attempts < 2000)
+        {
+            attempts++;
+            var candidate = (X: 8 + rng.NextDouble() * 84, Y: 12 + rng.NextDouble() * 76);
+            if (points.All(p => Distance(p, candidate) >= minDistance))
+            {
+                points.Add(candidate);
+            }
+        }
+
+        // Fallback for the rare case rejection sampling can't fit every
+        // point (very high spot counts) - just place the rest anywhere.
+        while (points.Count < count)
+        {
+            points.Add((8 + rng.NextDouble() * 84, 12 + rng.NextDouble() * 76));
+        }
+
+        return points;
+    }
+
+    private static double Distance((double X, double Y) a, (double X, double Y) b) =>
+        Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2));
+
+    private static (int TotalSpots, int Differences) CountsFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => (6, 3),
+        Difficulty.Medium => (10, 4),
+        _ => (14, 5),
+    };
+
+    private async Task TapSpot(Spot spot, bool isLeft)
+    {
+        if (phase != Phase.Playing || spot.Found) return;
+
+        totalTaps++;
+
+        if (!spot.IsDifference)
+        {
+            roundMessage = "That one matches - keep looking!";
+            await Interop.InvokeVoidAsync("playMismatchSound");
+            return;
+        }
+
+        spot.Found = true;
+        foundCount++;
+        roundMessage = "Found it!";
+        await Interop.InvokeVoidAsync("playMatchSound");
+
+        if (foundCount >= spots.Count(s => s.IsDifference))
+        {
+            StateHasChanged();
+            await Task.Delay(900);
+
+            if (round >= TotalRounds)
+            {
+                await FinishGame();
+            }
+            else
+            {
+                NextRound();
+            }
+        }
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"taps:{DifficultyName(selectedDifficulty)}";
+            bestTaps = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.SpotTheDifference, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.SpotTheDifference, key, totalTaps, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SpotTheDifferenceResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                RoundsCompleted: TotalRounds,
+                TotalRounds: TotalRounds,
+                TotalTaps: totalTaps));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "6 icons, 3 differences",
+        Difficulty.Medium => "10 icons, 4 differences",
+        _ => "14 icons, 5 differences",
+    };
+
+    public record SpotTheDifferenceResult(string Difficulty, int RoundsCompleted, int TotalRounds, int TotalTaps);
+}

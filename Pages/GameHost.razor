@@ -193,6 +193,10 @@
             {
                 <JigsawPuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleJigsawPuzzleComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.SpotTheDifference)
+            {
+                <SpotTheDifference PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSpotTheDifferenceComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.ColorMatch)
             {
                 <ColorMatch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleColorMatchComplete" />
@@ -1115,6 +1119,21 @@
             Difficulty = $"{result.Moves} swaps",
             Moves = result.Moves,
             ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleSpotTheDifferenceComplete(SpotTheDifference.SpotTheDifferenceResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"{result.RoundsCompleted}/{result.TotalRounds} rounds",
+            Moves = result.TotalTaps,
+            ElapsedSeconds = 0,
         });
     }
 

@@ -76,6 +76,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Sliding Puzzle
 - Sound Buttons
 - Space Survival
+- Spot the Difference
 - Sudoku
 - Tank Duel
 - Tic-Tac-Toe

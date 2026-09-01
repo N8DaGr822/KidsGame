@@ -72,6 +72,7 @@ public static class GameThemes
         [BuiltInGames.QuickMath] = "gh-theme-puzzle",
         [BuiltInGames.MathTarget] = "gh-theme-puzzle",
         [BuiltInGames.JigsawPuzzle] = "gh-theme-puzzle",
+        [BuiltInGames.SpotTheDifference] = "gh-theme-puzzle",
         [BuiltInGames.ColorMatch] = "gh-theme-puzzle",
         [BuiltInGames.ShapeSorter] = "gh-theme-puzzle",
         [BuiltInGames.ShadowMatch] = "gh-theme-puzzle",

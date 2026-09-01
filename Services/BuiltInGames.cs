@@ -45,6 +45,7 @@ public static class BuiltInGames
     public const string QuickMath = "quick-math";
     public const string MathTarget = "math-target";
     public const string JigsawPuzzle = "jigsaw-puzzle";
+    public const string SpotTheDifference = "spot-the-difference";
     public const string ColorMatch = "color-match";
     public const string ShapeSorter = "shape-sorter";
     public const string ShadowMatch = "shadow-match";
@@ -135,6 +136,7 @@ public static class BuiltInGames
         new BuiltInGame("Quick Math", "🧮", QuickMath, MinAge: 6, MaxAge: 12),
         new BuiltInGame("Math Target", "🎯", MathTarget, MinAge: 7, MaxAge: 13),
         new BuiltInGame("Jigsaw Puzzle", "🧩", JigsawPuzzle, "images/dressup/Background11.png", MinAge: 5, MaxAge: 10),
+        new BuiltInGame("Spot the Difference", "🔍", SpotTheDifference, "images/dressup/Background14.png", MinAge: 4, MaxAge: 10),
         new BuiltInGame("Color Match", "🎨", ColorMatch, MinAge: 3, MaxAge: 7),
         new BuiltInGame("Shape Sorter", "🔷", ShapeSorter, MinAge: 3, MaxAge: 7),
         new BuiltInGame("Shadow Match", "🌑", ShadowMatch, MinAge: 4, MaxAge: 8),

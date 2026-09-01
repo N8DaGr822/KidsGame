@@ -1,0 +1,77 @@
+.sd-game {
+    width: min(1000px, 96vw);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1rem;
+}
+
+.sd-diff-name {
+    font-weight: 900;
+}
+
+.sd-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.sd-title {
+    font-weight: 900;
+}
+
+.sd-message {
+    text-align: center;
+    font-weight: 800;
+    color: var(--text-soft);
+    margin: 0;
+}
+
+.sd-boards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.sd-board {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--line);
+    background-size: cover;
+    background-position: center;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.sd-spot {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: clamp(2rem, 6vw, 2.8rem);
+    height: clamp(2rem, 6vw, 2.8rem);
+    display: grid;
+    place-items: center;
+    border: 2px solid rgba(255, 255, 255, 0.55);
+    border-radius: 50%;
+    background: rgba(16, 18, 26, 0.55);
+    font-size: clamp(1rem, 3.2vw, 1.4rem);
+    line-height: 1;
+    cursor: pointer;
+    transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.sd-spot:hover:not(:disabled) {
+    transform: translate(-50%, -50%) scale(1.12);
+}
+
+.sd-spot.found {
+    border-color: rgba(78, 205, 196, 0.9);
+    background: rgba(78, 205, 196, 0.35);
+    cursor: default;
+}
+
+@media (max-width: 640px) {
+    .sd-boards {
+        grid-template-columns: 1fr;
+    }
+}

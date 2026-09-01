@@ -77,8 +77,8 @@ Current recommendation:
 1. **Shared systems first** - timer/sound/session helpers are now the biggest
    code-health multiplier.
 2. **Toddler physical/sensory games** - small, visual, and quick to ship.
-3. **Remaining zero/low-asset puzzles** - Jigsaw, Quick Math, and Math
-   Target all shipped 2026-09-01; Spot the Difference is what's left here.
+3. **Remaining zero/low-asset puzzles** - Jigsaw, Quick Math, Math
+   Target, and Spot the Difference all shipped 2026-09-01. Tier complete.
 4. **RPG/strategy vertical slice** - Dungeon Crawler and Mini RPG Battle
    both shipped; Roguelike Arena next if this category continues, now
    that usable CraftPix RPG assets exist.
@@ -178,7 +178,7 @@ one by one.
 
 ## Puzzle / Math
 
-- [ ] Spot the Difference
+All shipped 2026-09-01 - see COMPLETED_GAMES.md.
 
 ## Older-Kid Strategy / RPG Systems (~10-15)
 
