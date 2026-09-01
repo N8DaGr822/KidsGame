@@ -120,6 +120,7 @@ public static class GameThemes
         [BuiltInGames.Hex] = "gh-theme-puzzle",
         [BuiltInGames.SequencePuzzle] = "gh-theme-puzzle",
         [BuiltInGames.LogicGridPuzzle] = "gh-theme-puzzle",
+        [BuiltInGames.Nonogram] = "gh-theme-puzzle",
     };
 
     public static string For(string launchTarget) =>

@@ -1,0 +1,99 @@
+.nono-game {
+    width: min(760px, 96vw);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1rem;
+}
+
+.nono-diff-name {
+    font-weight: 900;
+}
+
+.nono-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.nono-title {
+    font-weight: 900;
+}
+
+.nono-board-wrap {
+    overflow-x: auto;
+    display: flex;
+    justify-content: center;
+}
+
+.nono-board {
+    border-collapse: separate;
+    border-spacing: 2px;
+}
+
+.nono-corner {
+    min-width: 44px;
+}
+
+.nono-col-clue {
+    vertical-align: bottom;
+    padding: 0.2rem 0.1rem;
+}
+
+.nono-col-clue-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.05rem;
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: var(--text-soft);
+    line-height: 1.15;
+}
+
+.nono-row-clue {
+    vertical-align: middle;
+    padding-right: 0.5rem;
+}
+
+.nono-row-clue-inner {
+    display: flex;
+    gap: 0.3rem;
+    justify-content: flex-end;
+    align-items: center;
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--text-soft);
+    white-space: nowrap;
+}
+
+.nono-cell {
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+    color: var(--text-muted);
+    font-weight: 900;
+    font-size: 1.1rem;
+    padding: 0;
+}
+
+.nono-cell:hover {
+    background: var(--control-bg-hover);
+}
+
+.nono-cell.filled {
+    background: #4ecdc4;
+    border-color: #4ecdc4;
+}
+
+.nono-cell.marked {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.nono-actions {
+    display: flex;
+    justify-content: center;
+}

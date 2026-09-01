@@ -1,0 +1,490 @@
+@*
+    Nonogram.razor
+    A Picross/nonogram: fill in grid cells so the filled runs in each row
+    and column match the shown clue numbers, revealing a hidden picture.
+    Row/column clues are computed programmatically from a hand-authored
+    bool[,] picture (never hand-paired with clues) - so a picture only
+    has to look reasonable, not be kept in sync with numbers by hand.
+
+    Reuses Logic Grid Puzzle's 3-state cell-cycle interaction: tap a cell
+    to cycle empty -> filled -> marked-X -> empty. Marked-X cells are a
+    player scratch-hint only ("definitely not filled") and never count
+    toward the win check - only the filled-cell pattern has to match the
+    hidden picture exactly.
+
+    Usage:
+        <Nonogram OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="nono-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <GameSetupPanel Title="🖼️ Nonogram" Description="Use the row and column numbers to figure out which cells to fill in and reveal the hidden picture! Tap a cell to fill it, tap again to mark it with an X.">
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <GameChoiceButton Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
+                            <span class="nono-diff-name">@DifficultyName(diff)</span>
+                            <span class="nono-diff-detail">@DifficultyDetail(diff)</span>
+                        </GameChoiceButton>
+                    }
+                </div>
+            </LockedChoiceNotice>
+
+            <PrimaryActionButton OnClick="StartGame">Start Game</PrimaryActionButton>
+        </GameSetupPanel>
+    }
+    else
+    {
+        <GameHud>
+            <span class="nono-title">Nonogram</span>
+            <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
+            <SecondaryActionButton OnClick="ExitToSetup">← Exit</SecondaryActionButton>
+        </GameHud>
+
+        <div class="nono-board-wrap">
+            <table class="nono-board">
+                <thead>
+                    <tr>
+                        <th class="nono-corner"></th>
+                        @for (var c = 0; c < cols; c++)
+                        {
+                            <th class="nono-col-clue">
+                                <div class="nono-col-clue-inner">
+                                    @foreach (var run in colClues[c])
+                                    {
+                                        <span>@run</span>
+                                    }
+                                </div>
+                            </th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var r = 0; r < rows; r++)
+                    {
+                        var row = r;
+                        <tr>
+                            <th class="nono-row-clue">
+                                <div class="nono-row-clue-inner">
+                                    @foreach (var run in rowClues[row])
+                                    {
+                                        <span>@run</span>
+                                    }
+                                </div>
+                            </th>
+                            @for (var c = 0; c < cols; c++)
+                            {
+                                var col = c;
+                                var mark = marks[row, col];
+                                <td>
+                                    <button class="nono-cell @(mark == CellMark.Filled ? "filled" : mark == CellMark.Marked ? "marked" : "")" @onclick="() => TapCell(row, col)">
+                                        @(mark == CellMark.Marked ? "✗" : "")
+                                    </button>
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="nono-actions">
+            <SecondaryActionButton OnClick="ResetGrid">Reset</SecondaryActionButton>
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <GameOverlay>
+                <h2>🎉 Picture Complete!</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Beautiful work" : PlayerName + ", beautiful work")!</p>
+                <div class="game-result-stats">
+                    <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
+                </div>
+                <PersonalBestBadge Value="@FormatTime(bestTimeSeconds ?? elapsedSeconds)" IsNew="isNewBest" />
+                <div class="game-result-actions">
+                    <PrimaryActionButton OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton OnClick="ExitToSetup">Exit</SecondaryActionButton>
+                </div>
+            </GameOverlay>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<NonogramResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fastest solve time, per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestTimeSeconds;
+    private bool isNewBest;
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+    private enum CellMark { Empty, Filled, Marked }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    // Hand-authored 5x5 picture patterns (Easy tier). Row/column run
+    // clues are always computed from these, never written by hand.
+    private static readonly bool[][,] EasyPatterns =
+    {
+        // Heart
+        ToGrid(new[]
+        {
+            "01010",
+            "11111",
+            "11111",
+            "01110",
+            "00100",
+        }),
+        // Plus sign
+        ToGrid(new[]
+        {
+            "00100",
+            "00100",
+            "11111",
+            "00100",
+            "00100",
+        }),
+        // Smiley face
+        ToGrid(new[]
+        {
+            "01010",
+            "01010",
+            "00000",
+            "10001",
+            "01110",
+        }),
+        // House
+        ToGrid(new[]
+        {
+            "00100",
+            "01110",
+            "11111",
+            "01110",
+            "01110",
+        }),
+    };
+
+    // Medium tier, 8x8.
+    private static readonly bool[][,] MediumPatterns =
+    {
+        // Boat
+        ToGrid(new[]
+        {
+            "00011000",
+            "00011000",
+            "00011000",
+            "00111100",
+            "01111110",
+            "11111111",
+            "00111100",
+            "00000000",
+        }),
+        // Cat face
+        ToGrid(new[]
+        {
+            "10000001",
+            "11000011",
+            "01111110",
+            "01011010",
+            "01111110",
+            "01100110",
+            "01111110",
+            "00000000",
+        }),
+        // Star
+        ToGrid(new[]
+        {
+            "00011000",
+            "00011000",
+            "00111100",
+            "11111111",
+            "01111110",
+            "01100110",
+            "11000011",
+            "00000000",
+        }),
+        // Umbrella
+        ToGrid(new[]
+        {
+            "00011000",
+            "00111100",
+            "01111110",
+            "11111111",
+            "00011000",
+            "00011000",
+            "00011100",
+            "00001000",
+        }),
+    };
+
+    // Hard tier, 10x10.
+    private static readonly bool[][,] HardPatterns =
+    {
+        // Rocket
+        ToGrid(new[]
+        {
+            "0000110000",
+            "0001111000",
+            "0001111000",
+            "0011111100",
+            "0011111100",
+            "0111111110",
+            "0110000110",
+            "1110000111",
+            "0011001100",
+            "0001111000",
+        }),
+        // Butterfly
+        ToGrid(new[]
+        {
+            "0110000110",
+            "1111001111",
+            "1111111111",
+            "1111111111",
+            "0111111110",
+            "0011111100",
+            "0001111000",
+            "0011111100",
+            "0111001110",
+            "0110000110",
+        }),
+        // Tree
+        ToGrid(new[]
+        {
+            "0000110000",
+            "0001111000",
+            "0011111100",
+            "0001111000",
+            "0011111100",
+            "0111111110",
+            "0011111100",
+            "0000110000",
+            "0001111000",
+            "0011111100",
+        }),
+    };
+
+    private static bool[,] ToGrid(string[] rows)
+    {
+        var h = rows.Length;
+        var w = rows[0].Length;
+        var grid = new bool[h, w];
+        for (var r = 0; r < h; r++)
+            for (var c = 0; c < w; c++)
+                grid[r, c] = rows[r][c] == '1';
+        return grid;
+    }
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int rows;
+    private int cols;
+    private bool[,] solution = new bool[0, 0];
+    private CellMark[,] marks = new CellMark[0, 0];
+    private List<List<int>> rowClues = new();
+    private List<List<int>> colClues = new();
+    private int elapsedSeconds;
+    private System.Threading.Timer? timer;
+    private readonly Random rng = new();
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        elapsedSeconds = 0;
+        bestTimeSeconds = null;
+        isNewBest = false;
+        GeneratePuzzle();
+        phase = Phase.Playing;
+        StartTimer();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - same convention every
+    // other game here uses.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            StopTimer();
+            await OnComplete.InvokeAsync(new NonogramResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                ElapsedSeconds: elapsedSeconds));
+        }
+        StopTimer();
+        phase = Phase.Setup;
+    }
+
+    private void GeneratePuzzle()
+    {
+        var patterns = selectedDifficulty switch
+        {
+            Difficulty.Easy => EasyPatterns,
+            Difficulty.Medium => MediumPatterns,
+            _ => HardPatterns,
+        };
+        solution = patterns[rng.Next(patterns.Length)];
+        rows = solution.GetLength(0);
+        cols = solution.GetLength(1);
+        marks = new CellMark[rows, cols];
+
+        rowClues = new List<List<int>>();
+        for (var r = 0; r < rows; r++)
+        {
+            var line = Enumerable.Range(0, cols).Select(c => solution[r, c]);
+            rowClues.Add(RunLengths(line));
+        }
+
+        colClues = new List<List<int>>();
+        for (var c = 0; c < cols; c++)
+        {
+            var line = Enumerable.Range(0, rows).Select(r => solution[r, c]);
+            colClues.Add(RunLengths(line));
+        }
+    }
+
+    // Consecutive-filled-run lengths, the standard nonogram clue -
+    // an all-empty line shows a single "0" clue.
+    private static List<int> RunLengths(IEnumerable<bool> line)
+    {
+        var runs = new List<int>();
+        var current = 0;
+        foreach (var filled in line)
+        {
+            if (filled)
+            {
+                current++;
+            }
+            else if (current > 0)
+            {
+                runs.Add(current);
+                current = 0;
+            }
+        }
+        if (current > 0) runs.Add(current);
+        return runs.Count > 0 ? runs : new List<int> { 0 };
+    }
+
+    private void TapCell(int row, int col)
+    {
+        if (phase != Phase.Playing) return;
+
+        marks[row, col] = marks[row, col] switch
+        {
+            CellMark.Empty => CellMark.Filled,
+            CellMark.Filled => CellMark.Marked,
+            _ => CellMark.Empty,
+        };
+
+        _ = CheckWinAsync();
+    }
+
+    private void ResetGrid()
+    {
+        if (phase != Phase.Playing) return;
+        marks = new CellMark[rows, cols];
+    }
+
+    private async Task CheckWinAsync()
+    {
+        for (var r = 0; r < rows; r++)
+            for (var c = 0; c < cols; c++)
+                if ((marks[r, c] == CellMark.Filled) != solution[r, c])
+                    return;
+
+        await Interop.InvokeVoidAsync("playMatchSound");
+        await FinishGame();
+    }
+
+    private async Task FinishGame()
+    {
+        StopTimer();
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"time-{DifficultyName(selectedDifficulty)}";
+            bestTimeSeconds = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Nonogram, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Nonogram, key, elapsedSeconds, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new NonogramResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: true,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.Minutes > 0 ? $"{ts.Minutes}:{ts.Seconds:D2}" : $"{ts.Seconds}s";
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        StopTimer();
+        return ValueTask.CompletedTask;
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "5x5 picture",
+        Difficulty.Medium => "8x8 picture",
+        _ => "10x10 picture",
+    };
+
+    public record NonogramResult(string Difficulty, bool Won, int ElapsedSeconds);
+}
