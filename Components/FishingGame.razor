@@ -29,52 +29,47 @@
 
     @if (!started)
     {
-        <div class="fg-setup game-setup-panel">
-            <h2>Fishing Time</h2>
-            <p>Catch 3 fish that match your basket, then keep going until you've caught them all!</p>
-
+        <GameSetupPanel Class="fg-setup" Title="Fishing Time" Description="Catch 3 fish that match your basket, then keep going until you've caught them all!">
             <h3 class="fg-section-title game-section-title">Choose a mode</h3>
             <div class="fg-mode-select game-option-grid">
                 @foreach (var mode in Modes)
                 {
-                    <button class="fg-mode-btn game-option-button @(mode.Name == selectedMode.Name ? "selected" : "")"
-                            @onclick="() => selectedMode = mode">
+                    <GameChoiceButton Class="fg-mode-btn" Selected="@(mode.Name == selectedMode.Name)" OnClick="() => selectedMode = mode">
                         <span class="fg-mode-icon">@mode.Icon</span>
                         <span class="fg-mode-name">@mode.Name</span>
-                    </button>
+                    </GameChoiceButton>
                 }
             </div>
 
             <h3 class="fg-section-title game-section-title">Difficulty</h3>
             <div class="fg-mode-select game-option-grid">
-                <button class="fg-mode-btn game-option-button @(!strikesEnabled ? "selected" : "")" @onclick="() => strikesEnabled = false">
+                <GameChoiceButton Class="fg-mode-btn" Selected="@(!strikesEnabled)" OnClick="() => strikesEnabled = false">
                     <span class="fg-mode-icon">🌤️</span>
                     <span class="fg-mode-name">Relaxed</span>
-                </button>
-                <button class="fg-mode-btn game-option-button @(strikesEnabled ? "selected" : "")" @onclick="() => strikesEnabled = true">
+                </GameChoiceButton>
+                <GameChoiceButton Class="fg-mode-btn" Selected="@strikesEnabled" OnClick="() => strikesEnabled = true">
                     <span class="fg-mode-icon">⚡</span>
                     <span class="fg-mode-name">3 Strikes</span>
-                </button>
+                </GameChoiceButton>
             </div>
 
-            <button class="fg-start-btn game-primary-action" @onclick="StartGame">Start Fishing</button>
-        </div>
+            <PrimaryActionButton Class="fg-start-btn" OnClick="StartGame">Start Fishing</PrimaryActionButton>
+        </GameSetupPanel>
     }
     else
     {
-        <div class="fg-hud game-hud">
-            <div class="fg-stat game-stat">
-                <span class="fg-stat-label game-stat-label">Target</span>
-                <span class="fg-stat-value game-stat-value">@target <span class="fg-stat-sub">(@(targetIndex + 1)/@selectedMode.Sequence.Count)</span></span>
-            </div>
-            <div class="fg-stat game-stat"><span class="fg-stat-label game-stat-label">Caught</span><span class="fg-stat-value game-stat-value">@caughtCount / @WinCount</span></div>
+        <GameHud Class="fg-hud">
+            <StatPill Label="Target">
+                @target <span class="fg-stat-sub">(@(targetIndex + 1)/@selectedMode.Sequence.Count)</span>
+            </StatPill>
+            <StatPill Label="Caught" Value="@($"{caughtCount} / {WinCount}")" />
             @if (strikesEnabled)
             {
-                <div class="fg-stat game-stat"><span class="fg-stat-label game-stat-label">Strikes</span><span class="fg-stat-value game-stat-value">@strikes / @MaxStrikes</span></div>
+                <StatPill Label="Strikes" Value="@($"{strikes} / {MaxStrikes}")" />
             }
-            <div class="fg-stat game-stat"><span class="fg-stat-label game-stat-label">Time</span><span class="fg-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
-            <button class="fg-restart-btn game-secondary-action" @onclick="ResetToSetup">Change Game</button>
-        </div>
+            <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
+            <SecondaryActionButton Class="fg-restart-btn" OnClick="ResetToSetup">Change Game</SecondaryActionButton>
+        </GameHud>
 
         <div class="fg-scene">
             <div class="fg-dock">
@@ -121,39 +116,35 @@
 
         @if (gameWon)
         {
-            <div class="fg-win-overlay game-result-overlay">
-                <div class="fg-win-panel game-result-panel">
-                    <h2>🎣 You caught them all!</h2>
-                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") catching every @ModeUnitLabel()!</p>
-                    <div class="fg-win-stats game-result-stats">
-                        <div><span class="fg-stat-label game-stat-label">Completed</span><span class="fg-stat-value game-stat-value">@selectedMode.Sequence.Count</span></div>
-                        <div><span class="fg-stat-label game-stat-label">Attempts</span><span class="fg-stat-value game-stat-value">@attempts</span></div>
-                        <div><span class="fg-stat-label game-stat-label">Time</span><span class="fg-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
-                    </div>
-                    <PersonalBestBadge Value="@($"{bestAttempts ?? attempts} attempts")" IsNew="isNewAttemptsBest" />
-                    <div class="fg-win-actions game-result-actions">
-                        <button class="fg-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
-                        <button class="fg-restart-btn game-secondary-action" @onclick="ResetToSetup">Change Game</button>
-                    </div>
+            <GameOverlay PanelClass="fg-win-panel">
+                <h2>🎣 You caught them all!</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") catching every @ModeUnitLabel()!</p>
+                <div class="fg-win-stats game-result-stats">
+                    <StatPill Label="Completed" Value="@selectedMode.Sequence.Count.ToString()" />
+                    <StatPill Label="Attempts" Value="@attempts.ToString()" />
+                    <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
                 </div>
-            </div>
+                <PersonalBestBadge Value="@($"{bestAttempts ?? attempts} attempts")" IsNew="isNewAttemptsBest" />
+                <div class="fg-win-actions game-result-actions">
+                    <PrimaryActionButton Class="fg-start-btn" OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton Class="fg-restart-btn" OnClick="ResetToSetup">Change Game</SecondaryActionButton>
+                </div>
+            </GameOverlay>
         }
         else if (gameOver)
         {
-            <div class="fg-win-overlay game-result-overlay">
-                <div class="fg-win-panel game-result-panel">
-                    <h2>🐟💨 Out of strikes!</h2>
-                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "No worries" : PlayerName + ", no worries") - give it another go!</p>
-                    <div class="fg-win-stats game-result-stats">
-                        <div><span class="fg-stat-label game-stat-label">Reached</span><span class="fg-stat-value game-stat-value">@target</span></div>
-                        <div><span class="fg-stat-label game-stat-label">Time</span><span class="fg-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
-                    </div>
-                    <div class="fg-win-actions game-result-actions">
-                        <button class="fg-start-btn game-primary-action" @onclick="StartGame">Try Again</button>
-                        <button class="fg-restart-btn game-secondary-action" @onclick="ResetToSetup">Change Game</button>
-                    </div>
+            <GameOverlay PanelClass="fg-win-panel">
+                <h2>🐟💨 Out of strikes!</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "No worries" : PlayerName + ", no worries") - give it another go!</p>
+                <div class="fg-win-stats game-result-stats">
+                    <StatPill Label="Reached" Value="@target" />
+                    <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
                 </div>
-            </div>
+                <div class="fg-win-actions game-result-actions">
+                    <PrimaryActionButton Class="fg-start-btn" OnClick="StartGame">Try Again</PrimaryActionButton>
+                    <SecondaryActionButton Class="fg-restart-btn" OnClick="ResetToSetup">Change Game</SecondaryActionButton>
+                </div>
+            </GameOverlay>
         }
     }
 

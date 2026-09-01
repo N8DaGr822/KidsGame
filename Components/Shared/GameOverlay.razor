@@ -3,10 +3,19 @@
    exact shell for a mid-game choice (e.g. Uno's wild-color picker) that
    isn't a win/lose result at all. Callers compose their own
    .game-result-stats (with StatPill) and .game-result-actions inside
-   ChildContent when they do want the win/lose look. *@
+   ChildContent when they do want the win/lose look.
 
-<div class="game-result-overlay">
-    <div class="game-result-panel @PanelClass">
+   OnOverlayClick is optional click-outside-to-close support (e.g. Dress
+   Up's gallery/lightbox) - the panel always stops propagation so a tap
+   inside it never closes the overlay. Unused by callers that don't set it.
+
+   Class is for the outer overlay div itself (rare - e.g. a higher z-index
+   so one overlay can stack above another, like Dress Up's lightbox above
+   its gallery); PanelClass covers the far more common "style the panel"
+   case. *@
+
+<div class="game-result-overlay @Class" @onclick="OnOverlayClick">
+    <div class="game-result-panel @PanelClass" @onclick:stopPropagation>
         @ChildContent
     </div>
 </div>
@@ -14,4 +23,6 @@
 @code {
     [Parameter, EditorRequired] public RenderFragment ChildContent { get; set; } = default!;
     [Parameter] public string? PanelClass { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public EventCallback OnOverlayClick { get; set; }
 }

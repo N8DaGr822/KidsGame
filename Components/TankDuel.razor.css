@@ -4,7 +4,13 @@
     color: var(--text);
 }
 
-.tk-setup {
+/* ::deep: these classes are set via a shared component's Class/PanelClass
+   parameter, so the element they land on is rendered by that component's
+   own template, not this file's - Blazor's CSS isolation only stamps this
+   component's scope attribute on elements defined directly in this
+   component's markup, so a plain selector would never match. ::deep
+   relaxes the match to "anywhere inside this component's scope" instead. */
+::deep .tk-setup {
     display: grid;
     gap: 1rem;
     padding: clamp(1rem, 4vw, 2rem);
@@ -16,12 +22,12 @@
     justify-items: center;
 }
 
-.tk-setup h2 {
+::deep .tk-setup h2 {
     margin-bottom: 0;
     font-size: clamp(2rem, 7vw, 3rem);
 }
 
-.tk-setup p {
+::deep .tk-setup p {
     max-width: 34rem;
     color: var(--text-muted);
 }
@@ -43,30 +49,30 @@
     font-weight: 900;
 }
 
-.tk-start-btn,
-.tk-restart-btn {
+::deep .tk-start-btn,
+::deep .tk-restart-btn {
     min-height: 48px;
     padding: 0.7rem 1.4rem;
     border-radius: var(--radius-sm);
     font-weight: 900;
 }
 
-.tk-start-btn {
+::deep .tk-start-btn {
     background: var(--accent);
     color: var(--accent-ink);
 }
 
-.tk-start-btn:hover {
+::deep .tk-start-btn:hover {
     background: var(--accent-strong);
 }
 
-.tk-restart-btn {
+::deep .tk-restart-btn {
     border: 1px solid var(--line);
     background: var(--control-bg);
     color: var(--text);
 }
 
-.tk-hud {
+::deep .tk-hud {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -75,18 +81,10 @@
     margin-bottom: 0.75rem;
 }
 
-.tk-hp-group {
+::deep .tk-hp-group {
     display: grid;
     justify-items: center;
     gap: 0.25rem;
-}
-
-.tk-hp-label {
-    font-size: 0.7rem;
-    font-weight: 900;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-muted);
 }
 
 .tk-hp-pips {
@@ -230,7 +228,7 @@
     backdrop-filter: blur(8px);
 }
 
-.tk-win-panel {
+::deep .tk-win-panel {
     width: min(380px, 100%);
     padding: 1.4rem;
     border: 1px solid var(--line-strong);

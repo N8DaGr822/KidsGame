@@ -31,10 +31,7 @@
 
     @if (phase == Phase.Setup)
     {
-        <div class="mng-setup game-setup-panel">
-            <h2>🌷 Manners Garden</h2>
-            <p>Help Benny, Poppy, Milo, Lulu, and Tilly practice kind manners - and grow a beautiful garden together!</p>
-
+        <GameSetupPanel Class="mng-setup" Title="🌷 Manners Garden" Description="Help Benny, Poppy, Milo, Lulu, and Tilly practice kind manners - and grow a beautiful garden together!">
             <div class="mng-cast">
                 @foreach (var member in Cast)
                 {
@@ -46,10 +43,10 @@
             </div>
 
             <div class="mng-setup-actions">
-                <button class="mng-start-btn game-primary-action" @onclick="() => StartSession(null)">▶️ Start Playing</button>
+                <PrimaryActionButton Class="mng-start-btn" OnClick="() => StartSession(null)">▶️ Start Playing</PrimaryActionButton>
                 @if (persistedGardenItems.Count > 0)
                 {
-                    <button class="mng-restart-btn game-secondary-action" @onclick="() => showingGardenAtSetup = true">🌷 View My Garden</button>
+                    <SecondaryActionButton Class="mng-restart-btn" OnClick="() => showingGardenAtSetup = true">🌷 View My Garden</SecondaryActionButton>
                 }
             </div>
 
@@ -57,52 +54,48 @@
             <div class="mng-focus-select game-option-grid">
                 @foreach (var lesson in AllLessons)
                 {
-                    <button class="mng-focus-btn game-option-button" @onclick="() => StartSession(lesson)">@LessonDisplayName(lesson)</button>
+                    <GameChoiceButton Class="mng-focus-btn" OnClick="() => StartSession(lesson)">@LessonDisplayName(lesson)</GameChoiceButton>
                 }
             </div>
 
             <h3 class="mng-section-title game-section-title">Ready for a challenge?</h3>
             <p class="mng-quiz-intro">Read short everyday scenarios and pick the best response - for kids comfortable reading on their own.</p>
             <div class="mng-setup-actions">
-                <button class="mng-start-btn game-primary-action" @onclick="StartQuizSession">📝 Manners Quiz</button>
+                <PrimaryActionButton Class="mng-start-btn" OnClick="StartQuizSession">📝 Manners Quiz</PrimaryActionButton>
             </div>
-        </div>
+        </GameSetupPanel>
 
         @if (showingGardenAtSetup)
         {
-            <div class="mng-garden-overlay game-result-overlay">
-                <div class="mng-garden-panel game-result-panel">
-                    <h2>🌼 Your Manners Garden!</h2>
-                    <p>Everything you've grown so far.</p>
-
-                    <MannersGardenScene Items="persistedGardenItems" />
-
-                    <div class="mng-garden-actions game-result-actions">
-                        <button class="mng-restart-btn game-secondary-action" @onclick="() => showingGardenAtSetup = false">Close</button>
-                    </div>
-                </div>
-            </div>
-        }
-    }
-    else if (phase == Phase.SessionComplete)
-    {
-        <div class="mng-garden-overlay game-result-overlay">
-            <div class="mng-garden-panel game-result-panel">
+            <GameOverlay PanelClass="mng-garden-panel">
                 <h2>🌼 Your Manners Garden!</h2>
-                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") practicing kind manners today!</p>
+                <p>Everything you've grown so far.</p>
 
                 <MannersGardenScene Items="persistedGardenItems" />
 
                 <div class="mng-garden-actions game-result-actions">
-                    <button class="mng-start-btn game-primary-action" @onclick="() => (quizMode ? StartQuizSession() : StartSession(null))">Play Again</button>
-                    <button class="mng-restart-btn game-secondary-action" @onclick="ExitToSetup">Change Game</button>
+                    <SecondaryActionButton Class="mng-restart-btn" OnClick="() => showingGardenAtSetup = false">Close</SecondaryActionButton>
                 </div>
+            </GameOverlay>
+        }
+    }
+    else if (phase == Phase.SessionComplete)
+    {
+        <GameOverlay PanelClass="mng-garden-panel">
+            <h2>🌼 Your Manners Garden!</h2>
+            <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") practicing kind manners today!</p>
+
+            <MannersGardenScene Items="persistedGardenItems" />
+
+            <div class="mng-garden-actions game-result-actions">
+                <PrimaryActionButton Class="mng-start-btn" OnClick="() => (quizMode ? StartQuizSession() : StartSession(null))">Play Again</PrimaryActionButton>
+                <SecondaryActionButton Class="mng-restart-btn" OnClick="ExitToSetup">Change Game</SecondaryActionButton>
             </div>
-        </div>
+        </GameOverlay>
     }
     else
     {
-        <div class="mng-hud game-hud">
+        <GameHud Class="mng-hud">
             <button class="mng-mute-btn" @onclick="ToggleMute" aria-label="@(muted ? "Unmute narration" : "Mute narration")">@(muted ? "🔇" : "🔊")</button>
             <div class="mng-progress">
                 @{ var progressTotal = quizMode ? sessionQuiz.Count : sessionLessons.Count; var progressCurrent = quizMode ? quizIndex : roundIndex; }
@@ -113,8 +106,8 @@
                 }
             </div>
             <button class="mng-garden-peek-btn" @onclick="ToggleGarden">@(showingGarden ? "▶️ Back to Play" : "🌷 View Garden")</button>
-            <button class="mng-restart-btn game-secondary-action" @onclick="ExitToSetup">Change Game</button>
-        </div>
+            <SecondaryActionButton Class="mng-restart-btn" OnClick="ExitToSetup">Change Game</SecondaryActionButton>
+        </GameHud>
 
         @if (showingGarden)
         {

@@ -4,7 +4,13 @@
     color: var(--text);
 }
 
-.simon-setup {
+/* ::deep: these classes are set via a shared component's Class/PanelClass
+   parameter, so the element they land on is rendered by that component's
+   own template, not this file's - Blazor's CSS isolation only stamps this
+   component's scope attribute on elements defined directly in this
+   component's markup, so a plain selector would never match. ::deep
+   relaxes the match to "anywhere inside this component's scope" instead. */
+::deep .simon-setup {
     display: grid;
     gap: 1rem;
     padding: clamp(1rem, 4vw, 2rem);
@@ -16,12 +22,12 @@
     justify-items: center;
 }
 
-.simon-setup h2 {
+::deep .simon-setup h2 {
     margin-bottom: 0;
     font-size: clamp(2rem, 7vw, 3rem);
 }
 
-.simon-setup p {
+::deep .simon-setup p {
     max-width: 30rem;
     color: var(--text-muted);
 }
@@ -35,22 +41,13 @@
     text-transform: uppercase;
 }
 
-.simon-difficulty-locked {
-    margin: 0;
-    padding: 0.6rem 0.9rem;
-    border-radius: var(--radius-sm);
-    border: 1px dashed var(--line);
-    color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.04);
-}
-
 .simon-difficulty-select {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
     gap: 0.7rem;
 }
 
-.simon-diff-btn {
+::deep .simon-diff-btn {
     min-height: 86px;
     padding: 0.8rem;
     border: 1px solid var(--line);
@@ -63,12 +60,12 @@
     transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
-.simon-diff-btn:hover {
+::deep .simon-diff-btn:hover {
     transform: translateY(-2px);
     background: var(--control-bg-hover);
 }
 
-.simon-diff-btn.selected {
+::deep .simon-diff-btn.selected {
     border-color: rgba(78, 205, 196, 0.75);
     background: var(--selected-bg);
 }
@@ -89,30 +86,30 @@
     color: var(--text-muted);
 }
 
-.simon-start-btn,
-.simon-restart-btn {
+::deep .simon-start-btn,
+::deep .simon-restart-btn {
     min-height: 48px;
     padding: 0.7rem 1.4rem;
     border-radius: var(--radius-sm);
     font-weight: 900;
 }
 
-.simon-start-btn {
+::deep .simon-start-btn {
     background: var(--accent);
     color: var(--accent-ink);
 }
 
-.simon-start-btn:hover {
+::deep .simon-start-btn:hover {
     background: var(--accent-strong);
 }
 
-.simon-restart-btn {
+::deep .simon-restart-btn {
     border: 1px solid var(--line);
     background: var(--control-bg);
     color: var(--text);
 }
 
-.simon-hud {
+::deep .simon-hud {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -123,11 +120,6 @@
 .simon-title {
     font-weight: 900;
     font-size: 1.2rem;
-}
-
-.simon-round {
-    font-weight: 800;
-    color: var(--text-muted);
 }
 
 .simon-status {
@@ -185,7 +177,7 @@
     padding: 1rem;
 }
 
-.simon-win-panel {
+::deep .simon-win-panel {
     background: rgba(24, 27, 38, 0.96);
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);

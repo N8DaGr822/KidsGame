@@ -20,39 +20,31 @@
 
     @if (phase == Phase.Setup)
     {
-        <div class="simon-setup game-setup-panel">
-            <h2>Simon Says</h2>
-            <p>Watch the pattern light up, then tap the pads in the same order. Each round adds one more step!</p>
-
+        <GameSetupPanel Class="simon-setup" Title="Simon Says" Description="Watch the pattern light up, then tap the pads in the same order. Each round adds one more step!">
             <h3 class="simon-section-title game-section-title">Choose a difficulty</h3>
-            @if (LockedDifficulty is { } locked)
-            {
-                <p class="simon-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
-            }
-            else
-            {
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
                 <div class="simon-difficulty-select game-option-grid">
                     @foreach (var diff in Difficulties)
                     {
-                        <button class="simon-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                        <GameChoiceButton Class="simon-diff-btn" Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
                             <span class="simon-diff-name">@DifficultyName(diff)</span>
                             <span class="simon-diff-detail">@DifficultyDetail(diff)</span>
-                        </button>
+                        </GameChoiceButton>
                     }
                 </div>
-            }
+            </LockedChoiceNotice>
 
-            <button class="simon-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
-        </div>
+            <PrimaryActionButton Class="simon-start-btn" OnClick="StartGame">Start Game</PrimaryActionButton>
+        </GameSetupPanel>
     }
     else
     {
-        <div class="simon-hud game-hud">
+        <GameHud Class="simon-hud">
             <span class="simon-title">Simon Says</span>
-            <span class="simon-round">Round @Math.Max(sequence.Count, 1)</span>
+            <StatPill Class="simon-round" Label="Round" Value="@Math.Max(sequence.Count, 1).ToString()" />
             <span class="simon-mistakes">@MistakesText()</span>
-            <button class="simon-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
-        </div>
+            <SecondaryActionButton Class="simon-restart-btn" OnClick="ExitToSetup">← Exit</SecondaryActionButton>
+        </GameHud>
 
         <div class="simon-status">@StatusText()</div>
 
@@ -69,17 +61,15 @@
 
         @if (phase == Phase.RoundEnd)
         {
-            <div class="simon-overlay game-result-overlay">
-                <div class="simon-win-panel game-result-panel">
-                    <h2>Game Over</h2>
-                    <p>You reached round @roundsReached!</p>
-                    <PersonalBestBadge Value="@((bestRounds ?? roundsReached).ToString())" IsNew="isNewBest" />
-                    <div class="simon-win-actions game-result-actions">
-                        <button class="simon-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
-                        <button class="simon-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
-                    </div>
+            <GameOverlay PanelClass="simon-win-panel">
+                <h2>Game Over</h2>
+                <p>You reached round @roundsReached!</p>
+                <PersonalBestBadge Value="@((bestRounds ?? roundsReached).ToString())" IsNew="isNewBest" />
+                <div class="simon-win-actions game-result-actions">
+                    <PrimaryActionButton Class="simon-start-btn" OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton Class="simon-restart-btn" OnClick="() => phase = Phase.Setup">Exit</SecondaryActionButton>
                 </div>
-            </div>
+            </GameOverlay>
         }
     }
 

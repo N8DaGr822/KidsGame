@@ -31,24 +31,19 @@
             </ul>
 
             <h3 class="uno-section-title game-section-title">Choose a difficulty</h3>
-            @if (LockedDifficulty is { } locked)
-            {
-                <p class="uno-difficulty-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
-            }
-            else
-            {
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
                 <div class="uno-difficulty-select game-option-grid">
                     @foreach (var diff in Difficulties)
                     {
-                        <button class="uno-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                        <GameChoiceButton Class="uno-diff-btn" Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
                             <span class="uno-diff-name">@DifficultyName(diff)</span>
                             <span class="uno-diff-detail">@DifficultyDetail(diff)</span>
-                        </button>
+                        </GameChoiceButton>
                     }
                 </div>
-            }
+            </LockedChoiceNotice>
 
-            <button class="uno-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
+            <PrimaryActionButton Class="uno-start-btn" OnClick="StartGame">Start Game</PrimaryActionButton>
         </GameSetupPanel>
     }
     else
@@ -56,7 +51,7 @@
         <GameHud Class="uno-hud">
             <span class="uno-title">UNO</span>
             <span class="uno-direction" title="@(direction == 1 ? "Clockwise" : "Counter-clockwise")">@(direction == 1 ? "↻" : "↺")</span>
-            <button class="uno-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+            <SecondaryActionButton Class="uno-restart-btn" OnClick="ExitToSetup">← Exit</SecondaryActionButton>
         </GameHud>
 
         <div class="uno-table">
@@ -136,8 +131,8 @@
                     <PersonalBestBadge Value="@((bestTurns ?? turnsPlayed).ToString())" IsNew="isNewBest" />
                 }
                 <div class="uno-win-actions game-result-actions">
-                    <button class="uno-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
-                    <button class="uno-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
+                    <PrimaryActionButton Class="uno-start-btn" OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton Class="uno-restart-btn" OnClick="() => phase = Phase.Setup">Exit</SecondaryActionButton>
                 </div>
             </GameOverlay>
         }

@@ -849,13 +849,11 @@ h1[tabindex="-1"]:focus {
   z-index: 5;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  min-height: 56px;
-  padding: 0.55rem clamp(0.75rem, 2vw, 1.1rem);
-  border-bottom: 1px solid var(--line);
-  background: rgba(16, 18, 26, 0.78);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  gap: 0.6rem;
+  min-height: 44px;
+  padding: 0.4rem clamp(0.6rem, 2vw, 1rem);
+  background: rgba(16, 18, 26, 0.6);
+  backdrop-filter: blur(10px);
 }
 
 .game-host-title {
@@ -873,10 +871,29 @@ h1[tabindex="-1"]:focus {
   white-space: nowrap;
 }
 
-.game-host-bar .btn-secondary {
-  min-height: 38px;
-  border-radius: 999px;
+/* Compact icon-only exit control - deliberately lighter than a full
+   labeled bar button, since every internal game already shows its own
+   title via GameSetupPanel/GameHud (see the LaunchMode check in
+   GameHost.razor) and doesn't need the host chrome to repeat it. */
+.game-host-exit-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
   background: var(--control-bg);
+  color: var(--text);
+  font-size: 1.1rem;
+  font-weight: 900;
+  line-height: 1;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.game-host-exit-btn:hover {
+  background: var(--control-bg-hover);
+  transform: translateX(-2px);
 }
 
 .game-host-surface {
@@ -885,6 +902,37 @@ h1[tabindex="-1"]:focus {
   position: relative;
   overflow: auto;
   padding: clamp(0.75rem, 2vw, 1.5rem);
+  background: var(--bg);
+}
+
+/* Curated per-category background themes (GameThemes.cs picks the class
+   per game). Deliberately dark-toned tints blended into --bg rather than
+   light pastels - GameHud/StatPill/GameOverlay's light text is tuned for
+   the app's existing dark surfaces, so a bright background would break
+   contrast for every game using those shared components. Dress Up keeps
+   its own full-bleed per-scene background and gets no theme class here. */
+.gh-theme-toddler {
+  background: radial-gradient(ellipse at top, rgba(255, 143, 171, 0.16), transparent 60%), var(--bg);
+}
+
+.gh-theme-nature {
+  background: radial-gradient(ellipse at top, rgba(78, 205, 196, 0.16), transparent 60%), var(--bg);
+}
+
+.gh-theme-cardtable {
+  background: radial-gradient(ellipse at top, rgba(46, 143, 87, 0.18), transparent 60%), var(--bg);
+}
+
+.gh-theme-puzzle {
+  background: radial-gradient(ellipse at top, rgba(108, 99, 255, 0.16), transparent 60%), var(--bg);
+}
+
+.gh-theme-action {
+  background: radial-gradient(ellipse at top, rgba(255, 159, 67, 0.18), transparent 60%), var(--bg);
+}
+
+.gh-theme-adventure {
+  background: radial-gradient(ellipse at top, rgba(155, 89, 217, 0.2), transparent 60%), var(--bg);
 }
 
 /* DressUpGame lays its own stage edge-to-edge, so it needs the full
@@ -966,6 +1014,14 @@ h1[tabindex="-1"]:focus {
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.05);
   color: var(--text);
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-profile-row:hover,
+.access-row:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: color-mix(in srgb, var(--card-color, var(--accent)) 45%, var(--line));
 }
 
 .access-row {
@@ -974,11 +1030,42 @@ h1[tabindex="-1"]:focus {
   text-align: left;
 }
 
-.admin-profile-avatar,
+/* Ring treatment matching .profile-card-avatar - a kid profile is a
+   person, so it stays circular like the profile-select cards it's a
+   smaller echo of. */
+.admin-profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0.2rem;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 28%, color-mix(in srgb, var(--card-color, var(--accent)) 32%, transparent), transparent 65%),
+    color-mix(in srgb, var(--card-color, var(--accent)) 18%, rgba(255, 255, 255, 0.07));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-color, var(--accent)) 45%, transparent);
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.admin-profile-avatar .asset-glyph-image {
+  border-radius: 50%;
+}
+
+/* Ring treatment matching .game-card-thumb - a game thumbnail, so it
+   stays the same rounded-square shape as the game-select cards. */
 .access-row-thumb {
-  width: 2.4rem;
-  height: 2.4rem;
-  font-size: 1.8rem;
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0.2rem;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 32% 26%, rgba(78, 205, 196, 0.28), transparent 65%),
+    rgba(78, 205, 196, 0.13);
+  box-shadow: inset 0 0 0 1px rgba(78, 205, 196, 0.32);
+  font-size: 1.5rem;
   line-height: 1;
 }
 

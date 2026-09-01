@@ -51,7 +51,7 @@
                 </div>
             </LockedChoiceNotice>
 
-            <button class="mg-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
+            <PrimaryActionButton Class="mg-start-btn" OnClick="StartGame">Start Game</PrimaryActionButton>
         </GameSetupPanel>
     }
     else
@@ -60,7 +60,7 @@
             <StatPill Label="Moves" Value="@moves.ToString()" />
             <StatPill Label="Matches" Value="@($"{matchedPairs} / {selectedDifficulty.PairCount}")" />
             <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
-            <button class="mg-restart-btn game-secondary-action" @onclick="ResetToSetup">Change Game</button>
+            <SecondaryActionButton Class="mg-restart-btn" OnClick="ResetToSetup">Change Game</SecondaryActionButton>
         </GameHud>
 
         <div class="mg-board @(selectedTheme.BoardClass)" style="--cols:@selectedDifficulty.Columns;">
@@ -93,13 +93,13 @@
                 <h2>🎉 You did it!</h2>
                 <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") matching every pair!</p>
                 <div class="mg-win-stats game-result-stats">
-                    <div><span class="mg-stat-label game-stat-label">Moves</span><span class="mg-stat-value game-stat-value">@moves</span></div>
-                    <div><span class="mg-stat-label game-stat-label">Time</span><span class="mg-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
+                    <StatPill Label="Moves" Value="@moves.ToString()" />
+                    <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
                 </div>
                 <PersonalBestBadge Value="@FormatTime(bestTimeSeconds ?? elapsedSeconds)" IsNew="isNewTimeBest" />
                 <div class="mg-win-actions game-result-actions">
-                    <button class="mg-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
-                    <button class="mg-restart-btn game-secondary-action" @onclick="ResetToSetup">Change Game</button>
+                    <PrimaryActionButton Class="mg-start-btn" OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton Class="mg-restart-btn" OnClick="ResetToSetup">Change Game</SecondaryActionButton>
                 </div>
             </GameOverlay>
         }

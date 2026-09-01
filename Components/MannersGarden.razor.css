@@ -6,7 +6,13 @@
 
 /* ---- Setup ---- */
 
-.mng-setup {
+/* ::deep: these classes are set via a shared component's Class/PanelClass
+   parameter, so the element they land on is rendered by that component's
+   own template, not this file's - same reason .mng-cast-emoji above lives
+   in the global stylesheet instead. ::deep relaxes the CSS-isolation
+   match to "anywhere inside this component's scope" so a local override
+   still applies. */
+::deep .mng-setup {
     display: grid;
     justify-items: center;
     gap: 1rem;
@@ -18,12 +24,12 @@
     box-shadow: var(--shadow-sm);
 }
 
-.mng-setup h2 {
+::deep .mng-setup h2 {
     margin-bottom: 0;
     font-size: clamp(2rem, 7vw, 3rem);
 }
 
-.mng-setup p {
+::deep .mng-setup p {
     max-width: 32rem;
     color: var(--text-muted);
 }
@@ -50,7 +56,7 @@
    to elements declared in this component's own markup, not a child
    component's rendered output. */
 
-.mng-start-btn {
+::deep .mng-start-btn {
     min-height: 56px;
     padding: 0.9rem 2rem;
     border: none;
@@ -62,7 +68,7 @@
     transition: transform 0.15s ease, background 0.15s ease;
 }
 
-.mng-start-btn:hover {
+::deep .mng-start-btn:hover {
     background: var(--accent-strong);
     transform: translateY(-2px);
 }
@@ -90,7 +96,7 @@
     width: 100%;
 }
 
-.mng-focus-btn {
+::deep .mng-focus-btn {
     min-height: 52px;
     padding: 0.6rem 0.9rem;
     border: 1px solid var(--line);
@@ -102,7 +108,7 @@
     transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
-.mng-focus-btn:hover {
+::deep .mng-focus-btn:hover {
     transform: translateY(-2px);
     border-color: rgba(78, 205, 196, 0.7);
     background: rgba(78, 205, 196, 0.12);
@@ -110,7 +116,7 @@
 
 /* ---- HUD ---- */
 
-.mng-hud {
+::deep .mng-hud {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -154,7 +160,7 @@
     transform: scale(1.25);
 }
 
-.mng-restart-btn {
+::deep .mng-restart-btn {
     min-height: 42px;
     padding: 0.6rem 1rem;
     border: 1px solid var(--line);
@@ -458,18 +464,7 @@
 
 /* ---- Garden celebration ---- */
 
-.mng-garden-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    display: grid;
-    place-items: center;
-    padding: 1rem;
-    background: var(--overlay-bg);
-    backdrop-filter: blur(8px);
-}
-
-.mng-garden-panel {
+::deep .mng-garden-panel {
     width: min(420px, 100%);
     max-height: calc(100vh - 2rem);
     overflow: auto;

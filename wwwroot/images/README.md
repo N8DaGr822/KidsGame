@@ -24,7 +24,14 @@ do not leave blank UI.
   "Tanks"), CC0 - free for any use, no attribution required (credit given
   anyway because it's a great resource).
 - `dressup/*.png` - see git history/commit messages for provenance if adding
-  more from the same source.
+  more from the same source. The ~140 files still in their original
+  mixed-case/UUID names (e.g. `Dress1.png`, `Necklace4.png`,
+  `Gemini_Generated_Image_mrwrob....jpg`) were renamed 2026-09-01 to
+  match each file's existing `StickerDef.Id` in `DressUpGame.razor`
+  (e.g. `dress.png`, `necklace-4.png`) - a pure filename rename derived
+  from IDs that were already assigned correctly, not a re-verification
+  of the art itself. Same lowercase-kebab convention as the 22 gowns
+  renamed 2026-08-14.
 - `racing/*.png` (added 2026-08-18) are from a second user-provided batch
   dropped in `Downloads/Assets/RaceCar/` (33 UUID-named PNGs across two
   drops that same day - no pack metadata, source/license unknown, same

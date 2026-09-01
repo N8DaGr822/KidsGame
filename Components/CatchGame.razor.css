@@ -6,7 +6,13 @@
     gap: 1.25rem;
 }
 
-.cg-setup {
+/* ::deep: these classes are set via a shared component's Class parameter,
+   so the element they land on is rendered by that component's own
+   template, not this file's - Blazor's CSS isolation only stamps this
+   component's scope attribute on elements defined directly in this
+   component's markup, so a plain selector would never match. ::deep
+   relaxes the match to "anywhere inside this component's scope" instead. */
+::deep .cg-setup {
     display: grid;
     gap: 1rem;
     padding: clamp(1rem, 4vw, 2rem);
@@ -18,12 +24,12 @@
     justify-items: center;
 }
 
-.cg-setup h2 {
+::deep .cg-setup h2 {
     margin-bottom: 0;
     font-size: clamp(2rem, 7vw, 3rem);
 }
 
-.cg-setup p {
+::deep .cg-setup p {
     max-width: 30rem;
     color: var(--text-muted);
 }
@@ -44,8 +50,8 @@
     gap: 0.7rem;
 }
 
-.cg-theme-btn,
-.cg-diff-btn {
+::deep .cg-theme-btn,
+::deep .cg-diff-btn {
     min-height: 86px;
     padding: 0.8rem;
     border: 1px solid var(--line);
@@ -58,14 +64,14 @@
     transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
-.cg-theme-btn:hover,
-.cg-diff-btn:hover {
+::deep .cg-theme-btn:hover,
+::deep .cg-diff-btn:hover {
     transform: translateY(-2px);
     background: var(--control-bg-hover);
 }
 
-.cg-theme-btn.selected,
-.cg-diff-btn.selected {
+::deep .cg-theme-btn.selected,
+::deep .cg-diff-btn.selected {
     border-color: rgba(78, 205, 196, 0.75);
     background: var(--selected-bg);
 }

@@ -7,7 +7,14 @@
     color: var(--text);
 }
 
-.mg-setup {
+/* ::deep: GameSetupPanel renders the actual .mg-setup div and its h2/p
+   from its own template, not this component's markup, so Blazor's CSS
+   isolation won't stamp this component's scope attribute onto them
+   directly - ::deep relaxes the match to "anywhere inside this
+   component's scope" instead of requiring the attribute on the element
+   itself. Same reasoning applies to every ::deep rule below that targets
+   a class passed through a shared component's Class/PanelClass parameter. */
+::deep .mg-setup {
     width: min(760px, 100%);
     margin: 0 auto;
     display: grid;
@@ -19,12 +26,12 @@
     box-shadow: var(--shadow-sm);
 }
 
-.mg-setup h2 {
+::deep .mg-setup h2 {
     margin-bottom: 0;
     font-size: clamp(2rem, 7vw, 3.25rem);
 }
 
-.mg-setup p {
+::deep .mg-setup p {
     max-width: 34rem;
     color: var(--text-muted);
 }
@@ -95,62 +102,37 @@
     font-weight: 800;
 }
 
-.mg-start-btn,
-.mg-restart-btn {
+::deep .mg-start-btn,
+::deep .mg-restart-btn {
     min-height: 42px;
     border-radius: var(--radius-sm);
     padding: 0.65rem 1rem;
     font-weight: 900;
 }
 
-.mg-start-btn {
+::deep .mg-start-btn {
     justify-self: start;
     background: var(--accent);
     color: var(--accent-ink);
 }
 
-.mg-start-btn:hover {
+::deep .mg-start-btn:hover {
     background: var(--accent-strong);
 }
 
-.mg-restart-btn {
+::deep .mg-restart-btn {
     border: 1px solid var(--line);
     background: var(--control-bg);
     color: var(--text);
 }
 
-.mg-hud {
+::deep .mg-hud {
     display: flex;
     align-items: center;
     justify-content: center;
     flex-wrap: wrap;
     gap: 0.7rem;
     margin-bottom: 1rem;
-}
-
-.mg-stat {
-    min-width: 84px;
-    padding: 0.65rem 0.85rem;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-md);
-    background: rgba(32, 36, 49, 0.75);
-    text-align: center;
-}
-
-.mg-stat-label {
-    display: block;
-    color: var(--text-muted);
-    font-size: 0.68rem;
-    font-weight: 900;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.mg-stat-value {
-    display: block;
-    color: var(--text);
-    font-size: 1.1rem;
-    font-weight: 900;
 }
 
 .mg-board {
@@ -272,7 +254,7 @@
     backdrop-filter: blur(8px);
 }
 
-.mg-win-panel {
+::deep .mg-win-panel {
     width: min(360px, 100%);
     padding: 1.4rem;
     border: 1px solid var(--line-strong);

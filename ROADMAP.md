@@ -19,23 +19,36 @@ one-off, so the two are tightly linked in practice.
 
 ## 1. Shared UI primitives
 
-Currently duplicated (with drift) across `FishingGame`, `MemoryMatchGame`,
-`MannersGarden`, `TankDuel`, `SimonSays`, `UnoGame`, and `DressUpGame`:
+All done (2026-09-01). Live in `Components/Shared/`:
 
-- [ ] `GameSetupPanel` - the "choose options, then Start Game" card shell
-- [ ] `GameHud` - the top bar shown during play (title, exit, stats)
-- [ ] `StatPill` - the small label+value chip (`.mg-stat`, `.tk-hp-group`,
-      etc. are all the same idea today)
-- [ ] `GameChoiceButton` - theme/difficulty/mode picker buttons (`.mg-diff-btn`,
-      `.simon-diff-btn`, character/theme select buttons, etc.)
-- [ ] `GameResultOverlay` - the win/lose/game-over modal (`.mg-win-overlay`,
-      `.uno-overlay` + `.uno-win-panel`, `.simon-overlay`, `.du-win-overlay`,
-      `.tk-*` equivalent, etc.)
-- [ ] `PrimaryActionButton` / `SecondaryActionButton` - the accent-filled vs.
+- [x] `GameSetupPanel` - the "choose options, then Start Game" card shell
+- [x] `GameHud` - the top bar shown during play (title, exit, stats)
+- [x] `StatPill` - the small label+value chip
+- [x] `GameChoiceButton` - theme/difficulty/mode picker buttons
+- [x] `GameOverlay` - the win/lose/game-over modal shell (deliberately
+      untyped - also reused for non-result modals like Uno's color picker
+      and Dress Up's gallery/lightbox; takes an optional `OnOverlayClick`
+      for click-outside-to-close and a `Class` for cases needing a
+      different stacking z-index)
+- [x] `PrimaryActionButton` / `SecondaryActionButton` - the accent-filled vs.
       outlined button pattern every game reimplements per-component
+- [x] `LockedChoiceNotice` / `PersonalBestBadge` - two more primitives that
+      emerged during the migration (parent-locked difficulty notice,
+      record/new-best badge)
 
-Once these exist, migrate each of the 7 games to use them (can land
-incrementally, one game per pass, without a flag day).
+All 8 games that had drift (`FishingGame`, `MemoryMatchGame`,
+`MannersGarden`, `TankDuel`, `SimonSays`, `UnoGame`, `DressUpGame`, and
+`CatchGame` - not in the original list but in the same unmigrated state)
+are now on these components.
+
+Gotcha hit during the migration, worth remembering for any future shared
+component: Blazor CSS isolation only stamps a component's scope attribute
+onto elements declared directly in *that* component's own `.razor`
+markup - not onto elements rendered by a child component it passes a
+`Class`/`PanelClass` parameter to. A game's per-game override CSS
+targeting one of these shared components' classes needs `::deep` (e.g.
+`::deep .du-done-btn { ... }`) or it silently never applies. Every
+touched `*.razor.css` file now documents this inline where it matters.
 
 ## 2. Launcher polish (do this first)
 

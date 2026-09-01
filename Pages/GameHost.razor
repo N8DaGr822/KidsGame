@@ -12,12 +12,15 @@
     else
     {
         <div class="game-host-bar">
-            <button class="btn-secondary" @onclick="GoBack">← Exit game</button>
-            <span class="game-host-title">@_game.Title</span>
+            <button class="game-host-exit-btn" @onclick="GoBack" aria-label="Exit game">←</button>
+            @if (_game.LaunchMode == GameLaunchMode.ExternalIframe)
+            {
+                <span class="game-host-title">@_game.Title</span>
+            }
             @_hudSlot.Content
         </div>
 
-        <div class="game-host-surface">
+        <div class="game-host-surface @GameThemes.For(_game.LaunchTarget)">
             @if (_game.LaunchMode == GameLaunchMode.ExternalIframe)
             {
                 <iframe title="@_game.Title" src="@_game.LaunchTarget"></iframe>

@@ -1,0 +1,15 @@
+@* Accent-filled action button (.game-primary-action in app.css) - "Start
+   Game", "Play Again", "Next Battle", etc. Same shape as GameChoiceButton
+   minus Selected: no typed Label parameter since a few callers need a
+   dynamic label (e.g. Tank Duel's "Next Battle (Level 3)" vs "Try Again"). *@
+
+<button class="game-primary-action @Class" disabled="@Disabled" @onclick="OnClick">
+    @ChildContent
+</button>
+
+@code {
+    [Parameter] public EventCallback OnClick { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter, EditorRequired] public RenderFragment ChildContent { get; set; } = default!;
+}

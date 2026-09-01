@@ -18,52 +18,44 @@
 
     @if (phase == Phase.Setup)
     {
-        <div class="cg-setup game-setup-panel">
-            <h2>🧺 Catch the Falling Objects</h2>
-            <p>Move your basket to catch the good stuff and dodge the bombs!</p>
-
+        <GameSetupPanel Class="cg-setup" Title="🧺 Catch the Falling Objects" Description="Move your basket to catch the good stuff and dodge the bombs!">
             <h3 class="cg-section-title game-section-title">Choose a theme</h3>
             <div class="cg-theme-select game-option-grid">
                 @foreach (var t in Themes)
                 {
-                    <button class="cg-theme-btn game-option-button @(t.Name == selectedTheme.Name ? "selected" : "")" @onclick="() => selectedTheme = t">
+                    <GameChoiceButton Class="cg-theme-btn" Selected="@(t.Name == selectedTheme.Name)" OnClick="() => selectedTheme = t">
                         <span class="cg-theme-icon">@t.Icon</span>
                         <span class="cg-theme-name">@t.Name</span>
-                    </button>
+                    </GameChoiceButton>
                 }
             </div>
 
             <h3 class="cg-section-title game-section-title">Choose a difficulty</h3>
-            @if (LockedDifficulty is { } locked)
-            {
-                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
-            }
-            else
-            {
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
                 <div class="cg-difficulty-select game-option-grid">
                     @foreach (var diff in Difficulties)
                     {
-                        <button class="cg-diff-btn game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                        <GameChoiceButton Class="cg-diff-btn" Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
                             <span class="cg-diff-name">@DifficultyName(diff)</span>
                             <span class="cg-diff-detail">@DifficultyDetail(diff)</span>
-                        </button>
+                        </GameChoiceButton>
                     }
                 </div>
-            }
+            </LockedChoiceNotice>
 
-            <button class="cg-start-btn game-primary-action" @onclick="StartGame">Start Game</button>
-        </div>
+            <PrimaryActionButton Class="cg-start-btn" OnClick="StartGame">Start Game</PrimaryActionButton>
+        </GameSetupPanel>
     }
     else
     {
-        <div class="cg-hud game-hud">
+        <GameHud Class="cg-hud">
             <span class="cg-title">@selectedTheme.Name Catch</span>
             <span class="cg-stat">⭐ @score</span>
             <span class="cg-stat">🔥 @($"{CurrentMultiplier}x")</span>
             <span class="cg-stat">💣 @strikes/@config.MaxStrikes</span>
             <span class="cg-stat">⏱️ @FormatTime(remainingMs)</span>
-            <button class="cg-restart-btn game-secondary-action" @onclick="ExitToSetup">← Exit</button>
-        </div>
+            <SecondaryActionButton Class="cg-restart-btn" OnClick="ExitToSetup">← Exit</SecondaryActionButton>
+        </GameHud>
 
         <div class="cg-field" style="--cg-lanes:@config.Lanes;">
             @for (var i = 0; i < config.Lanes; i++)
@@ -82,30 +74,28 @@
 
         @if (phase == Phase.Finished)
         {
-            <div class="cg-overlay game-result-overlay">
-                <div class="cg-win-panel game-result-panel">
-                    @if (won)
-                    {
-                        <h2>🎉 Nice Catching!</h2>
-                        <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") clearing the round!</p>
-                    }
-                    else
-                    {
-                        <h2>💥 Too Many Bombs!</h2>
-                        <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "No worries" : PlayerName + ", no worries") - give it another go!</p>
-                    }
-                    <div class="cg-win-stats game-result-stats">
-                        <div><span class="game-stat-label">Score</span><span class="game-stat-value">@score</span></div>
-                        <div><span class="game-stat-label">Caught</span><span class="game-stat-value">@goodCaught</span></div>
-                        <div><span class="game-stat-label">Best streak</span><span class="game-stat-value">@bestStreak</span></div>
-                    </div>
-                    <PersonalBestBadge Value="@((bestScore ?? score).ToString())" IsNew="isNewBest" />
-                    <div class="cg-win-actions game-result-actions">
-                        <button class="cg-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
-                        <button class="cg-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
-                    </div>
+            <GameOverlay PanelClass="cg-win-panel">
+                @if (won)
+                {
+                    <h2>🎉 Nice Catching!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") clearing the round!</p>
+                }
+                else
+                {
+                    <h2>💥 Too Many Bombs!</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "No worries" : PlayerName + ", no worries") - give it another go!</p>
+                }
+                <div class="cg-win-stats game-result-stats">
+                    <StatPill Label="Score" Value="@score.ToString()" />
+                    <StatPill Label="Caught" Value="@goodCaught.ToString()" />
+                    <StatPill Label="Best streak" Value="@bestStreak.ToString()" />
                 </div>
-            </div>
+                <PersonalBestBadge Value="@((bestScore ?? score).ToString())" IsNew="isNewBest" />
+                <div class="cg-win-actions game-result-actions">
+                    <PrimaryActionButton Class="cg-start-btn" OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton Class="cg-restart-btn" OnClick="ExitToSetup">Exit</SecondaryActionButton>
+                </div>
+            </GameOverlay>
         }
     }
 

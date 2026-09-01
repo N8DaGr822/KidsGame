@@ -27,17 +27,12 @@
 
     @if (selectedCharacter is null)
     {
-        <div class="du-setup game-setup-panel">
-            <div class="du-setup-header">
-                <h2>Dress Up</h2>
-            </div>
-            <p>Pick a character, then drag stickers onto them to build an outfit!</p>
-
+        <GameSetupPanel Class="du-setup" Title="Dress Up" Description="Pick a character, then drag stickers onto them to build an outfit!">
             <h3 class="du-section-title game-section-title">Choose a character</h3>
             <div class="du-character-select game-option-grid">
                 @foreach (var character in Characters)
                 {
-                    <button class="du-character-btn game-option-button" @onclick="() => ChooseCharacter(character)">
+                    <GameChoiceButton Class="du-character-btn" OnClick="() => ChooseCharacter(character)">
                         @if (character.IsEmpty)
                         {
                             <span class="du-character-empty-icon" aria-hidden="true">🌄</span>
@@ -47,10 +42,10 @@
                             <img class="du-character-icon" src="@character.ImagePath" alt="@character.Name" />
                         }
                         <span class="du-character-name">@character.Name</span>
-                    </button>
+                    </GameChoiceButton>
                 }
             </div>
-        </div>
+        </GameSetupPanel>
     }
     else
     {
@@ -172,7 +167,7 @@
                             </div>
                         }
 
-                        <button class="du-restart-btn" @onclick="ClearDrawing">Clear Drawing</button>
+                        <SecondaryActionButton Class="du-restart-btn" OnClick="ClearDrawing">Clear Drawing</SecondaryActionButton>
                     </div>
                 }
                 else
@@ -212,64 +207,58 @@
                 }
             </div>
 
-            <button class="du-done-btn" @onclick="FinishDressUp">Done! 🎉</button>
-            <button class="du-undo-btn" disabled="@(undoStack.Count == 0)" @onclick="UndoAsync">↩️ Undo</button>
+            <PrimaryActionButton Class="du-done-btn" OnClick="FinishDressUp">Done! 🎉</PrimaryActionButton>
+            <SecondaryActionButton Class="du-undo-btn" Disabled="@(undoStack.Count == 0)" OnClick="UndoAsync">↩️ Undo</SecondaryActionButton>
         </div>
 
         @if (celebrate)
         {
-            <div class="du-win-overlay game-result-overlay">
-                <div class="du-win-panel game-result-panel">
-                    <h2>🎉 All dressed up!</h2>
-                    <p>@(selectedCharacter.IsEmpty
-                            ? (string.IsNullOrWhiteSpace(PlayerName) ? "Great scene!" : PlayerName + ", great scene!")
-                            : (string.IsNullOrWhiteSpace(PlayerName) ? "Great styling" : PlayerName + ", great styling") + " on your " + selectedCharacter.Name + "!")</p>
-                    <div class="du-win-actions game-result-actions">
-                        <button class="du-start-btn game-primary-action" @onclick="DressAnother">Dress Another</button>
-                    </div>
+            <GameOverlay PanelClass="du-win-panel">
+                <h2>🎉 All dressed up!</h2>
+                <p>@(selectedCharacter.IsEmpty
+                        ? (string.IsNullOrWhiteSpace(PlayerName) ? "Great scene!" : PlayerName + ", great scene!")
+                        : (string.IsNullOrWhiteSpace(PlayerName) ? "Great styling" : PlayerName + ", great styling") + " on your " + selectedCharacter.Name + "!")</p>
+                <div class="du-win-actions game-result-actions">
+                    <PrimaryActionButton Class="du-start-btn" OnClick="DressAnother">Dress Another</PrimaryActionButton>
                 </div>
-            </div>
+            </GameOverlay>
         }
 
         @if (galleryOpen)
         {
-            <div class="du-gallery-overlay game-result-overlay" @onclick="CloseGallery">
-                <div class="du-gallery-panel game-result-panel" @onclick:stopPropagation>
-                    <div class="du-gallery-header">
-                        <h2>🖼️ My Looks</h2>
-                        <button class="du-restart-btn" @onclick="CloseGallery">✕ Close</button>
-                    </div>
-
-                    @if (savedLooks.Count == 0)
-                    {
-                        <p class="muted">No saved looks yet - tap "Save Picture" while dressing up a character to add one here.</p>
-                    }
-                    else
-                    {
-                        <div class="du-gallery-grid">
-                            @foreach (var look in savedLooks.AsEnumerable().Reverse())
-                            {
-                                <button @key="look.Id" class="du-gallery-thumb" @onclick="() => viewingLook = look">
-                                    <img src="@look.DataUrl" alt="Saved look of @look.Character" />
-                                </button>
-                            }
-                        </div>
-                    }
+            <GameOverlay Class="du-gallery-overlay" PanelClass="du-gallery-panel" OnOverlayClick="CloseGallery">
+                <div class="du-gallery-header">
+                    <h2>🖼️ My Looks</h2>
+                    <SecondaryActionButton Class="du-restart-btn" OnClick="CloseGallery">✕ Close</SecondaryActionButton>
                 </div>
-            </div>
+
+                @if (savedLooks.Count == 0)
+                {
+                    <p class="muted">No saved looks yet - tap "Save Picture" while dressing up a character to add one here.</p>
+                }
+                else
+                {
+                    <div class="du-gallery-grid">
+                        @foreach (var look in savedLooks.AsEnumerable().Reverse())
+                        {
+                            <button @key="look.Id" class="du-gallery-thumb" @onclick="() => viewingLook = look">
+                                <img src="@look.DataUrl" alt="Saved look of @look.Character" />
+                            </button>
+                        }
+                    </div>
+                }
+            </GameOverlay>
         }
 
         @if (viewingLook is { } viewing)
         {
-            <div class="du-lightbox-overlay game-result-overlay" @onclick="() => viewingLook = null">
-                <div class="du-lightbox-panel" @onclick:stopPropagation>
-                    <img src="@viewing.DataUrl" alt="Saved look of @viewing.Character" />
-                    <div class="du-lightbox-actions game-result-actions">
-                        <button class="du-restart-btn" @onclick="() => DeleteSavedLookAsync(viewing)">🗑️ Delete</button>
-                        <button class="du-start-btn game-primary-action" @onclick="() => viewingLook = null">Close</button>
-                    </div>
+            <GameOverlay Class="du-lightbox-overlay" PanelClass="du-lightbox-panel" OnOverlayClick="() => viewingLook = null">
+                <img src="@viewing.DataUrl" alt="Saved look of @viewing.Character" />
+                <div class="du-lightbox-actions game-result-actions">
+                    <SecondaryActionButton Class="du-restart-btn" OnClick="() => DeleteSavedLookAsync(viewing)">🗑️ Delete</SecondaryActionButton>
+                    <PrimaryActionButton Class="du-start-btn" OnClick="() => viewingLook = null">Close</PrimaryActionButton>
                 </div>
-            </div>
+            </GameOverlay>
         }
     }
 
@@ -330,10 +319,10 @@
             {
                 <div class="du-menu-backdrop" @onclick="CloseActionMenu"></div>
                 <div class="du-action-menu">
-                    <button class="du-restart-btn" @onclick="AbandonDressUp">← Change Character</button>
-                    <button class="du-restart-btn" @onclick="ExportOutfitAsync">💾 Save Picture</button>
-                    <button class="du-restart-btn" @onclick="OpenGalleryAsync">🖼️ My Looks</button>
-                    <button class="du-restart-btn" @onclick="ResetOutfit">Reset Outfit</button>
+                    <SecondaryActionButton Class="du-restart-btn" OnClick="AbandonDressUp">← Change Character</SecondaryActionButton>
+                    <SecondaryActionButton Class="du-restart-btn" OnClick="ExportOutfitAsync">💾 Save Picture</SecondaryActionButton>
+                    <SecondaryActionButton Class="du-restart-btn" OnClick="OpenGalleryAsync">🖼️ My Looks</SecondaryActionButton>
+                    <SecondaryActionButton Class="du-restart-btn" OnClick="ResetOutfit">Reset Outfit</SecondaryActionButton>
                 </div>
             }
         </div>;
@@ -361,24 +350,24 @@
     // than re-deriving reasons from scratch each time more art shows up).
     private static readonly List<StickerDef> AllStickers = new()
     {
-        new StickerDef("crown", "👑", "Crown", StickerArt + "Crown.png"),
-        new StickerDef("dress", "👗", "Dress", StickerArt + "Dress1.png", DefaultScale: 4.5),
-        new StickerDef("emerald-gown", "👗", "Emerald Gown", StickerArt + "Dress2.png", DefaultScale: 4.5),
-        new StickerDef("sapphire-gown", "👗", "Sapphire Gown", StickerArt + "Dress3.png", DefaultScale: 4.5),
-        new StickerDef("purple-gown", "👗", "Purple Gown", StickerArt + "Dress12.png", DefaultScale: 4.5),
-        new StickerDef("pink-puff-dress", "👗", "Pink Puff Dress", StickerArt + "Dress5.png", DefaultScale: 4.5),
-        new StickerDef("plaid-dress", "👗", "Plaid Dress", StickerArt + "Dress6.png", DefaultScale: 4.5),
-        new StickerDef("ivory-rose-gown", "👗", "Ivory Rose Gown", StickerArt + "Dress7.png", DefaultScale: 4.5),
-        new StickerDef("teal-starlight-gown", "👗", "Teal Starlight Gown", StickerArt + "Dress8.png", DefaultScale: 4.5),
-        new StickerDef("mustard-pinafore", "👗", "Mustard Pinafore", StickerArt + "Dress9.png", DefaultScale: 4.5),
-        new StickerDef("boho-maxi-dress", "👗", "Boho Maxi Dress", StickerArt + "Dress10.png", DefaultScale: 4.5),
-        new StickerDef("cream-sweater-dress", "👗", "Cream Sweater Dress", StickerArt + "Dress11.png", DefaultScale: 4.5),
-        new StickerDef("daisy-sundress", "👗", "Daisy Sundress", StickerArt + "Dress13.png", DefaultScale: 4.5),
-        new StickerDef("ruby-cocktail-dress", "👗", "Ruby Cocktail Dress", StickerArt + "Dress14.png", DefaultScale: 4.5),
-        new StickerDef("blossom-dress", "👗", "Blossom Dress", StickerArt + "Dress15.png", DefaultScale: 4.5),
-        new StickerDef("unicorn-sparkle-dress", "👗", "Unicorn Sparkle Dress", StickerArt + "Dress16.png", DefaultScale: 4.5),
-        new StickerDef("frost-unicorn-gown", "👗", "Frost Unicorn Gown", StickerArt + "Dress17.png", DefaultScale: 4.5),
-        new StickerDef("frost-star-gown", "👗", "Frost Star Gown", StickerArt + "Dress18.png", DefaultScale: 4.5),
+        new StickerDef("crown", "👑", "Crown", StickerArt + "crown.png"),
+        new StickerDef("dress", "👗", "Dress", StickerArt + "dress.png", DefaultScale: 4.5),
+        new StickerDef("emerald-gown", "👗", "Emerald Gown", StickerArt + "emerald-gown.png", DefaultScale: 4.5),
+        new StickerDef("sapphire-gown", "👗", "Sapphire Gown", StickerArt + "sapphire-gown.png", DefaultScale: 4.5),
+        new StickerDef("purple-gown", "👗", "Purple Gown", StickerArt + "purple-gown.png", DefaultScale: 4.5),
+        new StickerDef("pink-puff-dress", "👗", "Pink Puff Dress", StickerArt + "pink-puff-dress.png", DefaultScale: 4.5),
+        new StickerDef("plaid-dress", "👗", "Plaid Dress", StickerArt + "plaid-dress.png", DefaultScale: 4.5),
+        new StickerDef("ivory-rose-gown", "👗", "Ivory Rose Gown", StickerArt + "ivory-rose-gown.png", DefaultScale: 4.5),
+        new StickerDef("teal-starlight-gown", "👗", "Teal Starlight Gown", StickerArt + "teal-starlight-gown.png", DefaultScale: 4.5),
+        new StickerDef("mustard-pinafore", "👗", "Mustard Pinafore", StickerArt + "mustard-pinafore.png", DefaultScale: 4.5),
+        new StickerDef("boho-maxi-dress", "👗", "Boho Maxi Dress", StickerArt + "boho-maxi-dress.png", DefaultScale: 4.5),
+        new StickerDef("cream-sweater-dress", "👗", "Cream Sweater Dress", StickerArt + "cream-sweater-dress.png", DefaultScale: 4.5),
+        new StickerDef("daisy-sundress", "👗", "Daisy Sundress", StickerArt + "daisy-sundress.png", DefaultScale: 4.5),
+        new StickerDef("ruby-cocktail-dress", "👗", "Ruby Cocktail Dress", StickerArt + "ruby-cocktail-dress.png", DefaultScale: 4.5),
+        new StickerDef("blossom-dress", "👗", "Blossom Dress", StickerArt + "blossom-dress.png", DefaultScale: 4.5),
+        new StickerDef("unicorn-sparkle-dress", "👗", "Unicorn Sparkle Dress", StickerArt + "unicorn-sparkle-dress.png", DefaultScale: 4.5),
+        new StickerDef("frost-unicorn-gown", "👗", "Frost Unicorn Gown", StickerArt + "frost-unicorn-gown.png", DefaultScale: 4.5),
+        new StickerDef("frost-star-gown", "👗", "Frost Star Gown", StickerArt + "frost-star-gown.png", DefaultScale: 4.5),
         new StickerDef("periwinkle-vine-gown", "👗", "Periwinkle Vine Gown", StickerArt + "periwinkle-vine-gown.png", DefaultScale: 4.5),
         new StickerDef("pink-rose-ballgown", "👗", "Pink Rose Ballgown", StickerArt + "pink-rose-ballgown.png", DefaultScale: 4.5),
         new StickerDef("lilac-lace-gown", "👗", "Lilac Lace Gown", StickerArt + "lilac-lace-gown.png", DefaultScale: 4.5),
@@ -401,166 +390,166 @@
         new StickerDef("phoenix-fire-gown", "👗", "Phoenix Fire Gown", StickerArt + "phoenix-fire-gown.png", DefaultScale: 4.5),
         new StickerDef("moonlit-star-gown", "👗", "Moonlit Star Gown", StickerArt + "moonlit-star-gown.png", DefaultScale: 4.5),
         new StickerDef("royal-coral-gown", "👗", "Royal Coral Gown", StickerArt + "royal-coral-gown.png", DefaultScale: 4.5),
-        new StickerDef("royal-tailcoat", "🤵", "Royal Tailcoat", StickerArt + "Outfit1.png", DefaultScale: 5.5),
-        new StickerDef("crimson-pirate-coat", "🏴‍☠️", "Crimson Pirate Coat", StickerArt + "Pirate1.png", DefaultScale: 5.5),
-        new StickerDef("azure-pirate-coat", "🏴‍☠️", "Azure Pirate Coat", StickerArt + "Pirate2.png", DefaultScale: 5.5),
-        new StickerDef("fae-outfit", "🧝", "Forest Fae Outfit", StickerArt + "Fairy1.png", DefaultScale: 5.5),
-        new StickerDef("necklace", "📿", "Necklace", StickerArt + "Necklace1.png", DefaultScale: 0.9),
-        new StickerDef("silver-necklace", "📿", "Silver Necklace", StickerArt + "Necklace2.png", DefaultScale: 0.9),
-        new StickerDef("pearl-necklace", "📿", "Pearl & Coral Necklace", StickerArt + "Necklace3.png", DefaultScale: 0.9),
-        new StickerDef("necklace-4", "📿", "Pearl Diamond Choker", StickerArt + "Necklace4.png", DefaultScale: 0.9),
-        new StickerDef("amethyst-tiara", "👑", "Amethyst Tiara", StickerArt + "Necklace5.png", DefaultScale: 0.9),
-        new StickerDef("butterfly-hair-clip", "🦋", "Butterfly Hair Clip", StickerArt + "Necklace6.png", DefaultScale: 0.9),
-        new StickerDef("necklace-7", "📿", "Ruby Choker", StickerArt + "Necklace7.png", DefaultScale: 0.9),
-        new StickerDef("necklace-8", "📿", "Sapphire Collar", StickerArt + "Necklace8.png", DefaultScale: 0.9),
-        new StickerDef("necklace-9", "📿", "Moon & Star Necklace", StickerArt + "Necklace9.png", DefaultScale: 0.9),
-        new StickerDef("necklace-10", "📿", "Butterfly Chain Necklace", StickerArt + "Necklace10.png", DefaultScale: 0.9),
-        new StickerDef("necklace-11", "📿", "Floral Locket Necklace", StickerArt + "Necklace11.png", DefaultScale: 0.9),
-        new StickerDef("necklace-12", "📿", "Pirate Ship Cameo Necklace", StickerArt + "Necklace12.png", DefaultScale: 0.9),
-        new StickerDef("necklace-13", "📿", "Snowflake Pearl Necklace", StickerArt + "Necklace13.png", DefaultScale: 0.9),
-        new StickerDef("necklace-14", "📿", "Star & Moon Charm Necklace", StickerArt + "Necklace14.png", DefaultScale: 0.9),
-        new StickerDef("necklace-15", "📿", "Bolo Star Necklace", StickerArt + "Necklace15.png", DefaultScale: 0.9),
-        new StickerDef("necklace-16", "📿", "Steampunk Rose Necklace", StickerArt + "Necklace16.png", DefaultScale: 0.9),
-        new StickerDef("pendant-1", "📿", "Crystal Shard Pendant", StickerArt + "Pendent1.png", DefaultScale: 0.65),
-        new StickerDef("pendant-2", "📿", "Ruby Bib Necklace", StickerArt + "Pendent2.png", DefaultScale: 0.65),
-        new StickerDef("rose", "🌹", "Rose", StickerArt + "Rose.png"),
-        new StickerDef("purse", "👛", "Purse", StickerArt + "Bag.png"),
-        new StickerDef("bag-1", "👜", "Dragon Ember Bag", StickerArt + "Bag1.png", DefaultScale: 1.2),
-        new StickerDef("bag-2", "👜", "Rose Bloom Satchel", StickerArt + "Bag2.png", DefaultScale: 1.2),
-        new StickerDef("bag-3", "👜", "Ember Gear Satchel", StickerArt + "Bag3.png", DefaultScale: 1.2),
-        new StickerDef("heart-purse", "👛", "Heart Clasp Purse", StickerArt + "Purse1.png", DefaultScale: 1.2),
-        new StickerDef("purse-2", "👛", "Butterfly Pearl Clutch", StickerArt + "Purse2.png", DefaultScale: 1.2),
-        new StickerDef("purse-3", "👛", "Rainbow Butterfly Bag", StickerArt + "Purse3.png", DefaultScale: 1.2),
-        new StickerDef("shoes", "👠", "Shoes", StickerArt + "Shoes1.png", DefaultScale: 1.4),
-        new StickerDef("frost-boots", "👢", "Frost Boots", StickerArt + "Boots1.png", UnderOutfit: true, DefaultScale: 1.4),
-        new StickerDef("leaf-boots", "👢", "Leaf Boots", StickerArt + "Shoe2.png", UnderOutfit: true, DefaultScale: 1.4),
-        new StickerDef("floral-sandal-shoes", "👡", "Floral Sandals", StickerArt + "Shoe3.png", DefaultScale: 1.4),
-        new StickerDef("rainbow-wing-sneaker-shoes", "👟", "Rainbow Wing Sneakers", StickerArt + "Shoe4.png", DefaultScale: 1.4),
-        new StickerDef("braided-shell-sandal-shoes", "👡", "Braided Shell Sandals", StickerArt + "Shoe5.png", DefaultScale: 1.4),
-        new StickerDef("butterfly-mary-jane-shoes", "👠", "Butterfly Mary Janes", StickerArt + "Shoe6.png", DefaultScale: 1.4),
-        new StickerDef("dragon-armor-boots", "👢", "Dragon Armor Boots", StickerArt + "Shoe7.png", UnderOutfit: true, DefaultScale: 1.4),
-        new StickerDef("gloves", "🧤", "Starlit Gloves", StickerArt + "Gloves1.png", DefaultScale: 2.15),
-        new StickerDef("belt", "🪢", "Magic Belt", StickerArt + "Belt1.png", DefaultScale: 1.4),
-        new StickerDef("belt-2", "🪢", "Moon & Star Buckle Belt", StickerArt + "Belt2.png", DefaultScale: 1.4),
-        new StickerDef("belt-3", "🪢", "Galaxy Star Sash", StickerArt + "Belt3.png", DefaultScale: 1.4),
-        new StickerDef("bracelet-1", "💍", "Spiked Collar", StickerArt + "Braclet1.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-2", "💍", "Ruby Diamond Choker", StickerArt + "Braclet2.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-3", "💍", "Frost Wing Cuff", StickerArt + "Braclet3.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-4", "💍", "Moon Cuff Bracelet", StickerArt + "Braclet4.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-5", "💍", "Icy Bow Collar", StickerArt + "Braclet5.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-6", "💍", "Dragon Eye Collar", StickerArt + "Braclet6.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-7", "💍", "Celestial Crystal Cuff", StickerArt + "Braclet7.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-8", "💍", "Spiked Dragon Eye Collar", StickerArt + "Braclet8.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-9", "💍", "Ruby Signet Ring", StickerArt + "Braclet9.png", DefaultScale: 0.45),
-        new StickerDef("bracelet-10", "💍", "Sapphire Gold Choker", StickerArt + "Braclet10.png", DefaultScale: 0.45),
-        new StickerDef("shoulder-armor", "🐉", "Dragon Shoulder Armor", StickerArt + "Shoulders1.png", DefaultScale: 2.8),
-        new StickerDef("horn-1", "🦄", "Jeweled Unicorn Horn", StickerArt + "Horn1.png", DefaultScale: 0.6),
-        new StickerDef("horn-2", "🦄", "Charm Unicorn Horn", StickerArt + "Horn2.png", DefaultScale: 0.6),
-        new StickerDef("accessory-1", "💎", "Rune Gauntlet Cuff", StickerArt + "Accessory1.png", DefaultScale: 0.65),
-        new StickerDef("accessory-2", "💎", "Rune Talon Cuff", StickerArt + "Accessory2.png", DefaultScale: 0.65),
-        new StickerDef("accessory-3", "💎", "Frost Snowflake Crystal", StickerArt + "Accessory3.png", DefaultScale: 0.65),
-        new StickerDef("accessory-4", "💎", "Jeweled Talon Cuff", StickerArt + "Accessory4.png", DefaultScale: 0.65),
-        new StickerDef("accessory-5", "💎", "Feather Wing Brooch", StickerArt + "Accessory5.png", DefaultScale: 0.65),
-        new StickerDef("tiara", "👑", "Tiara", StickerArt + "Tiara.png", DefaultScale: 0.75),
-        new StickerDef("frost-crown", "👑", "Frost Crown", StickerArt + "Crown1.png", DefaultScale: 0.9),
-        new StickerDef("flower-crown", "🌸", "Flower Crown", StickerArt + "Decor1.png", DefaultScale: 0.9),
-        new StickerDef("crown-3", "👑", "Garden Halo Crown", StickerArt + "Crown3.png", DefaultScale: 0.9),
-        new StickerDef("sun-hat", "👒", "Sun Hat", StickerArt + "Hat1.png", DefaultScale: 0.8),
-        new StickerDef("starry-bandana", "👒", "Starry Bandana", StickerArt + "Hat2.png", DefaultScale: 1.6),
-        new StickerDef("feather-fascinator", "👒", "Feather Fascinator", StickerArt + "Hat3.png", DefaultScale: 1.4),
-        new StickerDef("wizard-hat", "🧙", "Wizard Hat", StickerArt + "Hat4.png", DefaultScale: 1.4),
-        new StickerDef("cowboy-hat", "🤠", "Cowboy Hat", StickerArt + "Hat5.png", DefaultScale: 1.0),
-        new StickerDef("gothic-top-hat", "🎩", "Gothic Top Hat", StickerArt + "Hat6.png", DefaultScale: 1.3),
-        new StickerDef("pirate-hat", "🏴‍☠️", "Pirate Hat", StickerArt + "Hat7.png", DefaultScale: 1.1),
-        new StickerDef("butterfly-sun-hat", "👒", "Butterfly Sun Hat", StickerArt + "Hat8.png", DefaultScale: 0.85),
-        new StickerDef("winter-fur-hat", "🧣", "Winter Fur Hat", StickerArt + "Hat9.png", DefaultScale: 1.1),
-        new StickerDef("moon-tiara", "👑", "Moon Tiara", StickerArt + "Hat10.png", DefaultScale: 0.75),
-        new StickerDef("moon-beret", "🎨", "Moon Beret", StickerArt + "Hat11.png", DefaultScale: 1.0),
-        new StickerDef("sheriff-hat", "🤠", "Sheriff Hat", StickerArt + "Hat12.png", DefaultScale: 0.85),
-        new StickerDef("cat", "🐈‍⬛", "Black Cat", StickerArt + "Cat.png"),
-        new StickerDef("sparkles", "✨", "Sparkles", StickerArt + "Sparkle.png"),
-        new StickerDef("heart", "💖", "Heart", StickerArt + "Heart.png"),
-        new StickerDef("heart-2", "❤️", "Classic Heart", StickerArt + "Heart2.png"),
-        new StickerDef("heart-sparkle", "💗", "Sparkle Heart", StickerArt + "HeartSparkle.png"),
-        new StickerDef("fire", "🔥", "Fire", StickerArt + "Fire.png"),
-        new StickerDef("wings", "🦋", "Wings", StickerArt + "FairyWings2.png", BehindCharacter: true, DefaultScale: 4.0),
-        new StickerDef("fairy-wings", "🧚", "Fairy Wings", StickerArt + "FairyWings3.png", BehindCharacter: true, DefaultScale: 4.0),
-        new StickerDef("jeweled-wings", "🧚", "Jeweled Wings", StickerArt + "FairyWings1.png", BehindCharacter: true, DefaultScale: 4.0),
-        new StickerDef("celestial-gown", "👗", "Celestial Gown", StickerArt + "Dress19.png", DefaultScale: 4.5),
-        new StickerDef("butterfly-corset", "🦋", "Butterfly Corset", StickerArt + "ButterflyTop.png", DefaultScale: 3.0),
-        new StickerDef("butterfly-skirt", "🦋", "Butterfly Skirt", StickerArt + "ButterflyBottom.png", DefaultScale: 3.0),
-        new StickerDef("butterfly-floral-crown", "🌸", "Butterfly Floral Crown", StickerArt + "ButterflyHat.png", DefaultScale: 0.85),
-        new StickerDef("butterfly-tiara", "👑", "Butterfly Tiara", StickerArt + "ButterflyTiara.png", DefaultScale: 0.75),
-        new StickerDef("jeweled-crown-2", "👑", "Jeweled Crown", StickerArt + "Crown5.png", DefaultScale: 0.9),
-        new StickerDef("butterfly-necklace", "🦋", "Butterfly Necklace", StickerArt + "ButterflyNecklace.png", DefaultScale: 0.9),
-        new StickerDef("pendant-10", "💎", "Emerald Pendant", StickerArt + "Pendent10.png", DefaultScale: 0.65),
-        new StickerDef("pendant-11", "🧭", "Compass Pendant", StickerArt + "Pendent11.png", DefaultScale: 0.65),
-        new StickerDef("pendant-12", "👁️", "Evil Eye Pendant", StickerArt + "Pendent12.png", DefaultScale: 0.65),
-        new StickerDef("pendant-13", "🐉", "Dragon Gem Pendant", StickerArt + "Pendent13.png", DefaultScale: 0.65),
-        new StickerDef("bag-4", "👜", "Magic Pouch", StickerArt + "Bag4.png", DefaultScale: 1.2),
-        new StickerDef("bag-10", "👜", "Enchanted Sack", StickerArt + "Bag10.png", DefaultScale: 1.2),
-        new StickerDef("fae-wings-2", "🦋", "Jeweled Butterfly Wings", StickerArt + "ButterflyWings.png", BehindCharacter: true, DefaultScale: 4.0),
-        new StickerDef("drinking-horn-1", "🐉", "Dragon Horn", StickerArt + "Horn3.png", DefaultScale: 1.3),
-        new StickerDef("drinking-horn-2", "🦄", "Silver Horn", StickerArt + "Horn4.png", DefaultScale: 1.3),
-        new StickerDef("heart-4", "💗", "Winged Heart", StickerArt + "Heart4.png"),
-        new StickerDef("spellbook-eye", "📖", "Eye Spellbook", StickerArt + "Book1.png", DefaultScale: 1.3),
-        new StickerDef("spellbook-runes", "📖", "Rune Spellbook", StickerArt + "Book2.png", DefaultScale: 1.3),
-        new StickerDef("spellbook-dragon", "📖", "Dragon Spellbook", StickerArt + "Book3.png", DefaultScale: 1.3),
-        new StickerDef("treasure-chest", "🗝️", "Treasure Chest", StickerArt + "Chest1.png", DefaultScale: 1.8),
-        new StickerDef("compass", "🧭", "Compass", StickerArt + "Compass1.png", DefaultScale: 1.0),
-        new StickerDef("dragon-egg-1", "🥚", "Teal Dragon Egg", StickerArt + "Egg1.png", DefaultScale: 1.6),
-        new StickerDef("dragon-egg-2", "🥚", "Stone Dragon Egg", StickerArt + "Egg2.png", DefaultScale: 1.6),
-        new StickerDef("magic-feather", "🪶", "Magic Feather", StickerArt + "Feather1.png", DefaultScale: 1.4),
-        new StickerDef("skeleton-key", "🔑", "Winged Key", StickerArt + "Key1.png", DefaultScale: 0.9),
-        new StickerDef("magic-lantern", "🏮", "Magic Lantern", StickerArt + "Lamp1.png", DefaultScale: 1.4),
-        new StickerDef("magnifying-glass-1", "🔍", "Magnifying Glass", StickerArt + "Micglass1.png", DefaultScale: 1.3),
-        new StickerDef("magnifying-glass-2", "🔍", "Dragon Claw Glass", StickerArt + "Micglass2.png", DefaultScale: 1.3),
-        new StickerDef("crystal-orb-1", "🔮", "Purple Crystal Orb", StickerArt + "Orb2.png", DefaultScale: 1.5),
-        new StickerDef("crystal-orb-2", "🔮", "Dragon Crystal Orb", StickerArt + "Orb3.png", DefaultScale: 1.5),
-        new StickerDef("quill-inkwell", "🖋️", "Quill & Inkwell", StickerArt + "Pen1.png", DefaultScale: 1.1),
-        new StickerDef("magic-potion", "🧪", "Magic Potion", StickerArt + "Potion1.png", DefaultScale: 1.0),
-        new StickerDef("hourglass-1", "⏳", "Emerald Hourglass", StickerArt + "Timer1.png", DefaultScale: 1.5),
-        new StickerDef("hourglass-2", "⏳", "Ruby Hourglass", StickerArt + "Timer2.png", DefaultScale: 1.5),
-        new StickerDef("magic-wand", "🪄", "Fae Wand", StickerArt + "ButterflyWand.png", DefaultScale: 1.6),
-        new StickerDef("crystal-1", "💎", "Pearl Crystal", StickerArt + "Crystal1.png", DefaultScale: 1.6),
-        new StickerDef("space-1", "🌌", "Space Sticker 1", StickerArt + "Space1.png", DefaultScale: 1.6),
-        new StickerDef("space-2", "🌌", "Space Sticker 2", StickerArt + "Space2.png", DefaultScale: 1.6),
-        new StickerDef("space-3", "🌌", "Space Sticker 3", StickerArt + "Space3.png", DefaultScale: 1.6),
-        new StickerDef("space-4", "🌌", "Space Sticker 4", StickerArt + "Space4.png", DefaultScale: 1.6),
-        new StickerDef("space-5", "🌌", "Space Sticker 5", StickerArt + "Space5.png", DefaultScale: 1.6),
-        new StickerDef("space-6", "🌌", "Space Sticker 6", StickerArt + "Space6.png", DefaultScale: 1.6),
-        new StickerDef("space-7", "🌌", "Space Sticker 7", StickerArt + "Space7.png", DefaultScale: 1.6),
-        new StickerDef("space-8", "🌌", "Space Sticker 8", StickerArt + "Space8.png", DefaultScale: 1.6),
-        new StickerDef("space-9", "🪐", "Ocean Planet", StickerArt + "Planet2.png", DefaultScale: 1.4),
-        new StickerDef("space-10", "🪐", "Desert Planet", StickerArt + "3c25ef13-6948-4a68-83f2-8175da4b7d15.png", DefaultScale: 1.4),
-        new StickerDef("space-11", "🪐", "Mushroom Planet", StickerArt + "5221a000-9e26-4c16-a88f-85d870195d52.png", DefaultScale: 1.4),
-        new StickerDef("space-12", "🪐", "Crystal Ringed Planet", StickerArt + "5babcc1b-a9f2-4988-afcd-3cf9e81aabe6.png", DefaultScale: 1.4),
-        new StickerDef("space-13", "🪐", "Amethyst Ringed Planet", StickerArt + "Planet1.png", DefaultScale: 1.4),
-        new StickerDef("space-14", "🪐", "Ice Planet", StickerArt + "a2c99da9-6922-40de-ae64-d423eb6b1458.png", DefaultScale: 1.4),
-        new StickerDef("space-15", "🪐", "Candy Planet", StickerArt + "a3cc879e-1028-4980-8448-878f1ffbda49.png", DefaultScale: 1.4),
-        new StickerDef("space-16", "🪐", "Jungle Planet", StickerArt + "f2852fd5-26db-40e7-8357-377b74ace0f4.png", DefaultScale: 1.4),
-        new StickerDef("space-17", "🪐", "Lava Planet", StickerArt + "378f8127-c6fd-4a71-9c7b-ab01cf70802b.png", DefaultScale: 1.4),
-        new StickerDef("space-18", "🪐", "Crystal Asteroid", StickerArt + "a76b6956-de2b-469c-b754-a89a97020e22.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-01", "✨", "Candy Cane", StickerArt + "0dacb7f5-55d7-4cae-9c10-cc1f5526b1c0.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-03", "✨", "Flower Wreath", StickerArt + "29438f2d-79b8-4be5-88d4-9e989cd68203.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-04", "✨", "Flower Key", StickerArt + "2d337018-36a6-40d6-b38b-2bc165b196ed.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-05", "✨", "Glowing Acorn Pendant", StickerArt + "3545f534-ce72-4de6-821e-eadd6e626a3c.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-07", "✨", "Mushroom Cottage", StickerArt + "397a4b5a-9ffd-42b2-928d-5280174359e2.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-09", "✨", "Dino Tooth Bracelet", StickerArt + "46796d28-8ab5-434c-af7e-cf4c5bf17e55.png", DefaultScale: 1.4),
-        new StickerDef("pearl-tiara", "👑", "Pearl Tiara", StickerArt + "46c6ab46-e86d-4969-aa66-a2a5e067d831.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-13", "✨", "Dino Tracker Watch", StickerArt + "5f54ed5e-e06d-47dd-ae0e-e384e31a754a.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-14", "✨", "Dino Paw Belt Buckle", StickerArt + "69b9cd6b-7d03-429f-a997-a1126ee81017.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-15", "✨", "Amethyst Crystal", StickerArt + "8d30fef5-3566-4a2d-87c8-f86af212b171.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-20", "✨", "Gift Stack", StickerArt + "b9390023-b529-4b92-bc77-b92be2a35345.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-21", "✨", "Dino Tooth Necklace", StickerArt + "c0ce210b-ff49-4bde-825d-017b1eb1790b.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-22", "✨", "Frost Butterfly Wings", StickerArt + "c45d4c01-e131-4265-8c21-9f864583ea5c.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-23", "✨", "Explorer's Compass", StickerArt + "c5ae3745-ec12-4c3f-9ff0-046a77e80cd0.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-24", "✨", "Sparkle Potion Bottle", StickerArt + "c81d8380-cdeb-46f8-8b18-ae8208396470.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-25", "✨", "Christmas Stocking", StickerArt + "cb7fbfac-6273-4d33-b862-3555079c44cf.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-27", "✨", "Butterfly Crystal Wand", StickerArt + "f9d0c1ff-0eb8-49fd-bdde-67722ddf423a.png", DefaultScale: 1.4),
-        new StickerDef("extra-sticker-28", "✨", "Dino Mask", StickerArt + "ff35b30b-f864-4f70-acd7-e3fffcb66d80.png", DefaultScale: 1.4),
-        new StickerDef("generated-sticker-1", "✨", "Dino Paw Belt Buckle", StickerArt + "Gemini_Generated_Image_mrwrobmrwrobmrwr.jpg", DefaultScale: 1.4),
-        new StickerDef("generated-sticker-2", "✨", "Pearl Teardrop Gem", StickerArt + "Gemini_Generated_Image_mveoudmveoudmveo.jpg", DefaultScale: 1.4),
+        new StickerDef("royal-tailcoat", "🤵", "Royal Tailcoat", StickerArt + "royal-tailcoat.png", DefaultScale: 5.5),
+        new StickerDef("crimson-pirate-coat", "🏴‍☠️", "Crimson Pirate Coat", StickerArt + "crimson-pirate-coat.png", DefaultScale: 5.5),
+        new StickerDef("azure-pirate-coat", "🏴‍☠️", "Azure Pirate Coat", StickerArt + "azure-pirate-coat.png", DefaultScale: 5.5),
+        new StickerDef("fae-outfit", "🧝", "Forest Fae Outfit", StickerArt + "fae-outfit.png", DefaultScale: 5.5),
+        new StickerDef("necklace", "📿", "Necklace", StickerArt + "necklace.png", DefaultScale: 0.9),
+        new StickerDef("silver-necklace", "📿", "Silver Necklace", StickerArt + "silver-necklace.png", DefaultScale: 0.9),
+        new StickerDef("pearl-necklace", "📿", "Pearl & Coral Necklace", StickerArt + "pearl-necklace.png", DefaultScale: 0.9),
+        new StickerDef("necklace-4", "📿", "Pearl Diamond Choker", StickerArt + "necklace-4.png", DefaultScale: 0.9),
+        new StickerDef("amethyst-tiara", "👑", "Amethyst Tiara", StickerArt + "amethyst-tiara.png", DefaultScale: 0.9),
+        new StickerDef("butterfly-hair-clip", "🦋", "Butterfly Hair Clip", StickerArt + "butterfly-hair-clip.png", DefaultScale: 0.9),
+        new StickerDef("necklace-7", "📿", "Ruby Choker", StickerArt + "necklace-7.png", DefaultScale: 0.9),
+        new StickerDef("necklace-8", "📿", "Sapphire Collar", StickerArt + "necklace-8.png", DefaultScale: 0.9),
+        new StickerDef("necklace-9", "📿", "Moon & Star Necklace", StickerArt + "necklace-9.png", DefaultScale: 0.9),
+        new StickerDef("necklace-10", "📿", "Butterfly Chain Necklace", StickerArt + "necklace-10.png", DefaultScale: 0.9),
+        new StickerDef("necklace-11", "📿", "Floral Locket Necklace", StickerArt + "necklace-11.png", DefaultScale: 0.9),
+        new StickerDef("necklace-12", "📿", "Pirate Ship Cameo Necklace", StickerArt + "necklace-12.png", DefaultScale: 0.9),
+        new StickerDef("necklace-13", "📿", "Snowflake Pearl Necklace", StickerArt + "necklace-13.png", DefaultScale: 0.9),
+        new StickerDef("necklace-14", "📿", "Star & Moon Charm Necklace", StickerArt + "necklace-14.png", DefaultScale: 0.9),
+        new StickerDef("necklace-15", "📿", "Bolo Star Necklace", StickerArt + "necklace-15.png", DefaultScale: 0.9),
+        new StickerDef("necklace-16", "📿", "Steampunk Rose Necklace", StickerArt + "necklace-16.png", DefaultScale: 0.9),
+        new StickerDef("pendant-1", "📿", "Crystal Shard Pendant", StickerArt + "pendant-1.png", DefaultScale: 0.65),
+        new StickerDef("pendant-2", "📿", "Ruby Bib Necklace", StickerArt + "pendant-2.png", DefaultScale: 0.65),
+        new StickerDef("rose", "🌹", "Rose", StickerArt + "rose.png"),
+        new StickerDef("purse", "👛", "Purse", StickerArt + "purse.png"),
+        new StickerDef("bag-1", "👜", "Dragon Ember Bag", StickerArt + "bag-1.png", DefaultScale: 1.2),
+        new StickerDef("bag-2", "👜", "Rose Bloom Satchel", StickerArt + "bag-2.png", DefaultScale: 1.2),
+        new StickerDef("bag-3", "👜", "Ember Gear Satchel", StickerArt + "bag-3.png", DefaultScale: 1.2),
+        new StickerDef("heart-purse", "👛", "Heart Clasp Purse", StickerArt + "heart-purse.png", DefaultScale: 1.2),
+        new StickerDef("purse-2", "👛", "Butterfly Pearl Clutch", StickerArt + "purse-2.png", DefaultScale: 1.2),
+        new StickerDef("purse-3", "👛", "Rainbow Butterfly Bag", StickerArt + "purse-3.png", DefaultScale: 1.2),
+        new StickerDef("shoes", "👠", "Shoes", StickerArt + "shoes.png", DefaultScale: 1.4),
+        new StickerDef("frost-boots", "👢", "Frost Boots", StickerArt + "frost-boots.png", UnderOutfit: true, DefaultScale: 1.4),
+        new StickerDef("leaf-boots", "👢", "Leaf Boots", StickerArt + "leaf-boots.png", UnderOutfit: true, DefaultScale: 1.4),
+        new StickerDef("floral-sandal-shoes", "👡", "Floral Sandals", StickerArt + "floral-sandal-shoes.png", DefaultScale: 1.4),
+        new StickerDef("rainbow-wing-sneaker-shoes", "👟", "Rainbow Wing Sneakers", StickerArt + "rainbow-wing-sneaker-shoes.png", DefaultScale: 1.4),
+        new StickerDef("braided-shell-sandal-shoes", "👡", "Braided Shell Sandals", StickerArt + "braided-shell-sandal-shoes.png", DefaultScale: 1.4),
+        new StickerDef("butterfly-mary-jane-shoes", "👠", "Butterfly Mary Janes", StickerArt + "butterfly-mary-jane-shoes.png", DefaultScale: 1.4),
+        new StickerDef("dragon-armor-boots", "👢", "Dragon Armor Boots", StickerArt + "dragon-armor-boots.png", UnderOutfit: true, DefaultScale: 1.4),
+        new StickerDef("gloves", "🧤", "Starlit Gloves", StickerArt + "gloves.png", DefaultScale: 2.15),
+        new StickerDef("belt", "🪢", "Magic Belt", StickerArt + "belt.png", DefaultScale: 1.4),
+        new StickerDef("belt-2", "🪢", "Moon & Star Buckle Belt", StickerArt + "belt-2.png", DefaultScale: 1.4),
+        new StickerDef("belt-3", "🪢", "Galaxy Star Sash", StickerArt + "belt-3.png", DefaultScale: 1.4),
+        new StickerDef("bracelet-1", "💍", "Spiked Collar", StickerArt + "bracelet-1.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-2", "💍", "Ruby Diamond Choker", StickerArt + "bracelet-2.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-3", "💍", "Frost Wing Cuff", StickerArt + "bracelet-3.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-4", "💍", "Moon Cuff Bracelet", StickerArt + "bracelet-4.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-5", "💍", "Icy Bow Collar", StickerArt + "bracelet-5.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-6", "💍", "Dragon Eye Collar", StickerArt + "bracelet-6.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-7", "💍", "Celestial Crystal Cuff", StickerArt + "bracelet-7.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-8", "💍", "Spiked Dragon Eye Collar", StickerArt + "bracelet-8.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-9", "💍", "Ruby Signet Ring", StickerArt + "bracelet-9.png", DefaultScale: 0.45),
+        new StickerDef("bracelet-10", "💍", "Sapphire Gold Choker", StickerArt + "bracelet-10.png", DefaultScale: 0.45),
+        new StickerDef("shoulder-armor", "🐉", "Dragon Shoulder Armor", StickerArt + "shoulder-armor.png", DefaultScale: 2.8),
+        new StickerDef("horn-1", "🦄", "Jeweled Unicorn Horn", StickerArt + "horn-1.png", DefaultScale: 0.6),
+        new StickerDef("horn-2", "🦄", "Charm Unicorn Horn", StickerArt + "horn-2.png", DefaultScale: 0.6),
+        new StickerDef("accessory-1", "💎", "Rune Gauntlet Cuff", StickerArt + "accessory-1.png", DefaultScale: 0.65),
+        new StickerDef("accessory-2", "💎", "Rune Talon Cuff", StickerArt + "accessory-2.png", DefaultScale: 0.65),
+        new StickerDef("accessory-3", "💎", "Frost Snowflake Crystal", StickerArt + "accessory-3.png", DefaultScale: 0.65),
+        new StickerDef("accessory-4", "💎", "Jeweled Talon Cuff", StickerArt + "accessory-4.png", DefaultScale: 0.65),
+        new StickerDef("accessory-5", "💎", "Feather Wing Brooch", StickerArt + "accessory-5.png", DefaultScale: 0.65),
+        new StickerDef("tiara", "👑", "Tiara", StickerArt + "tiara.png", DefaultScale: 0.75),
+        new StickerDef("frost-crown", "👑", "Frost Crown", StickerArt + "frost-crown.png", DefaultScale: 0.9),
+        new StickerDef("flower-crown", "🌸", "Flower Crown", StickerArt + "flower-crown.png", DefaultScale: 0.9),
+        new StickerDef("crown-3", "👑", "Garden Halo Crown", StickerArt + "crown-3.png", DefaultScale: 0.9),
+        new StickerDef("sun-hat", "👒", "Sun Hat", StickerArt + "sun-hat.png", DefaultScale: 0.8),
+        new StickerDef("starry-bandana", "👒", "Starry Bandana", StickerArt + "starry-bandana.png", DefaultScale: 1.6),
+        new StickerDef("feather-fascinator", "👒", "Feather Fascinator", StickerArt + "feather-fascinator.png", DefaultScale: 1.4),
+        new StickerDef("wizard-hat", "🧙", "Wizard Hat", StickerArt + "wizard-hat.png", DefaultScale: 1.4),
+        new StickerDef("cowboy-hat", "🤠", "Cowboy Hat", StickerArt + "cowboy-hat.png", DefaultScale: 1.0),
+        new StickerDef("gothic-top-hat", "🎩", "Gothic Top Hat", StickerArt + "gothic-top-hat.png", DefaultScale: 1.3),
+        new StickerDef("pirate-hat", "🏴‍☠️", "Pirate Hat", StickerArt + "pirate-hat.png", DefaultScale: 1.1),
+        new StickerDef("butterfly-sun-hat", "👒", "Butterfly Sun Hat", StickerArt + "butterfly-sun-hat.png", DefaultScale: 0.85),
+        new StickerDef("winter-fur-hat", "🧣", "Winter Fur Hat", StickerArt + "winter-fur-hat.png", DefaultScale: 1.1),
+        new StickerDef("moon-tiara", "👑", "Moon Tiara", StickerArt + "moon-tiara.png", DefaultScale: 0.75),
+        new StickerDef("moon-beret", "🎨", "Moon Beret", StickerArt + "moon-beret.png", DefaultScale: 1.0),
+        new StickerDef("sheriff-hat", "🤠", "Sheriff Hat", StickerArt + "sheriff-hat.png", DefaultScale: 0.85),
+        new StickerDef("cat", "🐈‍⬛", "Black Cat", StickerArt + "cat.png"),
+        new StickerDef("sparkles", "✨", "Sparkles", StickerArt + "sparkles.png"),
+        new StickerDef("heart", "💖", "Heart", StickerArt + "heart.png"),
+        new StickerDef("heart-2", "❤️", "Classic Heart", StickerArt + "heart-2.png"),
+        new StickerDef("heart-sparkle", "💗", "Sparkle Heart", StickerArt + "heart-sparkle.png"),
+        new StickerDef("fire", "🔥", "Fire", StickerArt + "fire.png"),
+        new StickerDef("wings", "🦋", "Wings", StickerArt + "wings.png", BehindCharacter: true, DefaultScale: 4.0),
+        new StickerDef("fairy-wings", "🧚", "Fairy Wings", StickerArt + "fairy-wings.png", BehindCharacter: true, DefaultScale: 4.0),
+        new StickerDef("jeweled-wings", "🧚", "Jeweled Wings", StickerArt + "jeweled-wings.png", BehindCharacter: true, DefaultScale: 4.0),
+        new StickerDef("celestial-gown", "👗", "Celestial Gown", StickerArt + "celestial-gown.png", DefaultScale: 4.5),
+        new StickerDef("butterfly-corset", "🦋", "Butterfly Corset", StickerArt + "butterfly-corset.png", DefaultScale: 3.0),
+        new StickerDef("butterfly-skirt", "🦋", "Butterfly Skirt", StickerArt + "butterfly-skirt.png", DefaultScale: 3.0),
+        new StickerDef("butterfly-floral-crown", "🌸", "Butterfly Floral Crown", StickerArt + "butterfly-floral-crown.png", DefaultScale: 0.85),
+        new StickerDef("butterfly-tiara", "👑", "Butterfly Tiara", StickerArt + "butterfly-tiara.png", DefaultScale: 0.75),
+        new StickerDef("jeweled-crown-2", "👑", "Jeweled Crown", StickerArt + "jeweled-crown-2.png", DefaultScale: 0.9),
+        new StickerDef("butterfly-necklace", "🦋", "Butterfly Necklace", StickerArt + "butterfly-necklace.png", DefaultScale: 0.9),
+        new StickerDef("pendant-10", "💎", "Emerald Pendant", StickerArt + "pendant-10.png", DefaultScale: 0.65),
+        new StickerDef("pendant-11", "🧭", "Compass Pendant", StickerArt + "pendant-11.png", DefaultScale: 0.65),
+        new StickerDef("pendant-12", "👁️", "Evil Eye Pendant", StickerArt + "pendant-12.png", DefaultScale: 0.65),
+        new StickerDef("pendant-13", "🐉", "Dragon Gem Pendant", StickerArt + "pendant-13.png", DefaultScale: 0.65),
+        new StickerDef("bag-4", "👜", "Magic Pouch", StickerArt + "bag-4.png", DefaultScale: 1.2),
+        new StickerDef("bag-10", "👜", "Enchanted Sack", StickerArt + "bag-10.png", DefaultScale: 1.2),
+        new StickerDef("fae-wings-2", "🦋", "Jeweled Butterfly Wings", StickerArt + "fae-wings-2.png", BehindCharacter: true, DefaultScale: 4.0),
+        new StickerDef("drinking-horn-1", "🐉", "Dragon Horn", StickerArt + "drinking-horn-1.png", DefaultScale: 1.3),
+        new StickerDef("drinking-horn-2", "🦄", "Silver Horn", StickerArt + "drinking-horn-2.png", DefaultScale: 1.3),
+        new StickerDef("heart-4", "💗", "Winged Heart", StickerArt + "heart-4.png"),
+        new StickerDef("spellbook-eye", "📖", "Eye Spellbook", StickerArt + "spellbook-eye.png", DefaultScale: 1.3),
+        new StickerDef("spellbook-runes", "📖", "Rune Spellbook", StickerArt + "spellbook-runes.png", DefaultScale: 1.3),
+        new StickerDef("spellbook-dragon", "📖", "Dragon Spellbook", StickerArt + "spellbook-dragon.png", DefaultScale: 1.3),
+        new StickerDef("treasure-chest", "🗝️", "Treasure Chest", StickerArt + "treasure-chest.png", DefaultScale: 1.8),
+        new StickerDef("compass", "🧭", "Compass", StickerArt + "compass.png", DefaultScale: 1.0),
+        new StickerDef("dragon-egg-1", "🥚", "Teal Dragon Egg", StickerArt + "dragon-egg-1.png", DefaultScale: 1.6),
+        new StickerDef("dragon-egg-2", "🥚", "Stone Dragon Egg", StickerArt + "dragon-egg-2.png", DefaultScale: 1.6),
+        new StickerDef("magic-feather", "🪶", "Magic Feather", StickerArt + "magic-feather.png", DefaultScale: 1.4),
+        new StickerDef("skeleton-key", "🔑", "Winged Key", StickerArt + "skeleton-key.png", DefaultScale: 0.9),
+        new StickerDef("magic-lantern", "🏮", "Magic Lantern", StickerArt + "magic-lantern.png", DefaultScale: 1.4),
+        new StickerDef("magnifying-glass-1", "🔍", "Magnifying Glass", StickerArt + "magnifying-glass-1.png", DefaultScale: 1.3),
+        new StickerDef("magnifying-glass-2", "🔍", "Dragon Claw Glass", StickerArt + "magnifying-glass-2.png", DefaultScale: 1.3),
+        new StickerDef("crystal-orb-1", "🔮", "Purple Crystal Orb", StickerArt + "crystal-orb-1.png", DefaultScale: 1.5),
+        new StickerDef("crystal-orb-2", "🔮", "Dragon Crystal Orb", StickerArt + "crystal-orb-2.png", DefaultScale: 1.5),
+        new StickerDef("quill-inkwell", "🖋️", "Quill & Inkwell", StickerArt + "quill-inkwell.png", DefaultScale: 1.1),
+        new StickerDef("magic-potion", "🧪", "Magic Potion", StickerArt + "magic-potion.png", DefaultScale: 1.0),
+        new StickerDef("hourglass-1", "⏳", "Emerald Hourglass", StickerArt + "hourglass-1.png", DefaultScale: 1.5),
+        new StickerDef("hourglass-2", "⏳", "Ruby Hourglass", StickerArt + "hourglass-2.png", DefaultScale: 1.5),
+        new StickerDef("magic-wand", "🪄", "Fae Wand", StickerArt + "magic-wand.png", DefaultScale: 1.6),
+        new StickerDef("crystal-1", "💎", "Pearl Crystal", StickerArt + "crystal-1.png", DefaultScale: 1.6),
+        new StickerDef("space-1", "🌌", "Space Sticker 1", StickerArt + "space-1.png", DefaultScale: 1.6),
+        new StickerDef("space-2", "🌌", "Space Sticker 2", StickerArt + "space-2.png", DefaultScale: 1.6),
+        new StickerDef("space-3", "🌌", "Space Sticker 3", StickerArt + "space-3.png", DefaultScale: 1.6),
+        new StickerDef("space-4", "🌌", "Space Sticker 4", StickerArt + "space-4.png", DefaultScale: 1.6),
+        new StickerDef("space-5", "🌌", "Space Sticker 5", StickerArt + "space-5.png", DefaultScale: 1.6),
+        new StickerDef("space-6", "🌌", "Space Sticker 6", StickerArt + "space-6.png", DefaultScale: 1.6),
+        new StickerDef("space-7", "🌌", "Space Sticker 7", StickerArt + "space-7.png", DefaultScale: 1.6),
+        new StickerDef("space-8", "🌌", "Space Sticker 8", StickerArt + "space-8.png", DefaultScale: 1.6),
+        new StickerDef("space-9", "🪐", "Ocean Planet", StickerArt + "space-9.png", DefaultScale: 1.4),
+        new StickerDef("space-10", "🪐", "Desert Planet", StickerArt + "space-10.png", DefaultScale: 1.4),
+        new StickerDef("space-11", "🪐", "Mushroom Planet", StickerArt + "space-11.png", DefaultScale: 1.4),
+        new StickerDef("space-12", "🪐", "Crystal Ringed Planet", StickerArt + "space-12.png", DefaultScale: 1.4),
+        new StickerDef("space-13", "🪐", "Amethyst Ringed Planet", StickerArt + "space-13.png", DefaultScale: 1.4),
+        new StickerDef("space-14", "🪐", "Ice Planet", StickerArt + "space-14.png", DefaultScale: 1.4),
+        new StickerDef("space-15", "🪐", "Candy Planet", StickerArt + "space-15.png", DefaultScale: 1.4),
+        new StickerDef("space-16", "🪐", "Jungle Planet", StickerArt + "space-16.png", DefaultScale: 1.4),
+        new StickerDef("space-17", "🪐", "Lava Planet", StickerArt + "space-17.png", DefaultScale: 1.4),
+        new StickerDef("space-18", "🪐", "Crystal Asteroid", StickerArt + "space-18.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-01", "✨", "Candy Cane", StickerArt + "extra-sticker-01.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-03", "✨", "Flower Wreath", StickerArt + "extra-sticker-03.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-04", "✨", "Flower Key", StickerArt + "extra-sticker-04.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-05", "✨", "Glowing Acorn Pendant", StickerArt + "extra-sticker-05.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-07", "✨", "Mushroom Cottage", StickerArt + "extra-sticker-07.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-09", "✨", "Dino Tooth Bracelet", StickerArt + "extra-sticker-09.png", DefaultScale: 1.4),
+        new StickerDef("pearl-tiara", "👑", "Pearl Tiara", StickerArt + "pearl-tiara.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-13", "✨", "Dino Tracker Watch", StickerArt + "extra-sticker-13.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-14", "✨", "Dino Paw Belt Buckle", StickerArt + "extra-sticker-14.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-15", "✨", "Amethyst Crystal", StickerArt + "extra-sticker-15.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-20", "✨", "Gift Stack", StickerArt + "extra-sticker-20.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-21", "✨", "Dino Tooth Necklace", StickerArt + "extra-sticker-21.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-22", "✨", "Frost Butterfly Wings", StickerArt + "extra-sticker-22.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-23", "✨", "Explorer's Compass", StickerArt + "extra-sticker-23.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-24", "✨", "Sparkle Potion Bottle", StickerArt + "extra-sticker-24.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-25", "✨", "Christmas Stocking", StickerArt + "extra-sticker-25.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-27", "✨", "Butterfly Crystal Wand", StickerArt + "extra-sticker-27.png", DefaultScale: 1.4),
+        new StickerDef("extra-sticker-28", "✨", "Dino Mask", StickerArt + "extra-sticker-28.png", DefaultScale: 1.4),
+        new StickerDef("generated-sticker-1", "✨", "Dino Paw Belt Buckle", StickerArt + "generated-sticker-1.jpg", DefaultScale: 1.4),
+        new StickerDef("generated-sticker-2", "✨", "Pearl Teardrop Gem", StickerArt + "generated-sticker-2.jpg", DefaultScale: 1.4),
     };
 
     private static readonly List<StickerCategoryDef> StickerCategories = new()

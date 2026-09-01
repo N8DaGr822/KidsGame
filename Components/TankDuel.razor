@@ -28,41 +28,39 @@
             <div class="tk-color-select game-option-grid">
                 @foreach (var color in TankColors)
                 {
-                    <button class="tk-color-btn game-option-button @(color == selectedPlayerColor ? "selected" : "")" @onclick="() => selectedPlayerColor = color">
+                    <GameChoiceButton Class="tk-color-btn" Selected="@(color == selectedPlayerColor)" OnClick="() => selectedPlayerColor = color">
                         <img class="tk-color-swatch" src="images/tanks/tank-body-@(ColorSlug(color)).png" alt="" />
                         <span class="tk-color-name">@ColorName(color)</span>
-                    </button>
+                    </GameChoiceButton>
                 }
             </div>
-            <button class="tk-start-btn game-primary-action" @onclick="StartNewCampaign">▶️ Start Battle</button>
+            <PrimaryActionButton Class="tk-start-btn" OnClick="StartNewCampaign">▶️ Start Battle</PrimaryActionButton>
         </GameSetupPanel>
     }
     else
     {
         <GameHud Class="tk-hud">
-            <div class="tk-hp-group">
-                <span class="tk-hp-label">You</span>
+            <StatPill Class="tk-hp-group" Label="You">
                 <div class="tk-hp-pips">
                     @for (var i = 0; i < MaxHp; i++)
                     {
                         <span class="tk-hp-pip @(i < playerHp ? "" : "spent")">🛡️</span>
                     }
                 </div>
-            </div>
+            </StatPill>
             <div class="tk-status">
                 <span class="tk-level">Level @level</span>
                 @statusText
             </div>
-            <div class="tk-hp-group">
-                <span class="tk-hp-label">Enemy</span>
+            <StatPill Class="tk-hp-group" Label="Enemy">
                 <div class="tk-hp-pips">
                     @for (var i = 0; i < MaxHp; i++)
                     {
                         <span class="tk-hp-pip @(i < enemyHp ? "" : "spent")">🛡️</span>
                     }
                 </div>
-            </div>
-            <button class="tk-restart-btn game-secondary-action" @onclick="ExitToSetup">Change Game</button>
+            </StatPill>
+            <SecondaryActionButton Class="tk-restart-btn" OnClick="ExitToSetup">Change Game</SecondaryActionButton>
         </GameHud>
 
         <div class="tk-battlefield" @ref="fieldRef"
@@ -123,13 +121,13 @@
                 <h2>@(playerWon ? "🎉 Direct hit - enemy tank down!" : "💥 Your tank was destroyed!")</h2>
                 <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@(playerWon ? "great shooting!" : "give it another go!")</p>
                 <div class="tk-win-stats game-result-stats">
-                    <div><span class="tk-stat-label game-stat-label">Shots fired</span><span class="tk-stat-value game-stat-value">@shotsFired</span></div>
-                    <div><span class="tk-stat-label game-stat-label">Time</span><span class="tk-stat-value game-stat-value">@FormatTime(elapsedSeconds)</span></div>
+                    <StatPill Label="Shots fired" Value="@shotsFired.ToString()" />
+                    <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
                 </div>
                 <PersonalBestBadge Value="@($"Level {bestLevel ?? level}")" IsNew="isNewLevelBest" />
                 <div class="tk-win-actions game-result-actions">
-                    <button class="tk-start-btn game-primary-action" @onclick="PlayAgain">@(playerWon ? $"Next Battle (Level {level + 1})" : "Try Again")</button>
-                    <button class="tk-restart-btn game-secondary-action" @onclick="ExitToSetup">Change Game</button>
+                    <PrimaryActionButton Class="tk-start-btn" OnClick="PlayAgain">@(playerWon ? $"Next Battle (Level {level + 1})" : "Try Again")</PrimaryActionButton>
+                    <SecondaryActionButton Class="tk-restart-btn" OnClick="ExitToSetup">Change Game</SecondaryActionButton>
                 </div>
             </GameOverlay>
         }
