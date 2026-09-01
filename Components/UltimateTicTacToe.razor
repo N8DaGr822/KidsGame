@@ -1,0 +1,304 @@
+@*
+    UltimateTicTacToe.razor
+    Nine tic-tac-toe boards arranged in a 3x3 meta-grid. Playing in a
+    sub-board's cell at position (r,c) sends the opponent to play in the
+    sub-board at meta-position (r,c) next - unless that board is already
+    won or full, in which case they're free to play anywhere open.
+    Winning three cells' worth of sub-boards in a row wins the game.
+    Reuses GameAi.TicTacToeWinner/TicTacToeWinningLine for both the 9
+    sub-boards and the meta-board itself (both are just 9-cell
+    tic-tac-toe boards), and GameAi.UltimateTicTacToeMove for the CPU.
+
+    Usage:
+        <UltimateTicTacToe OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="utt-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <GameSetupPanel Title="🎲 Ultimate Tic-Tac-Toe" Description="Nine boards in one! Where you play sends your opponent to that same spot on a new board - win three sub-boards in a row to win it all.">
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <GameChoiceButton Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
+                            <span class="utt-diff-name">@DifficultyName(diff)</span>
+                            <span class="utt-diff-detail">@DifficultyDetail(diff)</span>
+                        </GameChoiceButton>
+                    }
+                </div>
+            </LockedChoiceNotice>
+
+            <PrimaryActionButton OnClick="StartGame">Start Game</PrimaryActionButton>
+        </GameSetupPanel>
+    }
+    else
+    {
+        <GameHud>
+            <span class="utt-title">Ultimate Tic-Tac-Toe</span>
+            <StatPill Label="Streak" Value="@streak.ToString()" />
+            <StatPill Label="Record" Value="@($"{wins}-{losses}-{draws}")" />
+            <SecondaryActionButton OnClick="ExitToSetup">← Exit</SecondaryActionButton>
+        </GameHud>
+
+        <p class="utt-status">@StatusText()</p>
+
+        <div class="utt-meta-grid">
+            @for (var b = 0; b < 9; b++)
+            {
+                var boardIdx = b;
+                var claimed = metaBoard[boardIdx];
+                var isActive = phase == Phase.Playing && !aiThinking && claimed == '\0' && (activeBoard is null || activeBoard == boardIdx);
+
+                <div class="utt-subboard @(isActive ? "active" : "") @(claimed != '\0' ? "claimed" : "") @(metaWinningLine?.Contains(boardIdx) == true ? "win" : "")">
+                    @if (claimed == 'X' || claimed == 'O')
+                    {
+                        <span class="utt-claim-mark @(claimed == 'X' ? "x" : "o")">@claimed</span>
+                    }
+                    else if (claimed == 'T')
+                    {
+                        <span class="utt-claim-mark tied">–</span>
+                    }
+                    else
+                    {
+                        <div class="utt-cells">
+                            @for (var c = 0; c < 9; c++)
+                            {
+                                var cellIdx = c;
+                                var val = boards[boardIdx][cellIdx];
+                                <button class="utt-cell @(val == 'X' ? "x" : val == 'O' ? "o" : "")"
+                                        disabled="@(!isActive || val != '\0')"
+                                        @onclick="() => PlayerMove(boardIdx, cellIdx)">
+                                    @(val == '\0' ? "" : val.ToString())
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <GameOverlay>
+                <h2>@(outcome == "Win" ? "🎉 You Win!" : outcome == "Loss" ? "🤖 Computer Wins" : "🤝 Draw!")</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@ResultLine()</p>
+                <PersonalBestBadge Value="@(persistedBestStreak is { } bs ? $"{bs} streak" : null)" IsNew="isNewBest" />
+                <div class="game-result-actions">
+                    <PrimaryActionButton OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton OnClick="() => phase = Phase.Setup">Exit</SecondaryActionButton>
+                </div>
+            </GameOverlay>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<UltimateTicTacToeResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (longest win streak per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? persistedBestStreak;
+    private bool isNewBest;
+
+    private enum Phase { Setup, Playing, Finished }
+
+    private static readonly GameAi.Difficulty[] Difficulties =
+        { GameAi.Difficulty.Easy, GameAi.Difficulty.Medium, GameAi.Difficulty.Hard };
+
+    private GameAi.Difficulty? LockedDifficulty =>
+        Enum.TryParse<GameAi.Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private const char PlayerSymbol = 'X';
+    private const char AiSymbol = 'O';
+
+    private Phase phase = Phase.Setup;
+    private GameAi.Difficulty selectedDifficulty = GameAi.Difficulty.Easy;
+    private char[][] boards = Array.Empty<char[]>();
+    private char[] metaBoard = new char[9];
+    private int? activeBoard;
+    private bool aiThinking;
+    private int[]? metaWinningLine;
+    private string outcome = "";
+    private int wins;
+    private int losses;
+    private int draws;
+    private int streak;
+    private int bestStreak;
+    private DateTime startedAtUtc;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        boards = Enumerable.Range(0, 9).Select(_ => new char[9]).ToArray();
+        metaBoard = new char[9];
+        activeBoard = null;
+        aiThinking = false;
+        metaWinningLine = null;
+        phase = Phase.Playing;
+        startedAtUtc = DateTime.UtcNow;
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - same convention every
+    // other CPU board game here uses.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new UltimateTicTacToeResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Outcome: "Exited",
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task PlayerMove(int board, int cell)
+    {
+        if (phase != Phase.Playing || aiThinking) return;
+        if (metaBoard[board] != '\0') return;
+        if (activeBoard is { } ab && ab != board) return;
+        if (boards[board][cell] != '\0') return;
+
+        boards[board][cell] = PlayerSymbol;
+        ResolveSubBoard(board);
+        await Interop.InvokeVoidAsync("playImpactSound");
+
+        if (await CheckMetaOverAsync()) return;
+
+        activeBoard = metaBoard[cell] == '\0' ? cell : null;
+
+        aiThinking = true;
+        StateHasChanged();
+        await Task.Delay(500);
+
+        var (aiBoard, aiCell) = GameAi.UltimateTicTacToeMove(boards, metaBoard, activeBoard, AiSymbol, PlayerSymbol, selectedDifficulty);
+        if (aiBoard >= 0)
+        {
+            boards[aiBoard][aiCell] = AiSymbol;
+            ResolveSubBoard(aiBoard);
+            activeBoard = metaBoard[aiCell] == '\0' ? aiCell : null;
+        }
+        aiThinking = false;
+
+        await CheckMetaOverAsync();
+    }
+
+    private void ResolveSubBoard(int board)
+    {
+        if (metaBoard[board] != '\0') return;
+
+        var winner = GameAi.TicTacToeWinner(boards[board]);
+        if (winner != '\0')
+        {
+            metaBoard[board] = winner;
+        }
+        else if (Array.TrueForAll(boards[board], c => c != '\0'))
+        {
+            metaBoard[board] = 'T';
+        }
+    }
+
+    private async Task<bool> CheckMetaOverAsync()
+    {
+        var winner = GameAi.TicTacToeWinner(metaBoard);
+        if (winner == PlayerSymbol)
+        {
+            metaWinningLine = GameAi.TicTacToeWinningLine(metaBoard);
+            wins++;
+            streak++;
+            bestStreak = Math.Max(bestStreak, streak);
+            await FinishGame("Win");
+            return true;
+        }
+        if (winner == AiSymbol)
+        {
+            metaWinningLine = GameAi.TicTacToeWinningLine(metaBoard);
+            losses++;
+            streak = 0;
+            await FinishGame("Loss");
+            return true;
+        }
+        if (Array.TrueForAll(metaBoard, c => c != '\0'))
+        {
+            draws++;
+            streak = 0;
+            await FinishGame("Draw");
+            return true;
+        }
+
+        StateHasChanged();
+        return false;
+    }
+
+    private async Task FinishGame(string result)
+    {
+        outcome = result;
+        phase = Phase.Finished;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync(result == "Win" ? "playMatchSound" : result == "Loss" ? "playMismatchSound" : "playImpactSound");
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"streak:{DifficultyName(selectedDifficulty)}";
+            persistedBestStreak = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.UltimateTicTacToe, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.UltimateTicTacToe, key, bestStreak, lowerIsBetter: false);
+        }
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new UltimateTicTacToeResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Outcome: outcome,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private string StatusText()
+    {
+        if (aiThinking) return "The computer is thinking...";
+        if (phase == Phase.Finished) return "";
+        return activeBoard is null ? "Play in any highlighted board!" : "Play in the highlighted board!";
+    }
+
+    private string ResultLine() => outcome switch
+    {
+        "Win" => "you won the meta-board!",
+        "Loss" => "better luck next time!",
+        _ => "every board is settled - nobody wins this one!",
+    };
+
+    private static string DifficultyName(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "Easy",
+        GameAi.Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(GameAi.Difficulty d) => d switch
+    {
+        GameAi.Difficulty.Easy => "Computer plays randomly",
+        GameAi.Difficulty.Medium => "Computer plays pretty well",
+        _ => "Computer plays its best",
+    };
+
+    public record UltimateTicTacToeResult(string Difficulty, string Outcome, int ElapsedSeconds);
+}

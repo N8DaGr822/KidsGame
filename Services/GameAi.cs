@@ -1055,4 +1055,113 @@ public static class GameAi
         var humanPips = humanHand.Sum(t => t.A + t.B);
         return humanPips - aiPips;
     }
+
+    // ---- Ultimate Tic-Tac-Toe --------------------------------------------
+    //
+    // Heuristic scoring, not full minimax like plain Tic-Tac-Toe's
+    // TicTacToeMove above - the game tree here is far too large (up to 81
+    // cells) for exhaustive search. Reuses TicTacToeWinner/
+    // TicTacToeWinningLine for both the 9 sub-boards and the meta-board
+    // (a char[9] of which player claimed each sub-board, '\0' if
+    // undecided) since both are just 9-cell tic-tac-toe boards.
+
+    /// <summary>
+    /// Picks a (board, cell) move. `boards` is 9 flat 9-cell sub-boards
+    /// ('\0'/'X'/'O', same convention as TicTacToeWinner). `metaBoard`
+    /// marks which player has claimed each sub-board ('\0' undecided,
+    /// 'X'/'O' won, or any other non-'\0' marker for a tied/full board -
+    /// never playable again either way). `activeBoard` is the sub-board
+    /// the mover is constrained to by the previous move's cell position,
+    /// or null if free to play in any open board.
+    /// </summary>
+    public static (int Board, int Cell) UltimateTicTacToeMove(char[][] boards, char[] metaBoard, int? activeBoard, char ai, char human, Difficulty difficulty)
+    {
+        var legalBoards = activeBoard is { } fb && metaBoard[fb] == '\0'
+            ? new[] { fb }
+            : Enumerable.Range(0, 9).Where(b => metaBoard[b] == '\0').ToArray();
+
+        var candidates = new List<(int Board, int Cell)>();
+        foreach (var b in legalBoards)
+        {
+            for (var c = 0; c < 9; c++)
+            {
+                if (boards[b][c] == '\0') candidates.Add((b, c));
+            }
+        }
+
+        if (candidates.Count == 0) return (-1, -1);
+
+        // Easy is fully random; Medium plays the heuristic only half the
+        // time so it's beatable but not a pushover; Hard always uses it -
+        // same "weakened good play" trick TicTacToeMove uses above.
+        if (difficulty == Difficulty.Easy || (difficulty == Difficulty.Medium && Rng.NextDouble() < 0.5))
+        {
+            return candidates[Rng.Next(candidates.Count)];
+        }
+
+        var bestScore = int.MinValue;
+        var bestMoves = new List<(int Board, int Cell)>();
+
+        foreach (var (b, c) in candidates)
+        {
+            var score = ScoreUltimateMove(boards, metaBoard, b, c, ai, human);
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestMoves.Clear();
+                bestMoves.Add((b, c));
+            }
+            else if (score == bestScore)
+            {
+                bestMoves.Add((b, c));
+            }
+        }
+
+        return bestMoves[Rng.Next(bestMoves.Count)];
+    }
+
+    // Scores a candidate (board, cell) move: winning the sub-board is
+    // good, winning the sub-board AND completing a meta-line is much
+    // better, blocking the human's immediate sub-board win is good, and
+    // sending the human to a board where they could win immediately next
+    // turn is bad. A little random jitter keeps otherwise-tied moves from
+    // always resolving the same way.
+    private static int ScoreUltimateMove(char[][] boards, char[] metaBoard, int board, int cell, char ai, char human)
+    {
+        var score = Rng.Next(0, 5);
+
+        var subBoard = (char[])boards[board].Clone();
+        subBoard[cell] = ai;
+
+        if (TicTacToeWinner(subBoard) == ai)
+        {
+            score += 100;
+
+            var metaClone = (char[])metaBoard.Clone();
+            metaClone[board] = ai;
+            if (TicTacToeWinner(metaClone) == ai) score += 1000;
+        }
+
+        var humanTest = (char[])boards[board].Clone();
+        humanTest[cell] = human;
+        if (TicTacToeWinner(humanTest) == human) score += 50;
+
+        var sentBoard = cell;
+        if (metaBoard[sentBoard] == '\0')
+        {
+            for (var oc = 0; oc < 9; oc++)
+            {
+                if (boards[sentBoard][oc] != '\0') continue;
+                var test = (char[])boards[sentBoard].Clone();
+                test[oc] = human;
+                if (TicTacToeWinner(test) == human)
+                {
+                    score -= 30;
+                    break;
+                }
+            }
+        }
+
+        return score;
+    }
 }

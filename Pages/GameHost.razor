@@ -97,6 +97,10 @@
             {
                 <TicTacToe PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTicTacToeComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.UltimateTicTacToe)
+            {
+                <UltimateTicTacToe PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleUltimateTicTacToeComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.ConnectFour)
             {
                 <ConnectFour PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleConnectFourComplete" />
@@ -683,6 +687,21 @@
     }
 
     private async Task HandleTicTacToeComplete(TicTacToe.TicTacToeResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Outcome,
+            Moves = 1,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleUltimateTicTacToeComplete(UltimateTicTacToe.UltimateTicTacToeResult result)
     {
         if (State.CurrentProfile is null || _game is null) return;
 
