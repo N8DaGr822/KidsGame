@@ -1,0 +1,423 @@
+@*
+    SequencePuzzle.razor
+    An abstract logic-deduction puzzle: a hidden left-to-right order for
+    N items, revealed only through a handful of true clue statements
+    ("Fox is before Bear", "Owl is immediately before Duck", "Cat is
+    last"...). Tap an item to place it in the next open slot, tap a
+    placed item to send it back; Check compares the full arrangement
+    against the hidden order with no per-position feedback (unlike
+    Mastermind/CodeBreaker's exact/partial match counts) - the point is
+    to reason it out from the given facts, not narrow down by guessing.
+
+    The clue set is generated to guarantee a unique solution: pick a
+    random hidden order, build the pool of every true clue about it,
+    then greedily add random clues one at a time - after each addition,
+    brute-force-check all N! permutations (N<=6, so <=720 checks, cheap)
+    to see if the growing clue set already pins down a unique order.
+    This terminates by construction, since the pool always includes a
+    "before" clue for every pair in the hidden order, and that full
+    subset alone already determines the order uniquely.
+
+    Usage:
+        <SequencePuzzle OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="sq-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <GameSetupPanel Title="🧠 Sequence Puzzle" Description="A hidden order for a few animals is described by the clues below. Tap an animal to place it, then tap Check when you think you've got it right!">
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <GameChoiceButton Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
+                            <span class="sq-diff-name">@DifficultyName(diff)</span>
+                            <span class="sq-diff-detail">@DifficultyDetail(diff)</span>
+                        </GameChoiceButton>
+                    }
+                </div>
+            </LockedChoiceNotice>
+
+            <PrimaryActionButton OnClick="StartGame">Start Game</PrimaryActionButton>
+        </GameSetupPanel>
+    }
+    else
+    {
+        <GameHud>
+            <span class="sq-title">Sequence Puzzle</span>
+            <StatPill Label="Checks" Value="@checksUsed.ToString()" />
+            <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
+            <SecondaryActionButton OnClick="ExitToSetup">← Exit</SecondaryActionButton>
+        </GameHud>
+
+        <ul class="sq-clues">
+            @foreach (var clue in selectedClues)
+            {
+                <li>@clue.Text</li>
+            }
+        </ul>
+
+        <div class="sq-slots">
+            @for (var s = 0; s < itemCount; s++)
+            {
+                var slotIdx = s;
+                var occupant = slots[slotIdx];
+                <button class="sq-slot @(occupant >= 0 ? "filled" : "")" disabled="@(occupant < 0)" @onclick="() => TapSlot(slotIdx)">
+                    @if (occupant >= 0)
+                    {
+                        <span class="sq-slot-emoji">@items[occupant].Emoji</span>
+                        <span class="sq-slot-name">@items[occupant].Name</span>
+                    }
+                    else
+                    {
+                        <span class="sq-slot-index">@(slotIdx + 1)</span>
+                    }
+                </button>
+            }
+        </div>
+
+        <div class="sq-pool">
+            @foreach (var itemIdx in poolRemaining)
+            {
+                <GameChoiceButton Class="sq-pool-item" OnClick="() => TapPoolItem(itemIdx)">
+                    <span class="sq-pool-emoji">@items[itemIdx].Emoji</span>
+                    <span class="sq-pool-name">@items[itemIdx].Name</span>
+                </GameChoiceButton>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <p class="sq-message">@message</p>
+        }
+
+        <div class="sq-actions">
+            <SecondaryActionButton OnClick="ResetSlots">Reset</SecondaryActionButton>
+            <PrimaryActionButton Disabled="@poolRemaining.Any()" OnClick="CheckAnswer">Check</PrimaryActionButton>
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <GameOverlay>
+                <h2>🎉 Solved It!</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great deducing" : PlayerName + ", great deducing")!</p>
+                <div class="game-result-stats">
+                    <StatPill Label="Checks used" Value="@checksUsed.ToString()" />
+                    <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
+                </div>
+                <PersonalBestBadge Value="@(bestChecks is { } bc ? $"{bc} checks" : null)" IsNew="isNewBest" />
+                <div class="game-result-actions">
+                    <PrimaryActionButton OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton OnClick="ExitToSetup">Exit</SecondaryActionButton>
+                </div>
+            </GameOverlay>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<SequencePuzzleResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest checks used, per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestChecks;
+    private bool isNewBest;
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private record ItemDef(string Emoji, string Name);
+    private record Clue(string Text, Func<int[], bool> IsTrue);
+
+    private static readonly ItemDef[] ItemPool =
+    {
+        new("🐶", "Dog"), new("🐱", "Cat"), new("🐰", "Rabbit"), new("🦊", "Fox"),
+        new("🐻", "Bear"), new("🦁", "Lion"), new("🦉", "Owl"), new("🐸", "Frog"),
+        new("🐼", "Panda"), new("🦆", "Duck"),
+    };
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int ItemCountFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 4,
+        Difficulty.Medium => 5,
+        _ => 6,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int itemCount;
+    private List<ItemDef> items = new();
+    private int[] hiddenOrder = Array.Empty<int>(); // hiddenOrder[position] = item index
+    private List<Clue> selectedClues = new();
+    private int[] slots = Array.Empty<int>(); // slots[position] = item index, or -1 if empty
+    private List<int> poolRemaining = new();
+    private string message = "";
+    private int checksUsed;
+    private int elapsedSeconds;
+    private System.Threading.Timer? timer;
+    private readonly Random rng = new();
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        checksUsed = 0;
+        elapsedSeconds = 0;
+        message = "";
+        bestChecks = null;
+        isNewBest = false;
+        GeneratePuzzle();
+        phase = Phase.Playing;
+        StartTimer();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - same convention every
+    // other game here uses.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            StopTimer();
+            await OnComplete.InvokeAsync(new SequencePuzzleResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                ChecksUsed: checksUsed,
+                ElapsedSeconds: elapsedSeconds));
+        }
+        StopTimer();
+        phase = Phase.Setup;
+    }
+
+    private void GeneratePuzzle()
+    {
+        itemCount = ItemCountFor(selectedDifficulty);
+        items = ItemPool.OrderBy(_ => rng.Next()).Take(itemCount).ToList();
+
+        hiddenOrder = Enumerable.Range(0, itemCount).OrderBy(_ => rng.Next()).ToArray();
+        var hiddenPos = new int[itemCount];
+        for (var p = 0; p < itemCount; p++) hiddenPos[hiddenOrder[p]] = p;
+
+        var pool = BuildCluePool(hiddenPos, hiddenOrder).OrderBy(_ => rng.Next()).ToList();
+
+        selectedClues = new List<Clue>();
+        foreach (var clue in pool)
+        {
+            selectedClues.Add(clue);
+            if (CountSatisfying(selectedClues, itemCount) == 1) break;
+        }
+
+        slots = Enumerable.Repeat(-1, itemCount).ToArray();
+        poolRemaining = Enumerable.Range(0, itemCount).OrderBy(_ => rng.Next()).ToList();
+    }
+
+    // Every ordered pair's "before" relationship, first/last markers, and
+    // each adjacent pair's "immediately before" relationship - taken
+    // together this whole pool already uniquely determines the hidden
+    // order, so the greedy selection in GeneratePuzzle is guaranteed to
+    // terminate once enough of it has been added.
+    private List<Clue> BuildCluePool(int[] hiddenPos, int[] hiddenOrder)
+    {
+        var pool = new List<Clue>();
+
+        for (var a = 0; a < itemCount; a++)
+        {
+            for (var b = 0; b < itemCount; b++)
+            {
+                if (a == b || hiddenPos[a] >= hiddenPos[b]) continue;
+                var (aa, bb) = (a, b);
+                pool.Add(new Clue($"{items[aa].Name} is before {items[bb].Name}", pos => pos[aa] < pos[bb]));
+            }
+
+            var item = a;
+            if (hiddenPos[a] == 0) pool.Add(new Clue($"{items[item].Name} is first", pos => pos[item] == 0));
+            if (hiddenPos[a] == itemCount - 1) pool.Add(new Clue($"{items[item].Name} is last", pos => pos[item] == itemCount - 1));
+            if (hiddenPos[a] != 0) pool.Add(new Clue($"{items[item].Name} is not first", pos => pos[item] != 0));
+            if (hiddenPos[a] != itemCount - 1) pool.Add(new Clue($"{items[item].Name} is not last", pos => pos[item] != itemCount - 1));
+        }
+
+        for (var p = 0; p < itemCount - 1; p++)
+        {
+            var (a, b) = (hiddenOrder[p], hiddenOrder[p + 1]);
+            pool.Add(new Clue($"{items[a].Name} is immediately before {items[b].Name}", pos => pos[b] == pos[a] + 1));
+        }
+
+        return pool;
+    }
+
+    // Brute-force over all N! orderings (N<=6, so <=720) rather than a
+    // real constraint solver - simplest possible way to be certain the
+    // generated clue set has exactly one solution, and cheap at this size.
+    private static int CountSatisfying(List<Clue> clues, int n)
+    {
+        var count = 0;
+        var arr = Enumerable.Range(0, n).ToArray();
+        foreach (var order in AllPermutations(arr, 0))
+        {
+            var pos = new int[n];
+            for (var p = 0; p < n; p++) pos[order[p]] = p;
+
+            if (clues.All(c => c.IsTrue(pos)))
+            {
+                count++;
+                if (count > 1) return count;
+            }
+        }
+        return count;
+    }
+
+    private static IEnumerable<int[]> AllPermutations(int[] arr, int k)
+    {
+        if (k == arr.Length - 1)
+        {
+            yield return (int[])arr.Clone();
+            yield break;
+        }
+        for (var i = k; i < arr.Length; i++)
+        {
+            (arr[k], arr[i]) = (arr[i], arr[k]);
+            foreach (var p in AllPermutations(arr, k + 1)) yield return p;
+            (arr[k], arr[i]) = (arr[i], arr[k]);
+        }
+    }
+
+    private void TapPoolItem(int itemIndex)
+    {
+        if (phase != Phase.Playing) return;
+        var slot = Array.IndexOf(slots, -1);
+        if (slot == -1) return;
+
+        slots[slot] = itemIndex;
+        poolRemaining.Remove(itemIndex);
+        message = "";
+    }
+
+    private void TapSlot(int slotIndex)
+    {
+        if (phase != Phase.Playing || slots[slotIndex] < 0) return;
+
+        poolRemaining.Add(slots[slotIndex]);
+        slots[slotIndex] = -1;
+        message = "";
+    }
+
+    private void ResetSlots()
+    {
+        if (phase != Phase.Playing) return;
+
+        for (var i = 0; i < slots.Length; i++)
+        {
+            if (slots[i] >= 0) poolRemaining.Add(slots[i]);
+            slots[i] = -1;
+        }
+        message = "";
+    }
+
+    private async Task CheckAnswer()
+    {
+        if (phase != Phase.Playing || poolRemaining.Count > 0) return;
+
+        checksUsed++;
+
+        if (slots.SequenceEqual(hiddenOrder))
+        {
+            await Interop.InvokeVoidAsync("playMatchSound");
+            await FinishGame();
+        }
+        else
+        {
+            message = "Not quite - look at the clues again!";
+            await Interop.InvokeVoidAsync("playMismatchSound");
+        }
+    }
+
+    private async Task FinishGame()
+    {
+        StopTimer();
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"fewest-checks-{DifficultyName(selectedDifficulty)}";
+            bestChecks = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.SequencePuzzle, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.SequencePuzzle, key, checksUsed, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SequencePuzzleResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: true,
+                ChecksUsed: checksUsed,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.Minutes > 0 ? $"{ts.Minutes}:{ts.Seconds:D2}" : $"{ts.Seconds}s";
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        StopTimer();
+        return ValueTask.CompletedTask;
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "4 animals to order",
+        Difficulty.Medium => "5 animals to order",
+        _ => "6 animals to order",
+    };
+
+    public record SequencePuzzleResult(string Difficulty, bool Won, int ChecksUsed, int ElapsedSeconds);
+}

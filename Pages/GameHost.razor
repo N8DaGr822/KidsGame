@@ -105,6 +105,10 @@
             {
                 <Hex PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleHexComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.SequencePuzzle)
+            {
+                <SequencePuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSequencePuzzleComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.ConnectFour)
             {
                 <ConnectFour PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleConnectFourComplete" />
@@ -731,6 +735,21 @@
             Theme = result.Difficulty,
             Difficulty = result.Won ? "Won" : "Lost",
             Moves = result.MovesPlayed,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleSequencePuzzleComplete(SequencePuzzle.SequencePuzzleResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Won ? $"Solved in {result.ChecksUsed}" : "Gave up",
+            Moves = result.ChecksUsed,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

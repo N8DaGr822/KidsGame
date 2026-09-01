@@ -1,0 +1,114 @@
+.sq-game {
+    width: min(720px, 96vw);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1rem;
+}
+
+.sq-diff-name {
+    font-weight: 900;
+}
+
+.sq-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.sq-title {
+    font-weight: 900;
+}
+
+.sq-clues {
+    list-style: none;
+    display: grid;
+    gap: 0.4rem;
+    padding: 1rem 1.2rem;
+    margin: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--panel-bg);
+    color: var(--text-soft);
+    font-weight: 700;
+}
+
+.sq-clues li::before {
+    content: "💡 ";
+}
+
+.sq-slots {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.sq-slot {
+    width: 84px;
+    height: 84px;
+    display: grid;
+    place-items: center;
+    gap: 0.15rem;
+    border: 2px dashed var(--line);
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+}
+
+.sq-slot.filled {
+    border-style: solid;
+    border-color: rgba(78, 205, 196, 0.7);
+    background: rgba(78, 205, 196, 0.12);
+}
+
+.sq-slot-index {
+    color: var(--text-muted);
+    font-weight: 900;
+    font-size: 1.3rem;
+}
+
+.sq-slot-emoji {
+    font-size: 1.6rem;
+    line-height: 1;
+}
+
+.sq-slot-name {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: var(--text-muted);
+}
+
+.sq-pool {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+::deep .sq-pool-item {
+    min-width: 80px;
+}
+
+.sq-pool-emoji {
+    font-size: 1.6rem;
+    line-height: 1;
+}
+
+.sq-pool-name {
+    font-size: 0.7rem;
+    font-weight: 800;
+}
+
+.sq-message {
+    text-align: center;
+    font-weight: 800;
+    color: var(--text-soft);
+    margin: 0;
+}
+
+.sq-actions {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+}

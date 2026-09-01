@@ -118,6 +118,7 @@ public static class GameThemes
         [BuiltInGames.RoguelikeArena] = "gh-theme-adventure",
         [BuiltInGames.UltimateTicTacToe] = "gh-theme-puzzle",
         [BuiltInGames.Hex] = "gh-theme-puzzle",
+        [BuiltInGames.SequencePuzzle] = "gh-theme-puzzle",
     };
 
     public static string For(string launchTarget) =>
