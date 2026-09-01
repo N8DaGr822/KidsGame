@@ -1,0 +1,322 @@
+@*
+    JigsawPuzzle.razor
+    A picture cut into a grid and scrambled; tap any two pieces to swap
+    them, working toward reassembling the picture. Unlike Sliding Puzzle
+    (one blank slot, constrained slide moves), every piece is always
+    placed and any two can swap freely - closer to how an actual jigsaw
+    gets assembled, and any starting scramble is solvable since a swap
+    can undo any other swap.
+
+    Usage:
+        <JigsawPuzzle OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="jp-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <GameSetupPanel Title="🧩 Jigsaw Puzzle" Description="Tap two pieces to swap them - work your way to the finished picture!">
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <GameChoiceButton Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
+                            <span class="jp-diff-name">@DifficultyName(diff)</span>
+                            <span class="jp-diff-detail">@DifficultyDetail(diff)</span>
+                        </GameChoiceButton>
+                    }
+                </div>
+            </LockedChoiceNotice>
+
+            <PrimaryActionButton OnClick="StartGame">Start Game</PrimaryActionButton>
+        </GameSetupPanel>
+    }
+    else
+    {
+        <GameHud>
+            <span class="jp-title">Jigsaw Puzzle</span>
+            <StatPill Label="Swaps" Value="@moves.ToString()" />
+            <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
+            <SecondaryActionButton OnClick="() => showPreview = !showPreview">@(showPreview ? "Hide Picture" : "Show Picture")</SecondaryActionButton>
+            <SecondaryActionButton OnClick="ExitToSetup">← Exit</SecondaryActionButton>
+        </GameHud>
+
+        <div class="jp-board-wrap">
+            <div class="jp-board" style="--jp-size:@gridSize;">
+                @for (var position = 0; position < board.Count; position++)
+                {
+                    var pos = position;
+                    var home = board[pos];
+                    var homeRow = home / gridSize;
+                    var homeCol = home % gridSize;
+                    <button class="jp-piece @(selectedPosition == pos ? "selected" : "") @(home == pos ? "correct" : "") @(justSwapped.Contains(pos) ? "pulse" : "")"
+                            style="background-image:url('@PuzzleImage'); background-size:calc(var(--jp-size) * 100%) calc(var(--jp-size) * 100%); background-position:@(PercentFor(homeCol))% @(PercentFor(homeRow))%;"
+                            @onclick="() => TapPiece(pos)">
+                    </button>
+                }
+            </div>
+
+            @if (showPreview)
+            {
+                <div class="jp-preview">
+                    <img src="@PuzzleImage" alt="Completed picture" />
+                </div>
+            }
+        </div>
+
+        @if (phase == Phase.Won)
+        {
+            <GameOverlay>
+                <h2>🎉 Puzzle Solved!</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job") - @moves swaps in @FormatTime(elapsedSeconds)!</p>
+                <PersonalBestBadge Value="@((bestMoves ?? moves).ToString())" IsNew="isNewBest" />
+                <div class="game-result-actions">
+                    <PrimaryActionButton OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton OnClick="() => phase = Phase.Setup">Exit</SecondaryActionButton>
+                </div>
+            </GameOverlay>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<JigsawPuzzleResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fewest swaps per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestMoves;
+    private bool isNewBest;
+
+    private enum Phase { Setup, Playing, Won }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int GridSizeFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 3,
+        Difficulty.Medium => 4,
+        _ => 5,
+    };
+
+    // A different subset of the same opaque scenic backgrounds Sliding
+    // Puzzle draws from (that game uses Background{1,2,3,5,7,8}) so the
+    // two picture-puzzle games don't always show the exact same art.
+    private static readonly string[] PuzzleImages =
+    {
+        "images/dressup/Background4.png",
+        "images/dressup/Background6.png",
+        "images/dressup/Background9.png",
+        "images/dressup/Background11.png",
+        "images/dressup/Background13.png",
+        "images/dressup/Background16.png",
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Medium;
+    private int gridSize = 4;
+    private string PuzzleImage { get; set; } = PuzzleImages[0];
+
+    // board[position] = the home index of whichever piece currently sits
+    // at that position. Solved means board[i] == i for every i. Unlike a
+    // sliding puzzle there's no blank, so any permutation is reachable
+    // (a swap can always undo any other swap) - no legal-move shuffle or
+    // parity check needed, a plain Fisher-Yates is fine.
+    private List<int> board = new();
+    private int? selectedPosition;
+    private readonly HashSet<int> justSwapped = new();
+    private int moves;
+    private bool showPreview;
+    private int elapsedSeconds;
+    private readonly Random rng = new();
+    private System.Threading.Timer? timer;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        gridSize = GridSizeFor(selectedDifficulty);
+        PuzzleImage = PuzzleImages[rng.Next(PuzzleImages.Length)];
+        moves = 0;
+        elapsedSeconds = 0;
+        showPreview = false;
+        isNewBest = false;
+        selectedPosition = null;
+        justSwapped.Clear();
+
+        var cellCount = gridSize * gridSize;
+        board = Enumerable.Range(0, cellCount).ToList();
+        Shuffle();
+
+        phase = Phase.Playing;
+        StartTimer();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            StopTimer();
+            await OnComplete.InvokeAsync(new JigsawPuzzleResult(
+                GridSize: gridSize,
+                Moves: moves,
+                ElapsedSeconds: elapsedSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    // Plain Fisher-Yates, re-rolled if it happens to land on the already-
+    // solved arrangement (vanishingly rare but trivial to guard).
+    private void Shuffle()
+    {
+        do
+        {
+            for (var i = board.Count - 1; i > 0; i--)
+            {
+                var j = rng.Next(i + 1);
+                (board[i], board[j]) = (board[j], board[i]);
+            }
+        } while (IsSolved());
+    }
+
+    private async Task TapPiece(int position)
+    {
+        if (phase != Phase.Playing) return;
+
+        if (selectedPosition == position)
+        {
+            selectedPosition = null;
+            return;
+        }
+
+        if (selectedPosition is null)
+        {
+            selectedPosition = position;
+            return;
+        }
+
+        var from = selectedPosition.Value;
+        (board[from], board[position]) = (board[position], board[from]);
+        selectedPosition = null;
+        moves++;
+
+        justSwapped.Clear();
+        justSwapped.Add(from);
+        justSwapped.Add(position);
+        StateHasChanged();
+        await Task.Delay(260);
+        justSwapped.Clear();
+
+        if (IsSolved())
+        {
+            await FinishAsync();
+        }
+    }
+
+    private bool IsSolved()
+    {
+        for (var i = 0; i < board.Count; i++)
+        {
+            if (board[i] != i) return false;
+        }
+        return true;
+    }
+
+    private async Task FinishAsync()
+    {
+        StopTimer();
+        phase = Phase.Won;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"moves:{DifficultyName(selectedDifficulty)}";
+            bestMoves = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.JigsawPuzzle, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.JigsawPuzzle, key, moves, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playMatchSound");
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new JigsawPuzzleResult(
+                GridSize: gridSize,
+                Moves: moves,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    // Same background-position math as Sliding Puzzle: with background-size
+    // set to gridSize*100% (the image spans gridSize tile-widths), the
+    // percentage that lands column/row `index` at the tile's origin is
+    // index/(N-1)*100, not index*100 - percentage backgrounds resolve
+    // against (container - image) size, which is negative here since the
+    // image is larger than the tile.
+    private double PercentFor(int index) => gridSize <= 1 ? 0 : index * 100.0 / (gridSize - 1);
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var span = TimeSpan.FromSeconds(totalSeconds);
+        return span.Minutes > 0 ? $"{span.Minutes}:{span.Seconds:00}" : $"0:{span.Seconds:00}";
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3x3 grid",
+        Difficulty.Medium => "4x4 grid",
+        _ => "5x5 grid",
+    };
+
+    public ValueTask DisposeAsync()
+    {
+        StopTimer();
+        return ValueTask.CompletedTask;
+    }
+
+    public record JigsawPuzzleResult(int GridSize, int Moves, int ElapsedSeconds);
+}

@@ -41,11 +41,13 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Guess the Word
 - Higher or Lower
 - Hot and Cold
+- Jigsaw Puzzle
 - Laser Maze
 - Lights On, Lights Off
 - Magic Garden
 - Manners Garden
 - Mastermind
+- Math Target
 - Memory Match
 - Memory Sequence Adventure
 - Mini Golf
@@ -60,6 +62,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Penalty Shootout
 - Pool / Billiards
 - Pop & Sparkle
+- Quick Math
 - Reaction Timer
 - Red Light, Green Light
 - Reversi / Othello

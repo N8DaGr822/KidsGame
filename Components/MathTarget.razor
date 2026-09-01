@@ -1,0 +1,352 @@
+@*
+    MathTarget.razor
+    A number-combination puzzle: a target number is shown, along with a
+    grid of number tiles. Tap tiles to add them into a running total -
+    hit the target exactly to clear the round. Never a dead end: a tap
+    that would overshoot the target is simply rejected (with a gentle
+    nudge), and Clear lets the kid start the combination over at any
+    time, so there's no failure state, only a fixed 8-round session
+    scored on total time.
+
+    Usage:
+        <MathTarget OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="mt-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <GameSetupPanel Title="🎯 Math Target" Description="Tap number tiles to add up to the target shown at the top - Clear starts the combination over if you get stuck!">
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <GameChoiceButton Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
+                            <span class="mt-diff-name">@DifficultyName(diff)</span>
+                            <span class="mt-diff-detail">@DifficultyDetail(diff)</span>
+                        </GameChoiceButton>
+                    }
+                </div>
+            </LockedChoiceNotice>
+
+            <PrimaryActionButton OnClick="StartGame">Start Game</PrimaryActionButton>
+        </GameSetupPanel>
+    }
+    else
+    {
+        <GameHud>
+            <span class="mt-title">Math Target</span>
+            <StatPill Label="Round" Value="@($"{Math.Min(round, TotalRounds)}/{TotalRounds}")" />
+            <StatPill Label="Taps" Value="@tapsThisRound.ToString()" />
+            <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
+            <SecondaryActionButton OnClick="ExitToSetup">← Exit</SecondaryActionButton>
+        </GameHud>
+
+        <div class="mt-target-row">
+            <div class="mt-target">
+                <span class="mt-target-label">Target</span>
+                <span class="mt-target-value">@target</span>
+            </div>
+            <div class="mt-running @(runningTotal == target ? "hit" : "")">
+                <span class="mt-target-label">Your total</span>
+                <span class="mt-target-value">@runningTotal</span>
+            </div>
+        </div>
+
+        <div class="mt-tiles">
+            @for (var i = 0; i < tiles.Count; i++)
+            {
+                var index = i;
+                <GameChoiceButton Class="mt-tile" Selected="@tileSelected[index]" Disabled="@(tileSelected[index] || roundLocked)" OnClick="() => TapTile(index)">
+                    <span class="mt-tile-value">@tiles[index]</span>
+                </GameChoiceButton>
+            }
+        </div>
+
+        <div class="mt-actions">
+            <SecondaryActionButton Disabled="@(selectedCount == 0)" OnClick="ClearSelection">Clear</SecondaryActionButton>
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="mt-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <GameOverlay>
+                <h2>🎯 Target Cleared!</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great combining" : PlayerName + ", great combining")!</p>
+                <div class="game-result-stats">
+                    <StatPill Label="Rounds" Value="@TotalRounds.ToString()" />
+                    <StatPill Label="Total taps" Value="@totalTaps.ToString()" />
+                    <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
+                </div>
+                <PersonalBestBadge Value="@FormatTime(bestTimeSeconds ?? elapsedSeconds)" IsNew="isNewTimeBest" />
+                <div class="game-result-actions">
+                    <PrimaryActionButton OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton OnClick="ExitToSetup">Exit</SecondaryActionButton>
+                </div>
+            </GameOverlay>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<MathTargetResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (fastest total time per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestTimeSeconds;
+    private bool isNewTimeBest;
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private const int TotalRounds = 8;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+
+    private int target;
+    private int runningTotal;
+    private readonly List<int> tiles = new();
+    private readonly List<bool> tileSelected = new();
+    private bool roundLocked;
+    private int selectedCount => tileSelected.Count(s => s);
+
+    private int round;
+    private int tapsThisRound;
+    private int totalTaps;
+    private int elapsedSeconds;
+    private System.Threading.Timer? timer;
+    private string roundMessage = "";
+    private readonly Random rng = new();
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        round = 0;
+        totalTaps = 0;
+        elapsedSeconds = 0;
+        bestTimeSeconds = null;
+        isNewTimeBest = false;
+        phase = Phase.Playing;
+        StartTimer();
+        NextRound();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            StopTimer();
+            await OnComplete.InvokeAsync(new MathTargetResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                RoundsCompleted: round - 1,
+                TotalRounds: TotalRounds,
+                TotalTaps: totalTaps,
+                ElapsedSeconds: elapsedSeconds));
+        }
+        StopTimer();
+        phase = Phase.Setup;
+    }
+
+    // Builds a round that's always solvable in exactly one combination of
+    // 2-3 "solution" tiles summing to the target, then fills the rest of
+    // the grid with random decoy values in range - some decoys may
+    // coincidentally also complete the target, which is fine, more paths
+    // to a win rather than a trap.
+    private void NextRound()
+    {
+        round++;
+        roundMessage = "";
+        tapsThisRound = 0;
+        roundLocked = false;
+
+        var (min, max) = RangeFor(selectedDifficulty);
+        var solutionSize = rng.Next(2, 4); // 2 or 3 tiles
+        var solution = new List<int>();
+        for (var i = 0; i < solutionSize; i++)
+        {
+            solution.Add(rng.Next(min, max + 1));
+        }
+        target = solution.Sum();
+
+        var tileCount = TileCountFor(selectedDifficulty);
+        var pool = new List<int>(solution);
+        while (pool.Count < tileCount)
+        {
+            pool.Add(rng.Next(min, max + 1));
+        }
+        Shuffle(pool);
+
+        tiles.Clear();
+        tiles.AddRange(pool);
+        tileSelected.Clear();
+        tileSelected.AddRange(Enumerable.Repeat(false, tiles.Count));
+        runningTotal = 0;
+    }
+
+    private static (int Min, int Max) RangeFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => (1, 10),
+        Difficulty.Medium => (2, 20),
+        _ => (5, 40),
+    };
+
+    private static int TileCountFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 6,
+        Difficulty.Medium => 8,
+        _ => 10,
+    };
+
+    private void Shuffle(List<int> list)
+    {
+        for (var i = list.Count - 1; i > 0; i--)
+        {
+            var j = rng.Next(i + 1);
+            (list[i], list[j]) = (list[j], list[i]);
+        }
+    }
+
+    private async Task TapTile(int index)
+    {
+        if (roundLocked || tileSelected[index]) return;
+
+        var value = tiles[index];
+        if (runningTotal + value > target)
+        {
+            roundMessage = "Too high - try a different tile, or Clear!";
+            await Interop.InvokeVoidAsync("playMismatchSound");
+            return;
+        }
+
+        tileSelected[index] = true;
+        runningTotal += value;
+        tapsThisRound++;
+        totalTaps++;
+        roundMessage = "";
+
+        if (runningTotal == target)
+        {
+            roundLocked = true;
+            await Interop.InvokeVoidAsync("playMatchSound");
+            StateHasChanged();
+            await Task.Delay(900);
+
+            if (round >= TotalRounds)
+            {
+                await FinishGame();
+            }
+            else
+            {
+                NextRound();
+            }
+        }
+    }
+
+    private void ClearSelection()
+    {
+        if (roundLocked) return;
+
+        for (var i = 0; i < tileSelected.Count; i++) tileSelected[i] = false;
+        runningTotal = 0;
+        roundMessage = "";
+    }
+
+    private async Task FinishGame()
+    {
+        StopTimer();
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"time:{DifficultyName(selectedDifficulty)}";
+            bestTimeSeconds = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.MathTarget, key);
+            isNewTimeBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.MathTarget, key, elapsedSeconds, lowerIsBetter: true);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MathTargetResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                RoundsCompleted: TotalRounds,
+                TotalRounds: TotalRounds,
+                TotalTaps: totalTaps,
+                ElapsedSeconds: elapsedSeconds));
+        }
+    }
+
+    private void StartTimer()
+    {
+        StopTimer();
+        timer = new System.Threading.Timer(_ =>
+        {
+            elapsedSeconds++;
+            InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void StopTimer()
+    {
+        timer?.Dispose();
+        timer = null;
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.Minutes > 0 ? $"{ts.Minutes}:{ts.Seconds:D2}" : $"{ts.Seconds}s";
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        StopTimer();
+        return ValueTask.CompletedTask;
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Numbers 1-10, 6 tiles",
+        Difficulty.Medium => "Numbers 2-20, 8 tiles",
+        _ => "Numbers 5-40, 10 tiles",
+    };
+
+    public record MathTargetResult(string Difficulty, int RoundsCompleted, int TotalRounds, int TotalTaps, int ElapsedSeconds);
+}

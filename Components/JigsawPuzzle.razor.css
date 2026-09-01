@@ -1,0 +1,86 @@
+.jp-game {
+    width: min(880px, 94vw);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.jp-diff-name {
+    font-weight: 900;
+}
+
+.jp-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.jp-title {
+    font-weight: 900;
+}
+
+.jp-board-wrap {
+    display: grid;
+    justify-items: center;
+    gap: 1rem;
+}
+
+.jp-board {
+    display: grid;
+    grid-template-columns: repeat(var(--jp-size), 1fr);
+    gap: 4px;
+    width: min(560px, 92vw);
+    aspect-ratio: 1;
+    padding: 4px;
+    border-radius: var(--radius-lg);
+    background: rgba(0, 0, 0, 0.35);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Gapped tiles on a dark backing (rather than Sliding Puzzle's seamless
+   edge-to-edge grid) so this reads as separate physical pieces you're
+   placing, not one picture you're sliding chunks of. */
+.jp-piece {
+    border: none;
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.jp-piece:hover {
+    transform: scale(0.97);
+}
+
+.jp-piece.selected {
+    box-shadow: inset 0 0 0 3px var(--accent), 0 0 0 3px rgba(78, 205, 196, 0.35);
+    transform: scale(0.95);
+}
+
+.jp-piece.correct {
+    box-shadow: inset 0 0 0 2px rgba(78, 205, 196, 0.55);
+}
+
+.jp-piece.pulse {
+    animation: jp-pulse 0.26s ease;
+}
+
+@keyframes jp-pulse {
+    0% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+
+.jp-preview {
+    width: min(220px, 60vw);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow-sm);
+}
+
+.jp-preview img {
+    display: block;
+    width: 100%;
+    height: auto;
+}

@@ -1,0 +1,72 @@
+.qm-game {
+    width: min(880px, 94vw);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.qm-diff-name {
+    font-weight: 900;
+}
+
+.qm-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.qm-title {
+    font-weight: 900;
+}
+
+.qm-problem {
+    display: grid;
+    place-items: center;
+    padding: 1.5rem;
+}
+
+.qm-equation {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(2.2rem, 9vw, 3.4rem);
+    letter-spacing: 0.02em;
+}
+
+.qm-choices {
+    grid-template-columns: repeat(2, 1fr);
+    width: min(480px, 92vw);
+    margin: 0 auto;
+    gap: 0.85rem;
+}
+
+.qm-choice-value {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(1.4rem, 5vw, 1.9rem);
+}
+
+/* ::deep: GameChoiceButton renders the actual button, so these need to
+   relax past this component's CSS-isolation scope to match. */
+::deep .correct {
+    border-color: rgba(78, 205, 196, 0.9) !important;
+    background: rgba(78, 205, 196, 0.22) !important;
+}
+
+::deep .wrong {
+    border-color: rgba(255, 107, 107, 0.85) !important;
+    background: rgba(255, 107, 107, 0.16) !important;
+}
+
+.qm-message {
+    text-align: center;
+    font-weight: 800;
+    color: var(--text-soft);
+    margin: 0;
+}
+
+@media (min-width: 520px) {
+    .qm-choices {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}

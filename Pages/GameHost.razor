@@ -181,6 +181,18 @@
             {
                 <NumberSequence PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleNumberSequenceComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.QuickMath)
+            {
+                <QuickMath PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleQuickMathComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.MathTarget)
+            {
+                <MathTarget PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMathTargetComplete" />
+            }
+            else if (_game.LaunchTarget == BuiltInGames.JigsawPuzzle)
+            {
+                <JigsawPuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleJigsawPuzzleComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.ColorMatch)
             {
                 <ColorMatch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleColorMatchComplete" />
@@ -1057,6 +1069,51 @@
             Theme = result.Difficulty,
             Difficulty = $"Score {result.Score}/{result.TotalRounds}",
             Moves = result.Score,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleQuickMathComplete(QuickMath.QuickMathResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Score {result.Score}/{result.TotalRounds}",
+            Moves = result.Score,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleMathTargetComplete(MathTarget.MathTargetResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"{result.RoundsCompleted}/{result.TotalRounds} rounds",
+            Moves = result.TotalTaps,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleJigsawPuzzleComplete(JigsawPuzzle.JigsawPuzzleResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = $"{result.GridSize}x{result.GridSize}",
+            Difficulty = $"{result.Moves} swaps",
+            Moves = result.Moves,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

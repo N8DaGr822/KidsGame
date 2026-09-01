@@ -1,0 +1,346 @@
+@*
+    QuickMath.razor
+    A fixed 10-round arithmetic quiz: an equation appears ("7 + 5 = ?")
+    with four multiple-choice answers. Difficulty controls the operations
+    and number range, not the round count. Ends with a result overlay
+    showing score and streak.
+
+    Usage:
+        <QuickMath OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="qm-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <GameSetupPanel Title="🧮 Quick Math" Description="Solve the equation, then tap the right answer as fast as you can!">
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <GameChoiceButton Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
+                            <span class="qm-diff-name">@DifficultyName(diff)</span>
+                            <span class="qm-diff-detail">@DifficultyDetail(diff)</span>
+                        </GameChoiceButton>
+                    }
+                </div>
+            </LockedChoiceNotice>
+
+            <PrimaryActionButton OnClick="StartGame">Start Game</PrimaryActionButton>
+        </GameSetupPanel>
+    }
+    else
+    {
+        <GameHud>
+            <span class="qm-title">Quick Math</span>
+            <StatPill Label="Round" Value="@($"{Math.Min(round, TotalRounds)}/{TotalRounds}")" />
+            <StatPill Label="Score" Value="@score.ToString()" />
+            <StatPill Label="Streak" Value="@("🔥 " + streak)" />
+            <SecondaryActionButton OnClick="ExitToSetup">← Exit</SecondaryActionButton>
+        </GameHud>
+
+        <div class="qm-problem">
+            <span class="qm-equation">@leftOperand @opSymbol @rightOperand = ?</span>
+        </div>
+
+        <div class="qm-choices game-option-grid">
+            @for (var i = 0; i < choices.Count; i++)
+            {
+                var index = i;
+                <GameChoiceButton Class="@ChoiceClass(index)" Disabled="locked" OnClick="() => Pick(index)">
+                    <span class="qm-choice-value">@choices[index]</span>
+                </GameChoiceButton>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(roundMessage))
+        {
+            <p class="qm-message">@roundMessage</p>
+        }
+
+        @if (phase == Phase.Finished)
+        {
+            <GameOverlay>
+                <h2>🧮 All Done!</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great math" : PlayerName + ", great math")!</p>
+                <div class="game-result-stats">
+                    <StatPill Label="Score" Value="@($"{score}/{TotalRounds}")" />
+                    <StatPill Label="Best streak" Value="@bestStreak.ToString()" />
+                </div>
+                <PersonalBestBadge Value="@((bestScore ?? score).ToString())" IsNew="isNewBest" />
+                <div class="game-result-actions">
+                    <PrimaryActionButton OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton OnClick="ExitToSetup">Exit</SecondaryActionButton>
+                </div>
+            </GameOverlay>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<QuickMathResult> OnComplete { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (high score per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    private int? bestScore;
+    private bool isNewBest;
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+    private enum Op { Add, Subtract, Multiply, Divide }
+
+    private const int TotalRounds = 10;
+    private const int ChoiceCount = 4;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+
+    private int leftOperand;
+    private int rightOperand;
+    private Op op;
+    private string opSymbol = "+";
+    private int correctValue;
+
+    private readonly List<int> choices = new();
+    private int? pickedIndex;
+    private bool locked;
+    private int round;
+    private int score;
+    private int streak;
+    private int bestStreak;
+    private string roundMessage = "";
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        round = 0;
+        score = 0;
+        streak = 0;
+        bestStreak = 0;
+        isNewBest = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        NextRound();
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing - previously only a natural
+    // finish invoked OnComplete, so an abandoned session left no trace.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new QuickMathResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                TotalRounds: TotalRounds,
+                BestStreak: bestStreak,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    // Division always builds from a clean multiplication fact (so
+    // e.g. "12 / 4" never has a remainder) - generated as a*b then
+    // presented as (a*b) / b = a, matching how kids are taught fact
+    // families rather than introducing decimals.
+    private void NextRound()
+    {
+        round++;
+        roundMessage = "";
+        pickedIndex = null;
+        locked = false;
+
+        var ops = OpsFor(selectedDifficulty);
+        op = ops[rng.Next(ops.Length)];
+
+        switch (op)
+        {
+            case Op.Add:
+                opSymbol = "+";
+                leftOperand = rng.Next(RangeFor(selectedDifficulty).Min, RangeFor(selectedDifficulty).Max + 1);
+                rightOperand = rng.Next(RangeFor(selectedDifficulty).Min, RangeFor(selectedDifficulty).Max + 1);
+                correctValue = leftOperand + rightOperand;
+                break;
+            case Op.Subtract:
+                opSymbol = "-";
+                var a = rng.Next(RangeFor(selectedDifficulty).Min, RangeFor(selectedDifficulty).Max + 1);
+                var b = rng.Next(RangeFor(selectedDifficulty).Min, RangeFor(selectedDifficulty).Max + 1);
+                // Keep results non-negative - subtraction with borrowing
+                // isn't the skill this difficulty tier is testing.
+                leftOperand = Math.Max(a, b);
+                rightOperand = Math.Min(a, b);
+                correctValue = leftOperand - rightOperand;
+                break;
+            case Op.Multiply:
+                opSymbol = "×";
+                leftOperand = rng.Next(2, MultiplyMaxFor(selectedDifficulty) + 1);
+                rightOperand = rng.Next(2, MultiplyMaxFor(selectedDifficulty) + 1);
+                correctValue = leftOperand * rightOperand;
+                break;
+            default:
+                opSymbol = "÷";
+                rightOperand = rng.Next(2, MultiplyMaxFor(selectedDifficulty) + 1);
+                var quotient = rng.Next(2, MultiplyMaxFor(selectedDifficulty) + 1);
+                leftOperand = rightOperand * quotient;
+                correctValue = quotient;
+                break;
+        }
+
+        var distractors = new HashSet<int>();
+        TryAddDistractor(distractors, correctValue + 1);
+        TryAddDistractor(distractors, correctValue - 1);
+        TryAddDistractor(distractors, correctValue + 2);
+        TryAddDistractor(distractors, correctValue - 2);
+        while (distractors.Count < ChoiceCount - 1)
+        {
+            TryAddDistractor(distractors, correctValue + rng.Next(-6, 7));
+        }
+
+        choices.Clear();
+        choices.Add(correctValue);
+        choices.AddRange(distractors.Take(ChoiceCount - 1));
+        Shuffle(choices);
+    }
+
+    private static Op[] OpsFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => new[] { Op.Add, Op.Subtract },
+        Difficulty.Medium => new[] { Op.Add, Op.Subtract, Op.Multiply },
+        _ => new[] { Op.Add, Op.Subtract, Op.Multiply, Op.Divide },
+    };
+
+    private static (int Min, int Max) RangeFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => (1, 10),
+        Difficulty.Medium => (1, 20),
+        _ => (10, 100),
+    };
+
+    private static int MultiplyMaxFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 5,
+        Difficulty.Medium => 8,
+        _ => 12,
+    };
+
+    private void TryAddDistractor(HashSet<int> distractors, int value)
+    {
+        if (value >= 0 && value != correctValue) distractors.Add(value);
+    }
+
+    private void Shuffle(List<int> list)
+    {
+        for (var i = list.Count - 1; i > 0; i--)
+        {
+            var j = rng.Next(i + 1);
+            (list[i], list[j]) = (list[j], list[i]);
+        }
+    }
+
+    private string ChoiceClass(int index)
+    {
+        if (pickedIndex is null) return "";
+        if (choices[index] == correctValue) return "correct";
+        if (index == pickedIndex) return "wrong";
+        return "";
+    }
+
+    private async Task Pick(int index)
+    {
+        if (locked || phase != Phase.Playing) return;
+
+        locked = true;
+        pickedIndex = index;
+
+        if (choices[index] == correctValue)
+        {
+            score++;
+            streak++;
+            bestStreak = Math.Max(bestStreak, streak);
+            roundMessage = "Correct!";
+            await Interop.InvokeVoidAsync("playMatchSound");
+        }
+        else
+        {
+            streak = 0;
+            roundMessage = $"So close - the answer was {correctValue}!";
+            await Interop.InvokeVoidAsync("playMismatchSound");
+        }
+
+        StateHasChanged();
+        await Task.Delay(1100);
+
+        if (round >= TotalRounds)
+        {
+            await FinishGame();
+        }
+        else
+        {
+            NextRound();
+        }
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"score:{DifficultyName(selectedDifficulty)}";
+            bestScore = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.QuickMath, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.QuickMath, key, score, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new QuickMathResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Score: score,
+                TotalRounds: TotalRounds,
+                BestStreak: bestStreak,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Add & subtract to 10",
+        Difficulty.Medium => "Add, subtract & multiply to 20",
+        _ => "All four operations, bigger numbers",
+    };
+
+    public record QuickMathResult(string Difficulty, int Score, int TotalRounds, int BestStreak, int ElapsedSeconds);
+}

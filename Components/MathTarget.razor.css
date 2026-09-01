@@ -1,0 +1,97 @@
+.mt-game {
+    width: min(880px, 94vw);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.mt-diff-name {
+    font-weight: 900;
+}
+
+.mt-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.mt-title {
+    font-weight: 900;
+}
+
+.mt-target-row {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.mt-target,
+.mt-running {
+    display: grid;
+    justify-items: center;
+    gap: 0.2rem;
+    min-width: 140px;
+    padding: 0.85rem 1.4rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+}
+
+.mt-target {
+    border-color: rgba(78, 205, 196, 0.6);
+}
+
+.mt-running.hit {
+    border-color: rgba(78, 205, 196, 0.9);
+    background: rgba(78, 205, 196, 0.16);
+}
+
+.mt-target-label {
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.mt-target-value {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: clamp(1.8rem, 6vw, 2.6rem);
+}
+
+.mt-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 0.7rem;
+    width: min(640px, 92vw);
+    margin: 0 auto;
+}
+
+::deep .mt-tile {
+    min-height: 72px;
+}
+
+::deep .mt-tile:disabled:not(.selected) {
+    opacity: 0.45;
+}
+
+.mt-tile-value {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: 1.3rem;
+}
+
+.mt-actions {
+    display: flex;
+    justify-content: center;
+}
+
+.mt-message {
+    text-align: center;
+    font-weight: 800;
+    color: var(--text-soft);
+    margin: 0;
+}
