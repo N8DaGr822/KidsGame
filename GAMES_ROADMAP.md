@@ -190,12 +190,7 @@ Start with small vertical slices.
 
 ## Older-Kid Board, Logic, And Deduction
 
-- [ ] Logic Grid Puzzles
-- [ ] Nonograms / Picross
-- [ ] Threes-style Number Puzzle
-- [ ] Hex / Territory Capture
-- [ ] Ultimate Tic-Tac-Toe
-- [ ] Sequence Puzzle
+All shipped 2026-09-01 - see COMPLETED_GAMES.md.
 
 ## Mystery, Escape, And Code Puzzles
 

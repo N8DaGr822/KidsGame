@@ -1,0 +1,382 @@
+@*
+    ThreesPuzzle.razor
+    A real-Threes-rules sibling to Puzzle2048, not a third copy of the
+    same game: tiles only merge on 1+2 (-> 3) or two equal tiles >= 3
+    (-> double) - a fresh tile spawned right after a merge can never
+    immediately re-merge the way "any equal pair merges" games allow.
+    The next tile to spawn is drawn ahead of time and shown in the HUD
+    (a real Threes/1024 hallmark) instead of being a blind random spawn,
+    so players can plan a move around what's coming. Swipe detection and
+    on-screen arrow fallback reuse Puzzle2048's pointerdown/pointerup
+    delta approach - no JS interop needed.
+
+    Usage:
+        <ThreesPuzzle OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+@inject AppDataService Data
+@using KidsGameLauncher.Services
+
+<div class="threes-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <GameSetupPanel Title="🔢 Threes" Description="Swipe (or tap the arrows) to slide every tile. A 1 and a 2 combine into a 3 - after that, only matching tiles combine, doubling in value. Reach the target tile to win!">
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <GameChoiceButton Selected="@(diff == selectedDifficulty)" OnClick="() => selectedDifficulty = diff">
+                            <span class="threes-diff-name">@DifficultyName(diff)</span>
+                            <span class="threes-diff-detail">@DifficultyDetail(diff)</span>
+                        </GameChoiceButton>
+                    }
+                </div>
+            </LockedChoiceNotice>
+
+            <PrimaryActionButton OnClick="StartGame">Start Game</PrimaryActionButton>
+        </GameSetupPanel>
+    }
+    else
+    {
+        <GameHud>
+            <span class="threes-title">Threes</span>
+            <StatPill Label="Score" Value="@score.ToString()" />
+            <StatPill Label="Next" Value="@nextTileValue.ToString()" />
+            <StatPill Label="Target" Value="@target.ToString()" />
+            <SecondaryActionButton OnClick="ExitToSetup">← Exit</SecondaryActionButton>
+        </GameHud>
+
+        <div class="threes-board" style="--threes-size:@size;"
+             @onpointerdown="OnPointerDown" @onpointerup="OnPointerUp">
+            @for (var r = 0; r < size; r++)
+            {
+                for (var c = 0; c < size; c++)
+                {
+                    var v = board[r, c];
+                    <span class="threes-tile @(v > 0 ? "filled" : "") threes-v-@v">@(v > 0 ? v.ToString() : "")</span>
+                }
+            }
+        </div>
+
+        <div class="threes-arrows">
+            <button class="threes-arrow threes-up" @onclick='() => TryMove(Direction.Up)'>▲</button>
+            <div class="threes-arrow-row">
+                <button class="threes-arrow" @onclick='() => TryMove(Direction.Left)'>◀</button>
+                <button class="threes-arrow" @onclick='() => TryMove(Direction.Down)'>▼</button>
+                <button class="threes-arrow" @onclick='() => TryMove(Direction.Right)'>▶</button>
+            </div>
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <GameOverlay>
+                <h2>@(won ? "🎉 You Reached " + target + "!" : "🧩 No Moves Left")</h2>
+                <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")score: @score.</p>
+                <div class="game-result-stats">
+                    <StatPill Label="Highest tile" Value="@HighestTile().ToString()" />
+                </div>
+                <PersonalBestBadge Value="@("tile " + (bestTile ?? HighestTile()))" IsNew="isNewBest" />
+                <div class="game-result-actions">
+                    <PrimaryActionButton OnClick="StartGame">Play Again</PrimaryActionButton>
+                    <SecondaryActionButton OnClick="ExitToSetup">Exit</SecondaryActionButton>
+                </div>
+            </GameOverlay>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<ThreesResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (highest tile ever reached) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    private enum Direction { Up, Down, Left, Right }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    // Weighted draw, not a depleting bag - low values are deliberately
+    // common (matches real Threes' spawn feel) without the added
+    // bookkeeping of a true no-replacement bag.
+    private static readonly int[] SpawnWeights = { 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3 };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int SizeFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 5,
+        _ => 4,
+    };
+
+    private static int TargetFor(Difficulty d) => d switch
+    {
+        Difficulty.Easy => 48,
+        Difficulty.Medium => 96,
+        _ => 192,
+    };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private int size = 4;
+    private int target = 96;
+    private int[,] board = new int[0, 0];
+    private int score;
+    private int nextTileValue = 1;
+    private bool won;
+    private int? bestTile;
+    private bool isNewBest;
+    private readonly Random rng = new();
+    private DateTime startedAtUtc;
+    private double swipeStartX, swipeStartY;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        size = SizeFor(selectedDifficulty);
+        target = TargetFor(selectedDifficulty);
+        board = new int[size, size];
+        score = 0;
+        won = false;
+        bestTile = null;
+        isNewBest = false;
+        nextTileValue = DrawSpawnValue();
+        SpawnTile();
+        nextTileValue = DrawSpawnValue();
+        SpawnTile();
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    // An early exit still logs to play history (with whatever was reached
+    // so far) rather than silently vanishing.
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new ThreesResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                Score: score,
+                HighestTile: HighestTile(),
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private void OnPointerDown(PointerEventArgs e)
+    {
+        swipeStartX = e.ClientX;
+        swipeStartY = e.ClientY;
+    }
+
+    private async Task OnPointerUp(PointerEventArgs e)
+    {
+        const double threshold = 24;
+        var dx = e.ClientX - swipeStartX;
+        var dy = e.ClientY - swipeStartY;
+
+        if (Math.Max(Math.Abs(dx), Math.Abs(dy)) < threshold) return;
+
+        var direction = Math.Abs(dx) > Math.Abs(dy)
+            ? (dx > 0 ? Direction.Right : Direction.Left)
+            : (dy > 0 ? Direction.Down : Direction.Up);
+
+        await TryMove(direction);
+    }
+
+    private async Task TryMove(Direction direction)
+    {
+        if (phase != Phase.Playing) return;
+
+        var changed = Move(direction);
+        if (!changed) return;
+
+        SpawnTile();
+        nextTileValue = DrawSpawnValue();
+        await Interop.InvokeVoidAsync("playMatchSound");
+        StateHasChanged();
+
+        if (HighestTile() >= target)
+        {
+            won = true;
+            await FinishGame();
+        }
+        else if (!HasMovesLeft())
+        {
+            won = false;
+            await FinishGame();
+        }
+    }
+
+    private bool Move(Direction direction)
+    {
+        var changed = false;
+        foreach (var line in GetLines(direction))
+        {
+            if (CompressLine(line)) changed = true;
+        }
+        return changed;
+    }
+
+    private List<List<(int R, int C)>> GetLines(Direction direction)
+    {
+        var lines = new List<List<(int R, int C)>>();
+
+        if (direction == Direction.Left || direction == Direction.Right)
+        {
+            for (var r = 0; r < size; r++)
+            {
+                var line = Enumerable.Range(0, size).Select(c => (r, c)).ToList();
+                if (direction == Direction.Right) line.Reverse();
+                lines.Add(line);
+            }
+        }
+        else
+        {
+            for (var c = 0; c < size; c++)
+            {
+                var line = Enumerable.Range(0, size).Select(r => (r, c)).ToList();
+                if (direction == Direction.Down) line.Reverse();
+                lines.Add(line);
+            }
+        }
+
+        return lines;
+    }
+
+    // Real Threes merge rule: 1+2 -> 3, or two equal tiles >= 3 double.
+    // Either case sums to the merged value, so a single formula covers
+    // both ("1+2=3" and "a+a=2a" are both just a+b once CanMerge is true).
+    private static bool CanMerge(int a, int b) =>
+        (a == 1 && b == 2) || (a == 2 && b == 1) || (a == b && a >= 3);
+
+    // Compresses non-empty values toward the front of the line, merging
+    // eligible adjacent pairs once each (a merged tile never merges
+    // again in the same move).
+    private bool CompressLine(List<(int R, int C)> coords)
+    {
+        var values = coords.Select(p => board[p.R, p.C]).Where(v => v != 0).ToList();
+        var result = new List<int>();
+        var i = 0;
+        while (i < values.Count)
+        {
+            if (i + 1 < values.Count && CanMerge(values[i], values[i + 1]))
+            {
+                var merged = values[i] + values[i + 1];
+                result.Add(merged);
+                score += merged;
+                i += 2;
+            }
+            else
+            {
+                result.Add(values[i]);
+                i += 1;
+            }
+        }
+        while (result.Count < coords.Count) result.Add(0);
+
+        var changed = false;
+        for (var k = 0; k < coords.Count; k++)
+        {
+            var (r, c) = coords[k];
+            if (board[r, c] != result[k]) changed = true;
+            board[r, c] = result[k];
+        }
+        return changed;
+    }
+
+    private int DrawSpawnValue() => SpawnWeights[rng.Next(SpawnWeights.Length)];
+
+    private void SpawnTile()
+    {
+        var empty = new List<(int R, int C)>();
+        for (var r = 0; r < size; r++)
+            for (var c = 0; c < size; c++)
+                if (board[r, c] == 0) empty.Add((r, c));
+
+        if (empty.Count == 0) return;
+
+        var (row, col) = empty[rng.Next(empty.Count)];
+        board[row, col] = nextTileValue;
+    }
+
+    private bool HasMovesLeft()
+    {
+        for (var r = 0; r < size; r++)
+        {
+            for (var c = 0; c < size; c++)
+            {
+                if (board[r, c] == 0) return true;
+                if (c + 1 < size && CanMerge(board[r, c], board[r, c + 1])) return true;
+                if (r + 1 < size && CanMerge(board[r, c], board[r + 1, c])) return true;
+            }
+        }
+        return false;
+    }
+
+    private int HighestTile()
+    {
+        var max = 0;
+        for (var r = 0; r < size; r++)
+            for (var c = 0; c < size; c++)
+                max = Math.Max(max, board[r, c]);
+        return max;
+    }
+
+    private async Task FinishGame()
+    {
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            const string key = "highest-tile";
+            bestTile = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.ThreesPuzzle, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.ThreesPuzzle, key, HighestTile(), lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new ThreesResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: won,
+                Score: score,
+                HighestTile: HighestTile(),
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "5x5 board, reach 48",
+        Difficulty.Medium => "4x4 board, reach 96",
+        _ => "4x4 board, reach 192",
+    };
+
+    public record ThreesResult(string Difficulty, bool Won, int Score, int HighestTile, int ElapsedSeconds);
+}

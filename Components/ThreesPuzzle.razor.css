@@ -1,0 +1,86 @@
+.threes-game {
+    width: min(820px, 94vw);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.85rem;
+    touch-action: none;
+}
+
+.threes-diff-name {
+    font-weight: 900;
+}
+
+.threes-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.threes-title {
+    font-weight: 900;
+}
+
+.threes-board {
+    display: grid;
+    grid-template-columns: repeat(var(--threes-size), 1fr);
+    gap: 0.4rem;
+    width: min(760px, 88vw, 70vh);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    padding: 0.4rem;
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    touch-action: none;
+}
+
+.threes-tile {
+    display: grid;
+    place-items: center;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.06);
+    font-weight: 900;
+    font-size: clamp(0.8rem, 5.5cqw, 1.6rem);
+    color: var(--text);
+    transition: background 0.15s ease;
+}
+
+.threes-v-1 { background: #b8e0d2; color: #2b3a35; }
+.threes-v-2 { background: #f7b9a3; color: #3a2a24; }
+.threes-v-3 { background: #f2b179; color: #fff; }
+.threes-v-6 { background: #f59563; color: #fff; }
+.threes-v-12 { background: #f67c5f; color: #fff; }
+.threes-v-24 { background: #f65e3b; color: #fff; }
+.threes-v-48 { background: #edcf72; color: #fff; }
+.threes-v-96 { background: #edc850; color: #fff; }
+.threes-v-192 { background: #edc53f; color: #fff; }
+.threes-v-384 { background: #3c3a32; color: #f5f5f5; }
+
+.threes-arrows {
+    display: grid;
+    justify-items: center;
+    gap: 0.4rem;
+}
+
+.threes-arrow-row {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.threes-arrow {
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    font-size: 1.3rem;
+    font-weight: 900;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.threes-arrow:hover {
+    transform: translateY(-1px);
+    background: var(--control-bg-hover);
+}

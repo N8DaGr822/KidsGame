@@ -117,6 +117,10 @@
             {
                 <Nonogram PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleNonogramComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.ThreesPuzzle)
+            {
+                <ThreesPuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleThreesPuzzleComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.ConnectFour)
             {
                 <ConnectFour PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleConnectFourComplete" />
@@ -1387,6 +1391,21 @@
     }
 
     private async Task HandlePuzzle2048Complete(Puzzle2048.Puzzle2048Result result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Tile {result.HighestTile}, score {result.Score}",
+            Moves = result.Score,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleThreesPuzzleComplete(ThreesPuzzle.ThreesResult result)
     {
         if (State.CurrentProfile is null || _game is null) return;
 

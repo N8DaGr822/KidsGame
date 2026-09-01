@@ -52,6 +52,7 @@ public static class BuiltInGames
     public const string SequencePuzzle = "sequence-puzzle";
     public const string LogicGridPuzzle = "logic-grid-puzzle";
     public const string Nonogram = "nonogram";
+    public const string ThreesPuzzle = "threes-puzzle";
     public const string ColorMatch = "color-match";
     public const string ShapeSorter = "shape-sorter";
     public const string ShadowMatch = "shadow-match";
@@ -131,6 +132,7 @@ public static class BuiltInGames
         new BuiltInGame("Sequence Puzzle", "🧠", SequencePuzzle, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Logic Grid Puzzle", "🔍", LogicGridPuzzle, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Nonogram", "🖼️", Nonogram, MinAge: 8, MaxAge: 14),
+        new BuiltInGame("Threes", "🔢", ThreesPuzzle, MinAge: 8, MaxAge: 14),
         new BuiltInGame("Connect Four", "🔴", ConnectFour, MinAge: 5, MaxAge: 11),
         new BuiltInGame("Rock Paper Scissors", "✊", RockPaperScissors, MinAge: 4, MaxAge: 10),
         new BuiltInGame("Higher or Lower", "🎴", HigherOrLower, MinAge: 5, MaxAge: 11),

@@ -39,11 +39,13 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Fruit Slice
 - Gentle Creatures
 - Guess the Word
+- Hex
 - Higher or Lower
 - Hot and Cold
 - Jigsaw Puzzle
 - Laser Maze
 - Lights On, Lights Off
+- Logic Grid Puzzle
 - Magic Garden
 - Manners Garden
 - Mastermind
@@ -55,6 +57,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Minesweeper
 - Morse Code Challenge
 - Night Sky
+- Nonogram
 - Number Sequence
 - Odd One Out
 - Pattern Complete
@@ -70,6 +73,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Robot Commands
 - Rock Paper Scissors
 - Roguelike Arena
+- Sequence Puzzle
 - Shadow Match
 - Shape Sorter
 - Sleepy Animals
@@ -80,12 +84,14 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Spot the Difference
 - Sudoku
 - Tank Duel
+- Threes
 - Tic-Tac-Toe
 - Time Trial Racer
 - Top-Down Racing
 - Tower Defense
 - Treasure Hunt
 - Trivia Battle
+- Ultimate Tic-Tac-Toe
 - UNO
 - Whack-a-Mole
 - Word Ladder
