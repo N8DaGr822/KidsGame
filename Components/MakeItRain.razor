@@ -1,0 +1,146 @@
+@*
+    MakeItRain.razor
+    A toddler cause-and-effect toy (~1 year old target): tap the cloud to
+    start/stop rain, tap the sun to bring it out, and tap the puddle to
+    splash it. Turn on rain and sun together and a rainbow fades in. Every
+    tap is valid and reversible - no "correct" order, no score, no timer,
+    no fail state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many taps
+    happened and how long the child played, then returns to the setup
+    screen.
+
+    Usage:
+        <MakeItRain OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="mir-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="mir-setup game-setup-panel">
+            <h2>🌦️ Make It Rain</h2>
+            <p>Tap the cloud for rain, the sun for sunshine, and the puddle for a splash!</p>
+            <button class="mir-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="mir-hud game-hud">
+            <span class="mir-title">Make It Rain</span>
+            <button class="mir-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="mir-sky @(raining ? "raining" : "") @(sunny ? "sunny" : "")">
+
+            @if (raining && sunny)
+            {
+                <div class="mir-rainbow">🌈</div>
+            }
+
+            <button class="mir-sun" @onclick="ToggleSun">☀️</button>
+
+            <button class="mir-cloud" @onclick="ToggleRain">☁️</button>
+
+            @if (raining)
+            {
+                <div class="mir-drops">
+                    @for (var i = 0; i < DropCount; i++)
+                    {
+                        var idx = i;
+                        <span class="mir-drop" style="left:@(dropLeft[idx])%; animation-delay:@(dropDelay[idx])s;">💧</span>
+                    }
+                </div>
+            }
+
+            <div class="mir-ground">
+                <button class="mir-puddle @(splashId.HasValue ? "splash" : "")" @onclick="SplashPuddle">〰️</button>
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<MakeItRainResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private const int DropCount = 14;
+
+    private Phase phase = Phase.Setup;
+    private readonly Random rng = new();
+    private bool raining;
+    private bool sunny;
+    private int? splashId;
+    private int taps;
+    private DateTime startedAtUtc;
+    private readonly double[] dropLeft = new double[DropCount];
+    private readonly double[] dropDelay = new double[DropCount];
+
+    private void StartGame()
+    {
+        raining = false;
+        sunny = false;
+        splashId = null;
+        taps = 0;
+        RollDrops();
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private void RollDrops()
+    {
+        for (var i = 0; i < DropCount; i++)
+        {
+            dropLeft[i] = 4 + rng.NextDouble() * 92;
+            dropDelay[i] = rng.NextDouble() * 1.4;
+        }
+    }
+
+    private async Task ToggleRain()
+    {
+        raining = !raining;
+        taps++;
+        if (raining) RollDrops();
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playSplashSound");
+    }
+
+    private async Task ToggleSun()
+    {
+        sunny = !sunny;
+        taps++;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playCatchSound");
+    }
+
+    private async Task SplashPuddle()
+    {
+        var id = ++taps;
+        splashId = id;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playSplashSound");
+
+        await Task.Delay(500);
+        if (splashId == id) splashId = null;
+        StateHasChanged();
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new MakeItRainResult(
+                Taps: taps,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record MakeItRainResult(int Taps, int ElapsedSeconds);
+}

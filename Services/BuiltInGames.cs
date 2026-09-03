@@ -105,6 +105,7 @@ public static class BuiltInGames
     public const string FireworksTouch = "fireworks-touch";
     public const string LightsOnOff = "lights-on-off";
     public const string SpinTheWheel = "spin-the-wheel";
+    public const string MakeItRain = "make-it-rain";
     public const string SlotMachine = "slot-machine";
     public const string Solitaire = "solitaire";
 
@@ -204,6 +205,7 @@ public static class BuiltInGames
         new BuiltInGame("Fireworks Touch", "🎆", FireworksTouch, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Lights On, Lights Off", "💡", LightsOnOff, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Spin the Wheel", "🎡", SpinTheWheel, MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Make It Rain", "🌦️", MakeItRain, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Lucky Spin Slots", "🎰", SlotMachine, MinAge: 18),
         new BuiltInGame("Solitaire", "♠️", Solitaire, MinAge: 6),
     };

@@ -35,6 +35,7 @@ public static class GameThemes
         [BuiltInGames.FireworksTouch] = "gh-theme-toddler",
         [BuiltInGames.LightsOnOff] = "gh-theme-toddler",
         [BuiltInGames.SpinTheWheel] = "gh-theme-toddler",
+        [BuiltInGames.MakeItRain] = "gh-theme-toddler",
 
         // ---- nature: animals, gardens, water ----
         [BuiltInGames.MemoryMatch] = "gh-theme-nature",

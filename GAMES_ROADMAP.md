@@ -129,7 +129,7 @@ and multi-step rules.
 
 - [x] Touch the Fish - fish swim slowly around an aquarium; touching one makes
   it wiggle, bubble, or swim away. (`GentleCreatures.razor`'s "Fish Tank" theme.)
-- [ ] Make It Rain - tap clouds for rain, then sunshine, rainbows, puddles,
+- [x] Make It Rain - tap clouds for rain, then sunshine, rainbows, puddles,
   etc.
 - [x] Baby Aquarium - mostly passive fish, bubbles, and plants; touching
   anything causes a small response. (Same "Fish Tank" theme as Touch the

@@ -181,6 +181,10 @@
             {
                 <SpinTheWheel PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleSpinTheWheelComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.MakeItRain)
+            {
+                <MakeItRain PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleMakeItRainComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.BabyPiano)
             {
                 <BabyPiano PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBabyPianoComplete" />
@@ -1075,6 +1079,20 @@
             GameId = _game.Id,
             Difficulty = $"{result.Spins} spins",
             Moves = result.Spins,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleMakeItRainComplete(MakeItRain.MakeItRainResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Difficulty = $"{result.Taps} taps",
+            Moves = result.Taps,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

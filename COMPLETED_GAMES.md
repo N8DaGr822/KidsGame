@@ -47,6 +47,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Lights On, Lights Off
 - Logic Grid Puzzle
 - Magic Garden
+- Make It Rain
 - Manners Garden
 - Mastermind
 - Math Target
