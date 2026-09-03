@@ -1,0 +1,156 @@
+@*
+    SnowDay.razor
+    A toddler cause-and-effect toy (~1 year old target): tap the cloud to
+    start/stop snowfall, tap the snowy field to leave footprints, and tap a
+    snow mound to sweep it aside and reveal a hidden object (tap again to
+    re-cover it). Every tap is valid and reversible - no "correct" answer,
+    no score, no timer, no fail state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many taps
+    happened and how long the child played, then returns to the setup
+    screen.
+
+    Usage:
+        <SnowDay OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="sno-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="sno-setup game-setup-panel">
+            <h2>❄️ Snow Day</h2>
+            <p>Tap the cloud for snow, the field for footprints, and a snow mound to see what's underneath!</p>
+            <button class="sno-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="sno-hud game-hud">
+            <span class="sno-title">Snow Day</span>
+            <button class="sno-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="sno-scene">
+            <button class="sno-cloud @(snowing ? "on" : "")" @onclick="ToggleSnow">☁️</button>
+
+            @if (snowing)
+            {
+                <div class="sno-flakes">
+                    @for (var i = 0; i < FlakeCount; i++)
+                    {
+                        var idx = i;
+                        <span class="sno-flake" style="left:@(flakeLeft[idx])%; animation-delay:@(flakeDelay[idx])s; animation-duration:@(flakeDuration[idx])s;">❄️</span>
+                    }
+                </div>
+            }
+
+            <div class="sno-field" @onclick="OnFieldTap">
+                @foreach (var print in footprints)
+                {
+                    <span class="sno-footprint" style="left:@(print.X)px; top:@(print.Y)px;">👣</span>
+                }
+            </div>
+
+            <div class="sno-mounds">
+                @for (var i = 0; i < Mounds.Length; i++)
+                {
+                    var idx = i;
+                    var revealed = moundRevealed[idx];
+                    <button class="sno-mound @(revealed ? "revealed" : "")" @onclick="() => ToggleMound(idx)">
+                        <span class="sno-mound-glyph">@(revealed ? Mounds[idx] : "🏔️")</span>
+                    </button>
+                }
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<SnowDayResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private record Footprint(int Id, double X, double Y);
+
+    private static readonly string[] Mounds = { "🎁", "🧤", "🐿️", "⭐", "🍁" };
+    private const int FlakeCount = 22;
+
+    private Phase phase = Phase.Setup;
+    private readonly Random rng = new();
+    private bool snowing;
+    private bool[] moundRevealed = new bool[Mounds.Length];
+    private readonly List<Footprint> footprints = new();
+    private int nextPrintId;
+    private int taps;
+    private DateTime startedAtUtc;
+    private readonly double[] flakeLeft = new double[FlakeCount];
+    private readonly double[] flakeDelay = new double[FlakeCount];
+    private readonly double[] flakeDuration = new double[FlakeCount];
+
+    private void StartGame()
+    {
+        snowing = false;
+        moundRevealed = new bool[Mounds.Length];
+        footprints.Clear();
+        taps = 0;
+        RollFlakes();
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private void RollFlakes()
+    {
+        for (var i = 0; i < FlakeCount; i++)
+        {
+            flakeLeft[i] = rng.NextDouble() * 96;
+            flakeDelay[i] = rng.NextDouble() * 3;
+            flakeDuration[i] = 3.5 + rng.NextDouble() * 2.5;
+        }
+    }
+
+    private async Task ToggleSnow()
+    {
+        snowing = !snowing;
+        taps++;
+        if (snowing) RollFlakes();
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playCatchSound");
+    }
+
+    private async Task OnFieldTap(MouseEventArgs e)
+    {
+        taps++;
+        var id = nextPrintId++;
+        footprints.Add(new Footprint(id, e.OffsetX, e.OffsetY));
+        if (footprints.Count > 24) footprints.RemoveAt(0);
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playImpactSound");
+    }
+
+    private async Task ToggleMound(int index)
+    {
+        moundRevealed[index] = !moundRevealed[index];
+        taps++;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync(moundRevealed[index] ? "playMatchSound" : "playCatchSound");
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SnowDayResult(
+                Taps: taps,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record SnowDayResult(int Taps, int ElapsedSeconds);
+}

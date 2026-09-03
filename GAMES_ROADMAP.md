@@ -136,7 +136,7 @@ and multi-step rules.
   Fish - identical roadmap idea, one component.)
 - [x] Night Sky - tap the dark sky to add stars; tap stars to make them
   twinkle.
-- [ ] Snow Day - tap to make snow fall, create footprints, or reveal objects
+- [x] Snow Day - tap to make snow fall, create footprints, or reveal objects
   beneath snow.
 - [ ] Puddle Splash - tap puddles and watch a character jump into them.
 - [x] Follow the Butterfly - a butterfly moves slowly around; touching it makes

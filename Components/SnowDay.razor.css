@@ -1,0 +1,139 @@
+.sno-game {
+    width: min(1100px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.sno-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.sno-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.sno-setup p {
+    max-width: 30rem;
+    color: var(--text-muted);
+}
+
+.sno-title {
+    font-weight: 900;
+}
+
+.sno-scene {
+    position: relative;
+    width: min(1000px, 92vw, 98vh);
+    margin: 0 auto;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, #4a6b96 0%, #b9d3e8 55%, #eef6fb 100%);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+}
+
+.sno-cloud {
+    position: absolute;
+    top: 4%;
+    left: 8%;
+    border: none;
+    background: transparent;
+    font-size: clamp(2.5rem, 9vw, 4rem);
+    cursor: pointer;
+    filter: grayscale(0.3) brightness(0.9);
+    transition: filter 0.4s ease, transform 0.4s ease;
+    touch-action: manipulation;
+    z-index: 3;
+}
+
+.sno-cloud.on {
+    filter: grayscale(0) brightness(1.05);
+    transform: scale(1.1);
+}
+
+.sno-flakes {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.sno-flake {
+    position: absolute;
+    top: -6%;
+    font-size: clamp(0.9rem, 2.5vw, 1.3rem);
+    animation-name: sno-fall;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    opacity: 0.9;
+}
+
+@keyframes sno-fall {
+    0% { transform: translateY(0) translateX(0); }
+    50% { transform: translateY(55vh) translateX(10px); }
+    100% { transform: translateY(115vh) translateX(-6px); }
+}
+
+.sno-field {
+    position: relative;
+    min-height: clamp(9rem, 24vw, 13rem);
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.sno-footprint {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    font-size: clamp(1rem, 2.8vw, 1.4rem);
+    opacity: 0.75;
+    pointer-events: none;
+    animation: sno-print-in 0.25s ease-out;
+}
+
+@keyframes sno-print-in {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+    100% { opacity: 0.75; transform: translate(-50%, -50%) scale(1); }
+}
+
+.sno-mounds {
+    display: flex;
+    justify-content: center;
+    gap: clamp(0.5rem, 2vw, 1rem);
+    padding: clamp(0.75rem, 3vw, 1.25rem);
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.sno-mound {
+    border: none;
+    background: #fff;
+    border-radius: var(--radius-md);
+    width: clamp(3.25rem, 11vw, 4.5rem);
+    height: clamp(3.25rem, 11vw, 4.5rem);
+    display: grid;
+    place-items: center;
+    font-size: clamp(1.75rem, 6vw, 2.5rem);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.2s ease;
+}
+
+.sno-mound.revealed {
+    background: #eef6fb;
+    transform: scale(1.05);
+}
+
+.sno-mound:active {
+    transform: scale(0.94);
+}

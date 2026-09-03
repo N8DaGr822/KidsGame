@@ -80,6 +80,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Sleepy Animals
 - Simon Says
 - Sliding Puzzle
+- Snow Day
 - Sound Buttons
 - Space Survival
 - Spin the Wheel
