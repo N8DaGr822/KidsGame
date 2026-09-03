@@ -217,6 +217,10 @@
             {
                 <RollTheBall PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleRollTheBallComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.CardBattleGame)
+            {
+                <CardBattleGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCardBattleGameComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.BabyPiano)
             {
                 <BabyPiano PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBabyPianoComplete" />
@@ -1237,6 +1241,21 @@
             GameId = _game.Id,
             Difficulty = $"{result.Rolls} rolls",
             Moves = result.Rolls,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleCardBattleGameComplete(CardBattleGame.CardBattleGameResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Won ? "Won match" : "Lost match",
+            Moves = result.TurnsTaken,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

@@ -114,6 +114,7 @@ public static class BuiltInGames
     public const string StackTheBlocks = "stack-the-blocks";
     public const string KnockItDown = "knock-it-down";
     public const string RollTheBall = "roll-the-ball";
+    public const string CardBattleGame = "card-battle-game";
     public const string SlotMachine = "slot-machine";
     public const string Solitaire = "solitaire";
 
@@ -222,6 +223,7 @@ public static class BuiltInGames
         new BuiltInGame("Stack the Blocks", "🧱", StackTheBlocks, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Knock It Down", "🧨", KnockItDown, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Roll the Ball", "⚽", RollTheBall, MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Card Battle", "🃏", CardBattleGame, MinAge: 7, MaxAge: 14),
         new BuiltInGame("Lucky Spin Slots", "🎰", SlotMachine, MinAge: 18),
         new BuiltInGame("Solitaire", "♠️", Solitaire, MinAge: 6),
     };

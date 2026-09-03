@@ -67,6 +67,7 @@ public static class GameThemes
         [BuiltInGames.DotsAndBoxes] = "gh-theme-cardtable",
         [BuiltInGames.Battleships] = "gh-theme-cardtable",
         [BuiltInGames.RockPaperScissors] = "gh-theme-cardtable",
+        [BuiltInGames.CardBattleGame] = "gh-theme-cardtable",
         [BuiltInGames.FollowTheCups] = "gh-theme-cardtable",
         [BuiltInGames.Mastermind] = "gh-theme-cardtable",
         [BuiltInGames.CodeBreaker] = "gh-theme-cardtable",

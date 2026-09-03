@@ -1,0 +1,384 @@
+@*
+    CardBattleGame.razor
+    A small 1v1 card-battle vertical slice (older-kid strategy tier): each
+    side has its own 12-card deck (Strike/Heavy Strike/Heal/Shield) and a
+    3-card hand drawn from it. Tap a card in your hand to play it - Strike
+    and Heavy Strike hit the enemy, Heal restores your own HP, Shield halves
+    the next hit you take. Playing a card discards it and draws a
+    replacement (reshuffling the discard pile back into the deck once the
+    deck runs dry), then the computer replies the same way. First to drop
+    the other's HP to 0 wins the match.
+
+    No deck-building or card collection meta here - both decks are fixed,
+    matching the roadmap's "small vertical slice" guidance for this tier
+    rather than a full economy. Difficulty controls the computer's HP pool
+    and how well it plays (Easy is random-ish, Hard prioritizes healing low
+    HP and finishing you off). Tracks a win streak alongside the match
+    score, following RockPaperScissors' PersonalBestBadge pattern.
+
+    Usage:
+        <CardBattleGame OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="cbg-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="cbg-setup game-setup-panel">
+            <h2>🃏 Card Battle</h2>
+            <p>Play cards from your hand to Strike, Heal, or Shield - knock the computer's HP to zero to win!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="cbg-diff-name">@DifficultyName(diff)</span>
+                            <span class="cbg-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="cbg-start-btn game-primary-action" @onclick="StartGame">Start Battle</button>
+        </div>
+    }
+    else
+    {
+        <div class="cbg-hud game-hud">
+            <span class="cbg-title">Card Battle</span>
+            <span class="game-stat">🔥 Streak @streak</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="cbg-arena">
+            <div class="cbg-fighter">
+                <span class="cbg-fighter-name">You @(playerShielded ? "🛡️" : "")</span>
+                <div class="cbg-hp-track"><div class="cbg-hp-fill player" style="width:@(HpPercent(playerHp, PlayerMaxHp))%;"></div></div>
+                <span class="cbg-hp-label">@Math.Max(0, playerHp)/@PlayerMaxHp</span>
+            </div>
+            <span class="cbg-vs">@(turnMessage == "" ? "VS" : turnMessage)</span>
+            <div class="cbg-fighter">
+                <span class="cbg-fighter-name">Computer @(enemyShielded ? "🛡️" : "")</span>
+                <div class="cbg-hp-track"><div class="cbg-hp-fill enemy" style="width:@(HpPercent(enemyHp, enemyMaxHp))%;"></div></div>
+                <span class="cbg-hp-label">@Math.Max(0, enemyHp)/@enemyMaxHp</span>
+            </div>
+        </div>
+
+        <div class="cbg-hand">
+            @foreach (var card in playerHand)
+            {
+                <button class="cbg-card @card.Type.ToString().ToLowerInvariant()" disabled="@(turnInProgress || phase != Phase.Playing)" @onclick="() => PlayCard(card)">
+                    <span class="cbg-card-icon">@card.Icon</span>
+                    <span class="cbg-card-name">@card.Name</span>
+                    <span class="cbg-card-value">@card.ValueLabel</span>
+                </button>
+            }
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="cbg-overlay game-result-overlay">
+                <div class="cbg-win-panel game-result-panel">
+                    @if (matchWon)
+                    {
+                        <h2>🏆 You Won the Battle!</h2>
+                        <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great job" : PlayerName + ", great job")!</p>
+                    }
+                    else
+                    {
+                        <h2>🤖 Computer Won</h2>
+                        <p>Good fight - want a rematch?</p>
+                    }
+                    <div class="cbg-win-stats game-result-stats">
+                        <div><span class="game-stat-label">Turns</span><span class="game-stat-value">@turnsTaken</span></div>
+                        <div><span class="game-stat-label">Streak</span><span class="game-stat-value">@streak</span></div>
+                        <div><span class="game-stat-label">Best streak</span><span class="game-stat-value">@bestStreak</span></div>
+                    </div>
+                    <PersonalBestBadge Value="@((persistedBestStreak ?? bestStreak).ToString())" IsNew="isNewBest" />
+                    <div class="cbg-win-actions game-result-actions">
+                        <button class="cbg-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="cbg-restart-btn game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public string? ForcedDifficulty { get; set; }
+    [Parameter] public string? ProfileId { get; set; }
+    [Parameter] public EventCallback<CardBattleGameResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+    private enum CardType { Strike, HeavyStrike, Heal, Shield }
+
+    private record Card(CardType Type, string Name, string Icon, int Value)
+    {
+        public string ValueLabel => Type switch
+        {
+            CardType.Strike or CardType.HeavyStrike => $"-{Value} HP",
+            CardType.Heal => $"+{Value} HP",
+            _ => "Block half",
+        };
+    }
+
+    private const int PlayerMaxHp = 20;
+    private const int HandSize = 3;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private static List<Card> BuildDeck() => new()
+    {
+        new(CardType.Strike, "Strike", "⚔️", 3), new(CardType.Strike, "Strike", "⚔️", 3),
+        new(CardType.Strike, "Strike", "⚔️", 3), new(CardType.Strike, "Strike", "⚔️", 3),
+        new(CardType.Strike, "Strike", "⚔️", 3),
+        new(CardType.HeavyStrike, "Heavy Strike", "💥", 6), new(CardType.HeavyStrike, "Heavy Strike", "💥", 6),
+        new(CardType.HeavyStrike, "Heavy Strike", "💥", 6),
+        new(CardType.Heal, "Heal", "💚", 5), new(CardType.Heal, "Heal", "💚", 5),
+        new(CardType.Shield, "Shield", "🛡️", 0), new(CardType.Shield, "Shield", "🛡️", 0),
+    };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private readonly Random rng = new();
+
+    private List<Card> playerDeck = new();
+    private List<Card> playerDiscard = new();
+    private List<Card> playerHand = new();
+    private List<Card> enemyDeck = new();
+    private List<Card> enemyDiscard = new();
+    private List<Card> enemyHand = new();
+
+    private int playerHp;
+    private int enemyHp;
+    private int enemyMaxHp;
+    private bool playerShielded;
+    private bool enemyShielded;
+    private bool turnInProgress;
+    private string turnMessage = "";
+    private int turnsTaken;
+    private int streak;
+    private int bestStreak;
+    private bool matchWon;
+    private int? persistedBestStreak;
+    private bool isNewBest;
+    private DateTime startedAtUtc;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private static void Shuffle<T>(IList<T> list, Random rng)
+    {
+        for (var i = list.Count - 1; i > 0; i--)
+        {
+            var j = rng.Next(i + 1);
+            (list[i], list[j]) = (list[j], list[i]);
+        }
+    }
+
+    private Card Draw(List<Card> deck, List<Card> discard)
+    {
+        if (deck.Count == 0)
+        {
+            deck.AddRange(discard);
+            discard.Clear();
+            Shuffle(deck, rng);
+        }
+        var card = deck[^1];
+        deck.RemoveAt(deck.Count - 1);
+        return card;
+    }
+
+    private void StartGame()
+    {
+        playerDeck = BuildDeck();
+        Shuffle(playerDeck, rng);
+        playerDiscard = new();
+        playerHand = Enumerable.Range(0, HandSize).Select(_ => Draw(playerDeck, playerDiscard)).ToList();
+
+        enemyDeck = BuildDeck();
+        Shuffle(enemyDeck, rng);
+        enemyDiscard = new();
+        enemyHand = Enumerable.Range(0, HandSize).Select(_ => Draw(enemyDeck, enemyDiscard)).ToList();
+
+        enemyMaxHp = selectedDifficulty switch { Difficulty.Easy => 16, Difficulty.Medium => 20, _ => 24 };
+        playerHp = PlayerMaxHp;
+        enemyHp = enemyMaxHp;
+        playerShielded = false;
+        enemyShielded = false;
+        turnMessage = "";
+        turnsTaken = 0;
+        streak = 0;
+        bestStreak = 0;
+        isNewBest = false;
+        matchWon = false;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private static double HpPercent(int hp, int max) => Math.Clamp(hp, 0, max) * 100.0 / max;
+
+    private async Task ExitToSetup()
+    {
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new CardBattleGameResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: false,
+                TurnsTaken: turnsTaken,
+                BestStreak: bestStreak,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task PlayCard(Card card)
+    {
+        if (turnInProgress || phase != Phase.Playing) return;
+        turnInProgress = true;
+        turnsTaken++;
+
+        await ResolveCard(card, playerIsActor: true);
+        playerHand.Remove(card);
+        playerDiscard.Add(card);
+        playerHand.Add(Draw(playerDeck, playerDiscard));
+        StateHasChanged();
+
+        if (enemyHp <= 0)
+        {
+            await FinishMatch(true);
+            return;
+        }
+
+        await Task.Delay(650);
+
+        var enemyCard = PickEnemyCard();
+        turnMessage = $"Computer plays {enemyCard.Name}!";
+        StateHasChanged();
+        await ResolveCard(enemyCard, playerIsActor: false);
+        enemyHand.Remove(enemyCard);
+        enemyDiscard.Add(enemyCard);
+        enemyHand.Add(Draw(enemyDeck, enemyDiscard));
+        StateHasChanged();
+
+        if (playerHp <= 0)
+        {
+            await FinishMatch(false);
+            return;
+        }
+
+        await Task.Delay(600);
+        turnMessage = "";
+        turnInProgress = false;
+        StateHasChanged();
+    }
+
+    private async Task ResolveCard(Card card, bool playerIsActor)
+    {
+        switch (card.Type)
+        {
+            case CardType.Strike:
+            case CardType.HeavyStrike:
+                var dmg = card.Value;
+                if (playerIsActor && enemyShielded) { dmg /= 2; enemyShielded = false; }
+                if (!playerIsActor && playerShielded) { dmg /= 2; playerShielded = false; }
+                if (playerIsActor) enemyHp = Math.Max(0, enemyHp - dmg); else playerHp = Math.Max(0, playerHp - dmg);
+                await Interop.InvokeVoidAsync("playImpactSound");
+                break;
+            case CardType.Heal:
+                if (playerIsActor) playerHp = Math.Min(PlayerMaxHp, playerHp + card.Value);
+                else enemyHp = Math.Min(enemyMaxHp, enemyHp + card.Value);
+                await Interop.InvokeVoidAsync("playMatchSound");
+                break;
+            case CardType.Shield:
+                if (playerIsActor) playerShielded = true; else enemyShielded = true;
+                await Interop.InvokeVoidAsync("playCatchSound");
+                break;
+        }
+    }
+
+    private Card PickEnemyCard()
+    {
+        var lowHp = enemyHp <= enemyMaxHp * 0.35;
+        var smart = selectedDifficulty == Difficulty.Hard || (selectedDifficulty == Difficulty.Medium && rng.NextDouble() < 0.5);
+
+        if (smart)
+        {
+            if (lowHp)
+            {
+                var heal = enemyHand.FirstOrDefault(c => c.Type == CardType.Heal);
+                if (heal is not null) return heal;
+            }
+            if (!enemyShielded && playerHp > enemyMaxHp * 0.4)
+            {
+                var heavy = enemyHand.FirstOrDefault(c => c.Type == CardType.HeavyStrike);
+                if (heavy is not null) return heavy;
+            }
+        }
+
+        return enemyHand[rng.Next(enemyHand.Count)];
+    }
+
+    private async Task FinishMatch(bool won)
+    {
+        matchWon = won;
+        turnInProgress = false;
+        turnMessage = won ? "You win!" : "You lose!";
+        streak = won ? streak + 1 : 0;
+        bestStreak = Math.Max(bestStreak, streak);
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"streak:{DifficultyName(selectedDifficulty)}";
+            persistedBestStreak = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.CardBattleGame, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.CardBattleGame, key, bestStreak, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new CardBattleGameResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: won,
+                TurnsTaken: turnsTaken,
+                BestStreak: bestStreak,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Weaker computer, plays mostly at random",
+        Difficulty.Medium => "Even HP, computer sometimes plays smart",
+        _ => "Tougher computer, always plays smart",
+    };
+
+    public record CardBattleGameResult(string Difficulty, bool Won, int TurnsTaken, int BestStreak, int ElapsedSeconds);
+}

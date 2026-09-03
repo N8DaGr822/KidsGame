@@ -15,6 +15,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Big & Small
 - Bubble Pop
 - Build-a-Monster
+- Card Battle Game
 - Cat Defense
 - Catch the Falling Objects
 - Checkers

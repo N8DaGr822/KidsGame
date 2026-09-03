@@ -79,9 +79,9 @@ Current recommendation:
 2. **Toddler physical/sensory games** - all shipped 2026-09-03. Tier complete.
 3. **Remaining zero/low-asset puzzles** - Jigsaw, Quick Math, Math
    Target, and Spot the Difference all shipped 2026-09-01. Tier complete.
-4. **RPG/strategy vertical slice** - Dungeon Crawler, Mini RPG Battle, and
-   now Roguelike Arena (shipped 2026-09-01) are done; Card Battle Game and
-   Auto Battler remain if this category continues.
+4. **RPG/strategy vertical slice** - Dungeon Crawler, Mini RPG Battle,
+   Roguelike Arena, and now Card Battle Game (shipped 2026-09-03) are done;
+   Auto Battler remains if this category continues.
 5. **Creation tools and simulations** - defer until save/editing
    infrastructure exists.
 
@@ -185,7 +185,7 @@ All shipped 2026-09-01 - see COMPLETED_GAMES.md.
 These assume longer sessions, more reading, planning, upgrades, and save state.
 Start with small vertical slices.
 
-- [ ] Card Battle Game
+- [x] Card Battle Game
 - [ ] Auto Battler
 
 ## Older-Kid Board, Logic, And Deduction
