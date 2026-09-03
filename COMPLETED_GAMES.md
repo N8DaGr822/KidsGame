@@ -9,6 +9,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Animal Sound Guessing
 - Archery Challenge
 - Baby Piano
+- Auto Battler
 - Basketball Shot
 - Bath Time
 - Battleships
@@ -126,6 +127,8 @@ new-game backlog:
 - Timed tap / arcade reflex games.
 - Word games.
 - Memory / sequence games.
+- Toddler cause-and-effect games.
+- Older-kid strategy / RPG vertical slices.
 
 ## Built But Still Worth Polishing
 

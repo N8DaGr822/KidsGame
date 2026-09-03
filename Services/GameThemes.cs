@@ -124,6 +124,7 @@ public static class GameThemes
         [BuiltInGames.TowerDefense] = "gh-theme-adventure",
         [BuiltInGames.DungeonCrawler] = "gh-theme-adventure",
         [BuiltInGames.RpgBattle] = "gh-theme-adventure",
+        [BuiltInGames.AutoBattler] = "gh-theme-adventure",
         [BuiltInGames.CatDefense] = "gh-theme-adventure",
         [BuiltInGames.SpaceGame] = "gh-theme-adventure",
         [BuiltInGames.RoguelikeArena] = "gh-theme-adventure",

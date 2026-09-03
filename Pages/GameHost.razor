@@ -221,6 +221,10 @@
             {
                 <CardBattleGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCardBattleGameComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.AutoBattler)
+            {
+                <AutoBattler PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleAutoBattlerComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.BabyPiano)
             {
                 <BabyPiano PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBabyPianoComplete" />
@@ -1256,6 +1260,21 @@
             Theme = result.Difficulty,
             Difficulty = result.Won ? "Won match" : "Lost match",
             Moves = result.TurnsTaken,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleAutoBattlerComplete(AutoBattler.AutoBattlerResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.Won ? "Won match" : "Lost match",
+            Moves = result.RoundsTaken,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

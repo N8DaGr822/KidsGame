@@ -1,0 +1,353 @@
+@*
+    AutoBattler.razor
+    A small auto-battler vertical slice (older-kid strategy tier): draft a
+    3-unit team from a 5-unit roster, then the battle plays out entirely on
+    its own - your units and the computer's take turns auto-attacking the
+    other side's frontmost survivor until one team is wiped out. No manual
+    combat input once the battle starts, matching the genre's "watch your
+    draft pay off" hook. No persistent unit collection/upgrades yet -
+    each match is a fresh draft, matching the roadmap's "small vertical
+    slice" guidance for this tier.
+
+    Difficulty controls the computer's team: Easy drafts randomly, Medium
+    and Hard increasingly favor its strongest units. Tracks a win streak
+    the same way CardBattleGame and RockPaperScissors do.
+
+    Usage:
+        <AutoBattler OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="atb-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="atb-setup game-setup-panel">
+            <h2>⚔️ Auto Battler</h2>
+            <p>Draft a team of 3, then watch the battle play out - your units auto-attack the enemy's front line until one team wins!</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="atb-diff-name">@DifficultyName(diff)</span>
+                            <span class="atb-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="atb-start-btn game-primary-action" @onclick="EnterDraft">Draft Your Team</button>
+        </div>
+    }
+    else if (phase == Phase.Draft)
+    {
+        <div class="atb-hud game-hud">
+            <span class="atb-title">Auto Battler</span>
+            <span class="game-stat">🔥 Streak @streak</span>
+            <button class="game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
+        </div>
+
+        <p class="atb-draft-hint">Pick @DraftSize units (@draftPicks.Count/@DraftSize chosen)</p>
+
+        <div class="atb-roster">
+            @foreach (var unit in Roster)
+            {
+                var picked = draftPicks.Contains(unit.Id);
+                <button class="atb-unit-card @(picked ? "picked" : "")" @onclick="() => ToggleDraft(unit.Id)">
+                    <span class="atb-unit-icon">@unit.Icon</span>
+                    <span class="atb-unit-name">@unit.Name</span>
+                    <span class="atb-unit-stats">❤️ @unit.MaxHp &nbsp; ⚔️ @unit.Attack</span>
+                </button>
+            }
+        </div>
+
+        <button class="atb-start-btn game-primary-action" disabled="@(draftPicks.Count != DraftSize)" @onclick="StartBattle">Start Battle</button>
+    }
+    else
+    {
+        <div class="atb-hud game-hud">
+            <span class="atb-title">Auto Battler</span>
+            <span class="game-stat">🔥 Streak @streak</span>
+            <button class="game-secondary-action" @onclick="() => phase = Phase.Setup">← Exit</button>
+        </div>
+
+        <div class="atb-battlefield">
+            <div class="atb-team">
+                <h3 class="atb-team-label">Your Team</h3>
+                @foreach (var u in playerTeam)
+                {
+                    <div class="atb-battler @(u.Hp <= 0 ? "down" : "") @(u == activeAttacker ? "attacking" : "") @(u == activeTarget ? "hit" : "")">
+                        <span class="atb-battler-icon">@u.Icon</span>
+                        <div class="atb-hp-track"><div class="atb-hp-fill player" style="width:@(HpPercent(u))%;"></div></div>
+                        <span class="atb-hp-label">@Math.Max(0, u.Hp)/@u.MaxHp</span>
+                    </div>
+                }
+            </div>
+
+            <span class="atb-log">@battleLog</span>
+
+            <div class="atb-team">
+                <h3 class="atb-team-label">Computer Team</h3>
+                @foreach (var u in enemyTeam)
+                {
+                    <div class="atb-battler @(u.Hp <= 0 ? "down" : "") @(u == activeAttacker ? "attacking" : "") @(u == activeTarget ? "hit" : "")">
+                        <span class="atb-battler-icon">@u.Icon</span>
+                        <div class="atb-hp-track"><div class="atb-hp-fill enemy" style="width:@(HpPercent(u))%;"></div></div>
+                        <span class="atb-hp-label">@Math.Max(0, u.Hp)/@u.MaxHp</span>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="atb-overlay game-result-overlay">
+                <div class="atb-win-panel game-result-panel">
+                    @if (matchWon)
+                    {
+                        <h2>🏆 Your Team Won!</h2>
+                        <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "Great drafting" : PlayerName + ", great drafting")!</p>
+                    }
+                    else
+                    {
+                        <h2>🤖 Computer's Team Won</h2>
+                        <p>Try a different draft next time!</p>
+                    }
+                    <div class="atb-win-stats game-result-stats">
+                        <div><span class="game-stat-label">Rounds</span><span class="game-stat-value">@roundsTaken</span></div>
+                        <div><span class="game-stat-label">Streak</span><span class="game-stat-value">@streak</span></div>
+                        <div><span class="game-stat-label">Best streak</span><span class="game-stat-value">@bestStreak</span></div>
+                    </div>
+                    <PersonalBestBadge Value="@((persistedBestStreak ?? bestStreak).ToString())" IsNew="isNewBest" />
+                    <div class="atb-win-actions game-result-actions">
+                        <button class="atb-start-btn game-primary-action" @onclick="EnterDraft">Draft Again</button>
+                        <button class="atb-restart-btn game-secondary-action" @onclick="() => phase = Phase.Setup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public string? ForcedDifficulty { get; set; }
+    [Parameter] public string? ProfileId { get; set; }
+    [Parameter] public EventCallback<AutoBattlerResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Draft, Battling, Finished }
+    public enum Difficulty { Easy, Medium, Hard }
+
+    private record UnitDef(string Id, string Name, string Icon, int MaxHp, int Attack);
+
+    private class Unit
+    {
+        public required string Id { get; init; }
+        public required string Name { get; init; }
+        public required string Icon { get; init; }
+        public int MaxHp { get; init; }
+        public int Attack { get; init; }
+        public int Hp { get; set; }
+    }
+
+    private const int DraftSize = 3;
+
+    private static readonly UnitDef[] Roster =
+    {
+        new("knight", "Knight", "🛡️", 14, 3),
+        new("archer", "Archer", "🏹", 9, 5),
+        new("mage", "Mage", "🧙", 7, 6),
+        new("tank", "Tank", "🐘", 18, 2),
+        new("rogue", "Rogue", "🗡️", 10, 4),
+    };
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+    private readonly List<string> draftPicks = new();
+    private readonly Random rng = new();
+
+    private List<Unit> playerTeam = new();
+    private List<Unit> enemyTeam = new();
+    private Unit? activeAttacker;
+    private Unit? activeTarget;
+    private string battleLog = "";
+    private int roundsTaken;
+    private int streak;
+    private int bestStreak;
+    private bool matchWon;
+    private int? persistedBestStreak;
+    private bool isNewBest;
+    private DateTime startedAtUtc;
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void EnterDraft()
+    {
+        draftPicks.Clear();
+        phase = Phase.Draft;
+    }
+
+    private void ToggleDraft(string id)
+    {
+        if (draftPicks.Contains(id))
+        {
+            draftPicks.Remove(id);
+        }
+        else if (draftPicks.Count < DraftSize)
+        {
+            draftPicks.Add(id);
+        }
+    }
+
+    private static Unit Spawn(UnitDef def) => new()
+    {
+        Id = def.Id, Name = def.Name, Icon = def.Icon, MaxHp = def.MaxHp, Attack = def.Attack, Hp = def.MaxHp,
+    };
+
+    private List<Unit> DraftEnemyTeam()
+    {
+        var pool = Roster.ToList();
+        var picks = new List<UnitDef>();
+
+        for (var i = 0; i < DraftSize; i++)
+        {
+            UnitDef choice;
+            var smart = selectedDifficulty == Difficulty.Hard || (selectedDifficulty == Difficulty.Medium && rng.NextDouble() < 0.5);
+            if (smart)
+            {
+                choice = pool.OrderByDescending(u => u.MaxHp + u.Attack * 2).First();
+            }
+            else
+            {
+                choice = pool[rng.Next(pool.Count)];
+            }
+            picks.Add(choice);
+            pool.Remove(choice);
+        }
+
+        return picks.Select(Spawn).ToList();
+    }
+
+    private static double HpPercent(Unit u) => Math.Clamp(u.Hp, 0, u.MaxHp) * 100.0 / u.MaxHp;
+
+    private async Task StartBattle()
+    {
+        playerTeam = Roster.Where(u => draftPicks.Contains(u.Id)).Select(Spawn).ToList();
+        enemyTeam = DraftEnemyTeam();
+        roundsTaken = 0;
+        battleLog = "Battle starting...";
+        activeAttacker = null;
+        activeTarget = null;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Battling;
+        StateHasChanged();
+
+        await Task.Delay(700);
+        await RunBattleLoop();
+    }
+
+    private async Task RunBattleLoop()
+    {
+        while (playerTeam.Any(u => u.Hp > 0) && enemyTeam.Any(u => u.Hp > 0))
+        {
+            roundsTaken++;
+
+            foreach (var attacker in playerTeam.Where(u => u.Hp > 0))
+            {
+                var target = enemyTeam.FirstOrDefault(u => u.Hp > 0);
+                if (target is null) break;
+                await Strike(attacker, target);
+                if (!enemyTeam.Any(u => u.Hp > 0)) { await FinishMatch(true); return; }
+            }
+
+            foreach (var attacker in enemyTeam.Where(u => u.Hp > 0))
+            {
+                var target = playerTeam.FirstOrDefault(u => u.Hp > 0);
+                if (target is null) break;
+                await Strike(attacker, target);
+                if (!playerTeam.Any(u => u.Hp > 0)) { await FinishMatch(false); return; }
+            }
+        }
+    }
+
+    private async Task Strike(Unit attacker, Unit target)
+    {
+        activeAttacker = attacker;
+        activeTarget = target;
+        battleLog = $"{attacker.Icon} {attacker.Name} hits {target.Icon} {target.Name}!";
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playImpactSound");
+        await Task.Delay(280);
+
+        target.Hp = Math.Max(0, target.Hp - attacker.Attack);
+        StateHasChanged();
+        await Task.Delay(320);
+
+        activeAttacker = null;
+        activeTarget = null;
+        StateHasChanged();
+        await Task.Delay(120);
+    }
+
+    private async Task FinishMatch(bool won)
+    {
+        matchWon = won;
+        battleLog = won ? "Your team wins!" : "Computer's team wins!";
+        streak = won ? streak + 1 : 0;
+        bestStreak = Math.Max(bestStreak, streak);
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"streak:{DifficultyName(selectedDifficulty)}";
+            persistedBestStreak = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.AutoBattler, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.AutoBattler, key, bestStreak, lowerIsBetter: false);
+        }
+
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new AutoBattlerResult(
+                Difficulty: DifficultyName(selectedDifficulty),
+                Won: won,
+                RoundsTaken: roundsTaken,
+                BestStreak: bestStreak,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Computer drafts randomly",
+        Difficulty.Medium => "Computer sometimes drafts its strongest units",
+        _ => "Computer always drafts its strongest units",
+    };
+
+    public record AutoBattlerResult(string Difficulty, bool Won, int RoundsTaken, int BestStreak, int ElapsedSeconds);
+}
