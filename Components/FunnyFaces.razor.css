@@ -1,0 +1,150 @@
+.ffc-game {
+    width: min(1100px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.ffc-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.ffc-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.ffc-setup p {
+    max-width: 30rem;
+    color: var(--text-muted);
+}
+
+.ffc-title {
+    font-weight: 900;
+}
+
+.ffc-field {
+    display: grid;
+    place-items: center;
+    padding: clamp(1rem, 4vw, 2.5rem) 0;
+}
+
+.ffc-face {
+    position: relative;
+    width: min(420px, 80vw, 60vh);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: #ffd8a8;
+    box-shadow: var(--shadow-sm), inset 0 -12px 24px rgba(0, 0, 0, 0.08);
+}
+
+.ffc-ear {
+    position: absolute;
+    top: -6%;
+    width: 22%;
+    height: 22%;
+    border-radius: 50%;
+    background: #ffd8a8;
+    border: none;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    touch-action: manipulation;
+    transform-origin: bottom center;
+    transition: transform 0.15s ease;
+}
+
+.ffc-ear.left { left: 2%; transform: rotate(-15deg); }
+.ffc-ear.right { right: 2%; transform: rotate(15deg) scaleX(-1); }
+
+.ffc-ear.left.go { animation: ffc-wiggle 0.45s ease-in-out; }
+.ffc-ear.right.go { animation: ffc-wiggle-r 0.45s ease-in-out; }
+
+@keyframes ffc-wiggle {
+    0%, 100% { transform: rotate(-15deg); }
+    50% { transform: rotate(-45deg); }
+}
+
+@keyframes ffc-wiggle-r {
+    0%, 100% { transform: rotate(15deg) scaleX(-1); }
+    50% { transform: rotate(45deg) scaleX(-1); }
+}
+
+.ffc-eye {
+    position: absolute;
+    top: 32%;
+    width: 15%;
+    height: 15%;
+    border-radius: 50%;
+    background: #2b2b2b;
+    border: none;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.15s ease;
+}
+
+.ffc-eye.left { left: 24%; }
+.ffc-eye.right { right: 24%; }
+
+.ffc-eye.go { transform: scaleY(0.1); }
+
+.ffc-nose {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+    width: 16%;
+    height: 16%;
+    border-radius: 50%;
+    background: #ff8787;
+    border: none;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: transform 0.15s ease;
+}
+
+.ffc-nose.go {
+    transform: translate(-50%, -50%) scale(0.75);
+    background: #ff5252;
+}
+
+.ffc-mouth {
+    position: absolute;
+    bottom: 16%;
+    left: 50%;
+    translate: -50% 0;
+    width: 34%;
+    height: 12%;
+    border-radius: 0 0 3rem 3rem;
+    background: #a83232;
+    border: none;
+    cursor: pointer;
+    touch-action: manipulation;
+    overflow: visible;
+    display: grid;
+    place-items: start center;
+}
+
+.ffc-tongue {
+    display: block;
+    width: 55%;
+    height: 60%;
+    margin-top: 8%;
+    background: #ff6b6b;
+    border-radius: 0 0 1rem 1rem;
+    animation: ffc-tongue-out 0.3s ease-out;
+}
+
+@keyframes ffc-tongue-out {
+    0% { transform: scaleY(0); transform-origin: top; }
+    100% { transform: scaleY(1); transform-origin: top; }
+}

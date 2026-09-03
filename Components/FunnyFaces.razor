@@ -1,0 +1,137 @@
+@*
+    FunnyFaces.razor
+    A toddler cause-and-effect toy (~1 year old target): a big silly face -
+    tap the nose and it honks, tap an ear and it wiggles, tap an eye and it
+    blinks, tap the mouth and the tongue pops out. Every tap is valid and
+    reversible, no "correct" order, no score, no timer, no fail state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many taps
+    happened and how long the child played, then returns to the setup
+    screen.
+
+    Usage:
+        <FunnyFaces OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="ffc-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="ffc-setup game-setup-panel">
+            <h2>🤪 Funny Faces</h2>
+            <p>Tap the nose, ears, eyes, and mouth to see what they do!</p>
+            <button class="ffc-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="ffc-hud game-hud">
+            <span class="ffc-title">Funny Faces</span>
+            <button class="ffc-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="ffc-field">
+            <div class="ffc-face">
+                <button class="ffc-ear left @(wiggleLeftEar ? "go" : "")" @onclick="() => WiggleEar(true)"></button>
+                <button class="ffc-ear right @(wiggleRightEar ? "go" : "")" @onclick="() => WiggleEar(false)"></button>
+
+                <button class="ffc-eye left @(blink ? "go" : "")" @onclick="Blink"></button>
+                <button class="ffc-eye right @(blink ? "go" : "")" @onclick="Blink"></button>
+
+                <button class="ffc-nose @(honk ? "go" : "")" @onclick="Honk"></button>
+
+                <button class="ffc-mouth @(tongue ? "go" : "")" @onclick="PopTongue">
+                    @if (tongue)
+                    {
+                        <span class="ffc-tongue"></span>
+                    }
+                </button>
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<FunnyFacesResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private Phase phase = Phase.Setup;
+    private bool wiggleLeftEar;
+    private bool wiggleRightEar;
+    private bool blink;
+    private bool honk;
+    private bool tongue;
+    private int taps;
+    private DateTime startedAtUtc;
+
+    private void StartGame()
+    {
+        wiggleLeftEar = wiggleRightEar = blink = honk = tongue = false;
+        taps = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task WiggleEar(bool left)
+    {
+        taps++;
+        if (left) wiggleLeftEar = true; else wiggleRightEar = true;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playCatchSound");
+
+        await Task.Delay(450);
+        if (left) wiggleLeftEar = false; else wiggleRightEar = false;
+        StateHasChanged();
+    }
+
+    private async Task Blink()
+    {
+        taps++;
+        blink = true;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playUnoPlaySound");
+
+        await Task.Delay(280);
+        blink = false;
+        StateHasChanged();
+    }
+
+    private async Task Honk()
+    {
+        taps++;
+        honk = true;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playMatchSound");
+
+        await Task.Delay(350);
+        honk = false;
+        StateHasChanged();
+    }
+
+    private async Task PopTongue()
+    {
+        taps++;
+        tongue = !tongue;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playCatchSound");
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new FunnyFacesResult(
+                Taps: taps,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record FunnyFacesResult(int Taps, int ElapsedSeconds);
+}

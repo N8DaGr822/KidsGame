@@ -118,7 +118,7 @@ and multi-step rules.
 
 - [x] Wake Up the Animals - sleeping animals wake, stretch, make a sound, then
   eventually fall asleep again. (`SleepyAnimals.razor`'s "Wake Up" mode.)
-- [ ] Funny Faces - tap parts of a face; nose honks, ears wiggle, eyes blink,
+- [x] Funny Faces - tap parts of a face; nose honks, ears wiggle, eyes blink,
   tongue pops out.
 - [ ] Touch the Body Part - a friendly character highlights "nose", "hand",
   "foot", etc.; exploratory rather than a correct-answer quiz.

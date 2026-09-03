@@ -38,6 +38,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Flag Guessing Game
 - Follow the Cups
 - Fruit Slice
+- Funny Faces
 - Gentle Creatures
 - Guess the Word
 - Hex
