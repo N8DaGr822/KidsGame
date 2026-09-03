@@ -1,0 +1,105 @@
+@*
+    PuddleSplash.razor
+    A toddler cause-and-effect toy (~1 year old target): tap any puddle and a
+    little frog hops over and splashes into it. Tapping the puddle the frog
+    is already sitting in just splashes again. Every tap is valid, no
+    "correct" puddle, no score, no timer, no fail state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many jumps
+    happened and how long the child played, then returns to the setup
+    screen.
+
+    Usage:
+        <PuddleSplash OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="pud-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="pud-setup game-setup-panel">
+            <h2>🐸 Puddle Splash</h2>
+            <p>Tap a puddle and watch the frog hop in with a splash!</p>
+            <button class="pud-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="pud-hud game-hud">
+            <span class="pud-title">Puddle Splash</span>
+            <button class="pud-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="pud-field">
+            @for (var i = 0; i < Puddles.Length; i++)
+            {
+                var idx = i;
+                <button class="pud-puddle @(splashIndex == idx ? "splash" : "")"
+                        style="left:@(Puddles[idx].X)%; top:@(Puddles[idx].Y)%;"
+                        @onclick="() => JumpTo(idx)">〰️</button>
+            }
+
+            <div class="pud-frog" style="left:@(Puddles[frogAt].X)%; top:@(Puddles[frogAt].Y)%;">🐸</div>
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<PuddleSplashResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private record Spot(double X, double Y);
+
+    private static readonly Spot[] Puddles =
+    {
+        new(14, 70), new(32, 40), new(50, 78), new(68, 34), new(84, 64), new(58, 18),
+    };
+
+    private Phase phase = Phase.Setup;
+    private int frogAt;
+    private int? splashIndex;
+    private int jumps;
+    private DateTime startedAtUtc;
+
+    private void StartGame()
+    {
+        frogAt = 0;
+        splashIndex = null;
+        jumps = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task JumpTo(int index)
+    {
+        frogAt = index;
+        jumps++;
+        var id = index;
+        splashIndex = id;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playSplashSound");
+
+        await Task.Delay(450);
+        if (splashIndex == id) splashIndex = null;
+        StateHasChanged();
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new PuddleSplashResult(
+                Jumps: jumps,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record PuddleSplashResult(int Jumps, int ElapsedSeconds);
+}

@@ -138,7 +138,7 @@ and multi-step rules.
   twinkle.
 - [x] Snow Day - tap to make snow fall, create footprints, or reveal objects
   beneath snow.
-- [ ] Puddle Splash - tap puddles and watch a character jump into them.
+- [x] Puddle Splash - tap puddles and watch a character jump into them.
 - [x] Follow the Butterfly - a butterfly moves slowly around; touching it makes
   it flutter somewhere else. (`GentleCreatures.razor`'s "Follow the
   Butterfly" theme.)

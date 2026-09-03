@@ -66,6 +66,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Penalty Shootout
 - Pool / Billiards
 - Pop & Sparkle
+- Puddle Splash
 - Quick Math
 - Reaction Timer
 - Red Light, Green Light
