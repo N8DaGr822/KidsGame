@@ -113,6 +113,7 @@ public static class BuiltInGames
     public const string TouchTheBodyPart = "touch-the-body-part";
     public const string StackTheBlocks = "stack-the-blocks";
     public const string KnockItDown = "knock-it-down";
+    public const string RollTheBall = "roll-the-ball";
     public const string SlotMachine = "slot-machine";
     public const string Solitaire = "solitaire";
 
@@ -220,6 +221,7 @@ public static class BuiltInGames
         new BuiltInGame("Touch the Body Part", "🧑", TouchTheBodyPart, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Stack the Blocks", "🧱", StackTheBlocks, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Knock It Down", "🧨", KnockItDown, MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Roll the Ball", "⚽", RollTheBall, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Lucky Spin Slots", "🎰", SlotMachine, MinAge: 18),
         new BuiltInGame("Solitaire", "♠️", Solitaire, MinAge: 6),
     };

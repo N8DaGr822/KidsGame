@@ -78,6 +78,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Robot Commands
 - Rock Paper Scissors
 - Roguelike Arena
+- Roll the Ball
 - Sequence Puzzle
 - Shadow Match
 - Shape Sorter

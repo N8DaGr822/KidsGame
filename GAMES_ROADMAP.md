@@ -76,7 +76,7 @@ Current recommendation:
 
 1. **Shared systems first** - timer/sound/session helpers are now the biggest
    code-health multiplier.
-2. **Toddler physical/sensory games** - small, visual, and quick to ship.
+2. **Toddler physical/sensory games** - all shipped 2026-09-03. Tier complete.
 3. **Remaining zero/low-asset puzzles** - Jigsaw, Quick Math, Math
    Target, and Spot the Difference all shipped 2026-09-01. Tier complete.
 4. **RPG/strategy vertical slice** - Dungeon Crawler, Mini RPG Battle, and
@@ -151,7 +151,7 @@ and multi-step rules.
   together automatically.
 - [x] Knock It Down - start with a block tower; tap it and everything tumbles,
   then automatically rebuilds.
-- [ ] Roll the Ball - swipe or tap a large ball and watch it roll, bounce, or
+- [x] Roll the Ball - swipe or tap a large ball and watch it roll, bounce, or
   knock over objects.
 
 ## Real-Time Game-Loop Arcade

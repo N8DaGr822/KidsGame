@@ -1,0 +1,101 @@
+@*
+    RollTheBall.razor
+    A toddler cause-and-effect toy (~1 year old target): tap the ball and it
+    rolls and spins across the scene into a set of pins, knocking them
+    over - then everything resets so it can be rolled again. No score, no
+    timer, no fail state, and nothing to get wrong.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many times the
+    ball was rolled and how long the child played, then returns to the
+    setup screen.
+
+    Usage:
+        <RollTheBall OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="rtb-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="rtb-setup game-setup-panel">
+            <h2>⚽ Roll the Ball</h2>
+            <p>Tap the ball and watch it roll into the pins!</p>
+            <button class="rtb-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="rtb-hud game-hud">
+            <span class="rtb-title">Roll the Ball</span>
+            <button class="rtb-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="rtb-field">
+            <div class="rtb-pins @(knocked ? "knocked" : "")">
+                <span class="rtb-pin">🎳</span>
+                <span class="rtb-pin">🎳</span>
+                <span class="rtb-pin">🎳</span>
+            </div>
+
+            <button class="rtb-ball @(rolling ? "rolling" : "")" @onclick="Roll" disabled="@rolling">⚽</button>
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<RollTheBallResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private Phase phase = Phase.Setup;
+    private bool rolling;
+    private bool knocked;
+    private int rolls;
+    private DateTime startedAtUtc;
+
+    private void StartGame()
+    {
+        rolling = false;
+        knocked = false;
+        rolls = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task Roll()
+    {
+        if (rolling) return;
+        rolls++;
+        rolling = true;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playCatchSound");
+
+        await Task.Delay(650);
+        knocked = true;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playImpactSound");
+
+        await Task.Delay(1100);
+        rolling = false;
+        knocked = false;
+        StateHasChanged();
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new RollTheBallResult(
+                Rolls: rolls,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record RollTheBallResult(int Rolls, int ElapsedSeconds);
+}

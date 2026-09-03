@@ -43,6 +43,7 @@ public static class GameThemes
         [BuiltInGames.TouchTheBodyPart] = "gh-theme-toddler",
         [BuiltInGames.StackTheBlocks] = "gh-theme-toddler",
         [BuiltInGames.KnockItDown] = "gh-theme-toddler",
+        [BuiltInGames.RollTheBall] = "gh-theme-toddler",
 
         // ---- nature: animals, gardens, water ----
         [BuiltInGames.MemoryMatch] = "gh-theme-nature",
