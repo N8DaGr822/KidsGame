@@ -86,6 +86,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Snow Day
 - Sound Buttons
 - Space Survival
+- Stack the Blocks
 - Spin the Wheel
 - Spot the Difference
 - Sudoku

@@ -147,7 +147,7 @@ and multi-step rules.
 
 - [x] Bath Time - tap bubbles, splash water, squeak a rubber duck, or pour
   water from a cup.
-- [ ] Stack the Blocks - extremely forgiving drag-and-drop blocks that snap
+- [x] Stack the Blocks - extremely forgiving drag-and-drop blocks that snap
   together automatically.
 - [ ] Knock It Down - start with a block tower; tap it and everything tumbles,
   then automatically rebuilds.

@@ -1,0 +1,117 @@
+@*
+    StackTheBlocks.razor
+    A toddler cause-and-effect toy (~1 year old target): tap a block in the
+    tray and it drops onto the stack and snaps into place automatically -
+    no precise dragging needed. Tap the top block of the stack to take it
+    back off. Every tap is valid and reversible, no "correct" order, no
+    score, no timer, no fail state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many blocks
+    were placed and how long the child played, then returns to the setup
+    screen.
+
+    Usage:
+        <StackTheBlocks OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="stb-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="stb-setup game-setup-panel">
+            <h2>🧱 Stack the Blocks</h2>
+            <p>Tap a block to add it to the tower - tap the top block to take it back off!</p>
+            <button class="stb-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="stb-hud game-hud">
+            <span class="stb-title">Stack the Blocks</span>
+            <button class="stb-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="stb-field">
+            <div class="stb-stack">
+                @for (var i = 0; i < stack.Count; i++)
+                {
+                    var idx = i;
+                    var isTop = idx == stack.Count - 1;
+                    <button class="stb-block @(isTop && justDropped ? "drop" : "")" style="background:@stack[idx];" @onclick="() => RemoveTop(isTop)"></button>
+                }
+            </div>
+
+            <div class="stb-tray">
+                @foreach (var color in Colors)
+                {
+                    <button class="stb-swatch" style="background:@color;" @onclick="() => AddBlock(color)"></button>
+                }
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<StackTheBlocksResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private static readonly string[] Colors = { "#FF6B6B", "#FFD60A", "#4ECDC4", "#9D4EDD", "#63C7FF", "#8CE99A" };
+    private const int MaxBlocks = 10;
+
+    private Phase phase = Phase.Setup;
+    private readonly List<string> stack = new();
+    private bool justDropped;
+    private int placed;
+    private DateTime startedAtUtc;
+
+    private void StartGame()
+    {
+        stack.Clear();
+        justDropped = false;
+        placed = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task AddBlock(string color)
+    {
+        if (stack.Count >= MaxBlocks) return;
+        stack.Add(color);
+        placed++;
+        justDropped = true;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playImpactSound");
+
+        await Task.Delay(300);
+        justDropped = false;
+        StateHasChanged();
+    }
+
+    private async Task RemoveTop(bool isTop)
+    {
+        if (!isTop || stack.Count == 0) return;
+        stack.RemoveAt(stack.Count - 1);
+        placed++;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playCatchSound");
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new StackTheBlocksResult(
+                BlocksPlaced: placed,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record StackTheBlocksResult(int BlocksPlaced, int ElapsedSeconds);
+}
