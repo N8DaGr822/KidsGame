@@ -1,0 +1,114 @@
+@*
+    KnockItDown.razor
+    A toddler cause-and-effect toy (~1 year old target): a tower of blocks
+    sits waiting - tap it and every block tumbles off in a different
+    direction with a crash, then a moment later the tower automatically
+    rebuilds itself so it's ready to knock down again. No score, no timer,
+    no fail state, and nothing to get wrong.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many times the
+    tower was knocked down and how long the child played, then returns to
+    the setup screen.
+
+    Usage:
+        <KnockItDown OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="kid-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="kid-setup game-setup-panel">
+            <h2>🧨 Knock It Down</h2>
+            <p>Tap the tower and watch it tumble - it rebuilds itself every time!</p>
+            <button class="kid-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="kid-hud game-hud">
+            <span class="kid-title">Knock It Down</span>
+            <button class="kid-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="kid-field">
+            <button class="kid-tower @(tumbling ? "tumbling" : "")" @onclick="Knock" disabled="@tumbling">
+                @for (var i = 0; i < BlockColors.Length; i++)
+                {
+                    var idx = i;
+                    <span class="kid-block" style="background:@BlockColors[idx]; --kid-dx:@(dx[idx])px; --kid-dy:@(dy[idx])px; --kid-rot:@(rot[idx])deg;"></span>
+                }
+            </button>
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<KnockItDownResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private static readonly string[] BlockColors = { "#FF6B6B", "#FFD60A", "#4ECDC4", "#9D4EDD", "#63C7FF" };
+
+    private Phase phase = Phase.Setup;
+    private readonly Random rng = new();
+    private bool tumbling;
+    private int knocks;
+    private DateTime startedAtUtc;
+    private readonly double[] dx = new double[BlockColors.Length];
+    private readonly double[] dy = new double[BlockColors.Length];
+    private readonly double[] rot = new double[BlockColors.Length];
+
+    private void StartGame()
+    {
+        tumbling = false;
+        knocks = 0;
+        RollTumble();
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private void RollTumble()
+    {
+        for (var i = 0; i < BlockColors.Length; i++)
+        {
+            var side = rng.NextDouble() < 0.5 ? -1 : 1;
+            dx[i] = side * (80 + rng.NextDouble() * 140);
+            dy[i] = 40 + rng.NextDouble() * 60;
+            rot[i] = side * (180 + rng.NextDouble() * 260);
+        }
+    }
+
+    private async Task Knock()
+    {
+        if (tumbling) return;
+        knocks++;
+        tumbling = true;
+        RollTumble();
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playImpactSound");
+
+        await Task.Delay(1400);
+        tumbling = false;
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playCatchSound");
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new KnockItDownResult(
+                Knocks: knocks,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record KnockItDownResult(int Knocks, int ElapsedSeconds);
+}

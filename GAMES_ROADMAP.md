@@ -149,7 +149,7 @@ and multi-step rules.
   water from a cup.
 - [x] Stack the Blocks - extremely forgiving drag-and-drop blocks that snap
   together automatically.
-- [ ] Knock It Down - start with a block tower; tap it and everything tumbles,
+- [x] Knock It Down - start with a block tower; tap it and everything tumbles,
   then automatically rebuilds.
 - [ ] Roll the Ball - swipe or tap a large ball and watch it roll, bounce, or
   knock over objects.

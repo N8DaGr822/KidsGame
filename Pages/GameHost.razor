@@ -209,6 +209,10 @@
             {
                 <StackTheBlocks PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleStackTheBlocksComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.KnockItDown)
+            {
+                <KnockItDown PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleKnockItDownComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.BabyPiano)
             {
                 <BabyPiano PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBabyPianoComplete" />
@@ -1201,6 +1205,20 @@
             GameId = _game.Id,
             Difficulty = $"{result.BlocksPlaced} blocks",
             Moves = result.BlocksPlaced,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleKnockItDownComplete(KnockItDown.KnockItDownResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Difficulty = $"{result.Knocks} knocks",
+            Moves = result.Knocks,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

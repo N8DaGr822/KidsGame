@@ -45,6 +45,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Higher or Lower
 - Hot and Cold
 - Jigsaw Puzzle
+- Knock It Down
 - Laser Maze
 - Lights On, Lights Off
 - Logic Grid Puzzle
