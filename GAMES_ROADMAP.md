@@ -111,7 +111,7 @@ and multi-step rules.
   or sparkles behind.
 - [x] Fireworks Touch - tap anywhere for a soft colorful burst; keep it gentle,
   not realistic or loud.
-- [ ] Spin the Wheel - swipe or tap a large wheel, fan, pinwheel, or carousel
+- [x] Spin the Wheel - swipe or tap a large wheel, fan, pinwheel, or carousel
   and watch it spin.
 
 ### Animals, body, and sound

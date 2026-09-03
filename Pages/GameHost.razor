@@ -177,6 +177,10 @@
             {
                 <LightsOnOff PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleLightsOnOffComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.SpinTheWheel)
+            {
+                <SpinTheWheel PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleSpinTheWheelComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.BabyPiano)
             {
                 <BabyPiano PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBabyPianoComplete" />
@@ -1057,6 +1061,20 @@
             GameId = _game.Id,
             Difficulty = $"{result.Bursts} bursts",
             Moves = result.Bursts,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleSpinTheWheelComplete(SpinTheWheel.SpinTheWheelResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Difficulty = $"{result.Spins} spins",
+            Moves = result.Spins,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

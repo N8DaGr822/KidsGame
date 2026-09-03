@@ -1,0 +1,110 @@
+@*
+    SpinTheWheel.razor
+    A toddler cause-and-effect toy (~1 year old target): a big colorful wheel
+    that spins fast when tapped and slowly winds down to a stop. No prize, no
+    "winning" segment - the spinning motion and sound are the whole point.
+    Tapping again mid-spin just adds more spin. No score, no timer, no fail
+    state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many spins were
+    started and how long the child played, then returns to the setup screen.
+
+    Usage:
+        <SpinTheWheel OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="stw-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="stw-setup game-setup-panel">
+            <h2>🎡 Spin the Wheel</h2>
+            <p>Tap the wheel and watch it spin!</p>
+            <button class="stw-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="stw-hud game-hud">
+            <span class="stw-title">Spin the Wheel</span>
+            <button class="stw-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="stw-field">
+            <div class="stw-pointer">▼</div>
+            <button class="stw-wheel" style="transform: rotate(@(rotation)deg); background: @WheelBackground;" @onclick="Spin">
+                @for (var i = 0; i < Wedges.Length; i++)
+                {
+                    var idx = i;
+                    var angle = (360.0 / Wedges.Length) * idx + (360.0 / Wedges.Length / 2);
+                    <span class="stw-wedge" style="transform: rotate(@(angle)deg) translate(0, -34%);">@Wedges[idx].Emoji</span>
+                }
+                <span class="stw-hub">🎯</span>
+            </button>
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<SpinTheWheelResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private record Wedge(string Color, string Emoji);
+
+    private static readonly Wedge[] Wedges =
+    {
+        new("#FF6B6B", "🍓"), new("#FFD60A", "🌟"), new("#4ECDC4", "🐠"), new("#9D4EDD", "🦄"),
+        new("#63C7FF", "🌈"), new("#8CE99A", "🐸"), new("#FF8FB1", "🌸"), new("#FFA94D", "🦊"),
+    };
+
+    private Phase phase = Phase.Setup;
+    private readonly Random rng = new();
+    private double rotation;
+    private int spins;
+    private DateTime startedAtUtc;
+
+    private static readonly string WheelBackground = BuildWheelBackground();
+
+    private static string BuildWheelBackground()
+    {
+        var step = 360.0 / Wedges.Length;
+        var stops = Enumerable.Range(0, Wedges.Length)
+            .Select(i => $"{Wedges[i].Color} {i * step}deg {(i + 1) * step}deg");
+        return $"conic-gradient({string.Join(", ", stops)})";
+    }
+
+    private void StartGame()
+    {
+        rotation = 0;
+        spins = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task Spin()
+    {
+        spins++;
+        rotation += 720 + rng.Next(360, 1080);
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playCatchSound");
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SpinTheWheelResult(
+                Spins: spins,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record SpinTheWheelResult(int Spins, int ElapsedSeconds);
+}
