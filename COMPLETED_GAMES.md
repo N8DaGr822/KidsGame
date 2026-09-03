@@ -92,6 +92,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Tank Duel
 - Threes
 - Tic-Tac-Toe
+- Touch the Body Part
 - Time Trial Racer
 - Top-Down Racing
 - Tower Defense

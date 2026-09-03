@@ -1,0 +1,110 @@
+@*
+    TouchTheBodyPart.razor
+    A toddler cause-and-effect toy (~1 year old target): a friendly
+    character calls out a body part ("Find the nose!") and tapping ANY part
+    of the character reacts with a bounce and names itself - exploratory,
+    not a correct-answer quiz, so there's no wrong tap. After any tap the
+    prompt just moves on to a new part. No score, no timer, no fail state.
+
+    There's no natural "round" here, so the in-scene "All done" button is
+    what logs the play session - it fires OnComplete with how many taps
+    happened and how long the child played, then returns to the setup
+    screen.
+
+    Usage:
+        <TouchTheBodyPart OnComplete="HandleGameComplete" />
+*@
+@inject InteropService Interop
+
+<div class="ttb-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="ttb-setup game-setup-panel">
+            <h2>🧑 Touch the Body Part</h2>
+            <p>Tap the nose, hands, feet, or tummy - any part is a great answer!</p>
+            <button class="ttb-start-btn game-primary-action" @onclick="StartGame">Start</button>
+        </div>
+    }
+    else
+    {
+        <div class="ttb-hud game-hud">
+            <span class="ttb-title">Touch the Body Part</span>
+            <button class="ttb-restart-btn game-secondary-action" @onclick="FinishSession">All done</button>
+        </div>
+
+        <div class="ttb-prompt">Find the @prompt!</div>
+
+        <div class="ttb-field">
+            <div class="ttb-character">
+                <button class="ttb-part head @(activePart == "head" ? "go" : "")" @onclick='() => Touch("head")'></button>
+                <button class="ttb-part nose @(activePart == "nose" ? "go" : "")" @onclick='() => Touch("nose")'></button>
+                <button class="ttb-part hand left @(activePart == "hand" ? "go" : "")" @onclick='() => Touch("hand")'></button>
+                <button class="ttb-part hand right @(activePart == "hand" ? "go" : "")" @onclick='() => Touch("hand")'></button>
+                <button class="ttb-part tummy @(activePart == "tummy" ? "go" : "")" @onclick='() => Touch("tummy")'></button>
+                <button class="ttb-part foot left @(activePart == "foot" ? "go" : "")" @onclick='() => Touch("foot")'></button>
+                <button class="ttb-part foot right @(activePart == "foot" ? "go" : "")" @onclick='() => Touch("foot")'></button>
+
+                @if (activePart is not null)
+                {
+                    <div class="ttb-bubble">@Cap(activePart)!</div>
+                }
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<TouchTheBodyPartResult> OnComplete { get; set; }
+
+    private enum Phase { Setup, Playing }
+
+    private static readonly string[] Parts = { "head", "nose", "hand", "tummy", "foot" };
+
+    private Phase phase = Phase.Setup;
+    private readonly Random rng = new();
+    private string prompt = "nose";
+    private string? activePart;
+    private int taps;
+    private DateTime startedAtUtc;
+
+    private static string Cap(string s) => char.ToUpper(s[0]) + s[1..];
+
+    private void StartGame()
+    {
+        prompt = Parts[rng.Next(Parts.Length)];
+        activePart = null;
+        taps = 0;
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+    }
+
+    private async Task Touch(string part)
+    {
+        taps++;
+        activePart = part;
+        prompt = Parts[rng.Next(Parts.Length)];
+        StateHasChanged();
+        await Interop.InvokeVoidAsync("playMatchSound");
+
+        await Task.Delay(700);
+        if (activePart == part) activePart = null;
+        StateHasChanged();
+    }
+
+    private async Task FinishSession()
+    {
+        phase = Phase.Setup;
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new TouchTheBodyPartResult(
+                Taps: taps,
+                ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
+        }
+    }
+
+    public record TouchTheBodyPartResult(int Taps, int ElapsedSeconds);
+}

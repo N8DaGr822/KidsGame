@@ -110,6 +110,7 @@ public static class BuiltInGames
     public const string PuddleSplash = "puddle-splash";
     public const string BathTime = "bath-time";
     public const string FunnyFaces = "funny-faces";
+    public const string TouchTheBodyPart = "touch-the-body-part";
     public const string SlotMachine = "slot-machine";
     public const string Solitaire = "solitaire";
 
@@ -214,6 +215,7 @@ public static class BuiltInGames
         new BuiltInGame("Puddle Splash", "🐸", PuddleSplash, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Bath Time", "🛁", BathTime, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Funny Faces", "🤪", FunnyFaces, MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Touch the Body Part", "🧑", TouchTheBodyPart, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Lucky Spin Slots", "🎰", SlotMachine, MinAge: 18),
         new BuiltInGame("Solitaire", "♠️", Solitaire, MinAge: 6),
     };

@@ -120,7 +120,7 @@ and multi-step rules.
   eventually fall asleep again. (`SleepyAnimals.razor`'s "Wake Up" mode.)
 - [x] Funny Faces - tap parts of a face; nose honks, ears wiggle, eyes blink,
   tongue pops out.
-- [ ] Touch the Body Part - a friendly character highlights "nose", "hand",
+- [x] Touch the Body Part - a friendly character highlights "nose", "hand",
   "foot", etc.; exploratory rather than a correct-answer quiz.
 - [x] Bedtime Animals - tap animals to tuck them into bed, turn off the lamp,
   and hear a tiny sleepy sound. (`SleepyAnimals.razor`'s "Bedtime" mode.)
