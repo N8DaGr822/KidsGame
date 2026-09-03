@@ -1,0 +1,140 @@
+.bth-game {
+    width: min(1100px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 1.25rem;
+}
+
+.bth-setup {
+    display: grid;
+    gap: 1rem;
+    padding: clamp(1rem, 4vw, 2rem);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+    justify-items: center;
+}
+
+.bth-setup h2 {
+    margin-bottom: 0;
+    font-size: clamp(2rem, 7vw, 3rem);
+}
+
+.bth-setup p {
+    max-width: 30rem;
+    color: var(--text-muted);
+}
+
+.bth-title {
+    font-weight: 900;
+}
+
+.bth-scene {
+    position: relative;
+    width: min(1000px, 92vw, 98vh);
+    aspect-ratio: 4 / 3;
+    margin: 0 auto;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, #fbe9d0 0%, #f7d9ab 100%);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.bth-cup {
+    position: absolute;
+    top: 4%;
+    right: 10%;
+    border: none;
+    background: transparent;
+    font-size: clamp(2.5rem, 8vw, 3.5rem);
+    cursor: pointer;
+    transform-origin: 70% 20%;
+    transition: transform 0.25s ease;
+    touch-action: manipulation;
+    z-index: 3;
+}
+
+.bth-cup.pouring {
+    animation: bth-tip 0.7s ease-in-out;
+}
+
+@keyframes bth-tip {
+    0%, 100% { transform: rotate(0deg); }
+    30% { transform: rotate(-35deg); }
+    70% { transform: rotate(-35deg); }
+}
+
+.bth-stream {
+    position: absolute;
+    top: 14%;
+    right: 17%;
+    width: 6px;
+    height: 30%;
+    background: linear-gradient(180deg, rgba(140, 200, 235, 0.9), rgba(140, 200, 235, 0.3));
+    border-radius: 3px;
+    animation: bth-stream-fall 0.7s ease-in;
+    z-index: 2;
+}
+
+@keyframes bth-stream-fall {
+    0% { opacity: 0; transform: scaleY(0); }
+    20% { opacity: 1; transform: scaleY(1); }
+    80% { opacity: 1; transform: scaleY(1); }
+    100% { opacity: 0; transform: scaleY(0.6); }
+}
+
+.bth-duck {
+    position: absolute;
+    top: 8%;
+    left: 10%;
+    border: none;
+    background: transparent;
+    font-size: clamp(2.5rem, 8vw, 3.5rem);
+    cursor: pointer;
+    filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.2));
+    touch-action: manipulation;
+    z-index: 3;
+}
+
+.bth-duck.squeak {
+    animation: bth-wobble 0.4s ease-in-out;
+}
+
+@keyframes bth-wobble {
+    0%, 100% { transform: rotate(0deg) scale(1); }
+    25% { transform: rotate(-14deg) scale(1.08); }
+    75% { transform: rotate(14deg) scale(1.08); }
+}
+
+.bth-tub {
+    position: absolute;
+    left: 4%;
+    right: 4%;
+    bottom: 4%;
+    height: 68%;
+    border-radius: var(--radius-lg) var(--radius-lg) 3rem 3rem;
+    background: linear-gradient(180deg, rgba(140, 205, 235, 0.55), rgba(90, 165, 205, 0.75));
+    box-shadow: inset 0 6px 14px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+}
+
+.bth-bubble {
+    position: absolute;
+    border: none;
+    background: transparent;
+    font-size: clamp(1.5rem, 5vw, 2.25rem);
+    cursor: pointer;
+    touch-action: manipulation;
+    animation-name: bth-bob;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
+}
+
+@keyframes bth-bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}

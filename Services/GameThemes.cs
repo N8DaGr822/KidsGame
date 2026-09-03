@@ -38,6 +38,7 @@ public static class GameThemes
         [BuiltInGames.MakeItRain] = "gh-theme-toddler",
         [BuiltInGames.SnowDay] = "gh-theme-toddler",
         [BuiltInGames.PuddleSplash] = "gh-theme-toddler",
+        [BuiltInGames.BathTime] = "gh-theme-toddler",
 
         // ---- nature: animals, gardens, water ----
         [BuiltInGames.MemoryMatch] = "gh-theme-nature",

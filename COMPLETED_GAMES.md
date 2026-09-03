@@ -10,6 +10,7 @@ when moving items out of `GAMES_ROADMAP.md`.
 - Archery Challenge
 - Baby Piano
 - Basketball Shot
+- Bath Time
 - Battleships
 - Big & Small
 - Bubble Pop

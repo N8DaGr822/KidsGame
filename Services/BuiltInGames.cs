@@ -108,6 +108,7 @@ public static class BuiltInGames
     public const string MakeItRain = "make-it-rain";
     public const string SnowDay = "snow-day";
     public const string PuddleSplash = "puddle-splash";
+    public const string BathTime = "bath-time";
     public const string SlotMachine = "slot-machine";
     public const string Solitaire = "solitaire";
 
@@ -210,6 +211,7 @@ public static class BuiltInGames
         new BuiltInGame("Make It Rain", "🌦️", MakeItRain, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Snow Day", "❄️", SnowDay, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Puddle Splash", "🐸", PuddleSplash, MinAge: 1, MaxAge: 3),
+        new BuiltInGame("Bath Time", "🛁", BathTime, MinAge: 1, MaxAge: 3),
         new BuiltInGame("Lucky Spin Slots", "🎰", SlotMachine, MinAge: 18),
         new BuiltInGame("Solitaire", "♠️", Solitaire, MinAge: 6),
     };

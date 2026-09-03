@@ -145,7 +145,7 @@ and multi-step rules.
 
 ### Food, music, and physical play
 
-- [ ] Bath Time - tap bubbles, splash water, squeak a rubber duck, or pour
+- [x] Bath Time - tap bubbles, splash water, squeak a rubber duck, or pour
   water from a cup.
 - [ ] Stack the Blocks - extremely forgiving drag-and-drop blocks that snap
   together automatically.
