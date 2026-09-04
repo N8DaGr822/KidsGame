@@ -267,11 +267,25 @@
         {
             tiles[i] = new TileState { Type = TileType.Road, Cleared = true };
         }
+        // Enemy tiles are the only ones that cost HP when nobody's dispatched
+        // in time, so unlike gaps/cliffs they're kept a minimum distance
+        // apart - otherwise independent per-tile odds regularly roll two (or
+        // three) in close succession, which can cost half of max HP with no
+        // way to avoid it if both squires are already busy elsewhere. That's
+        // a bad-luck loss, not a skill one, so it's worth ruling out here
+        // rather than tuning damage numbers around it.
+        const int minEnemySpacing = 5;
+        var lastEnemyIndex = safeStart - minEnemySpacing;
         for (var i = safeStart; i < length - 1; i++)
         {
             var type = rng.NextDouble() < density
                 ? rng.Next(3) switch { 0 => TileType.Gap, 1 => TileType.Cliff, _ => TileType.Enemy }
                 : TileType.Road;
+            if (type == TileType.Enemy && i - lastEnemyIndex < minEnemySpacing)
+            {
+                type = rng.Next(2) == 0 ? TileType.Gap : TileType.Cliff;
+            }
+            if (type == TileType.Enemy) lastEnemyIndex = i;
             tiles[i] = new TileState { Type = type, Cleared = type == TileType.Road };
         }
         tiles[length - 1] = new TileState { Type = TileType.Castle, Cleared = true };
@@ -435,13 +449,18 @@
 
         var tile = tiles[index];
         if (tile.Cleared || tile.SquireAssigned) return;
-        if (squiresIdle <= 0) return;
+        if (squiresIdle <= 0)
+        {
+            _ = Interop.InvokeVoidAsync("playSimonErrorSound");
+            return;
+        }
 
         squiresIdle--;
         tile.SquireAssigned = true;
         tile.AutoEngaging = false; // a squire arriving mid-fight takes over and stops any HP drain immediately
         tile.ResolveTotalSeconds = BuildSeconds(tile.Type);
         tile.ResolveSecondsRemaining = tile.ResolveTotalSeconds;
+        _ = Interop.InvokeVoidAsync("playCatchSound");
     }
 
     private static int ProgressPercent(TileState tile)
