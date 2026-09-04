@@ -1,0 +1,88 @@
+.sn-game {
+    width: min(560px, 100%);
+    margin: 0 auto;
+    color: var(--text);
+    display: grid;
+    gap: 0.75rem;
+}
+
+.sn-title {
+    font-weight: 900;
+}
+
+.sn-diff-name {
+    font-weight: 900;
+}
+
+.sn-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.sn-field {
+    position: relative;
+    width: min(520px, 90vw, 60vh);
+    aspect-ratio: 1;
+    margin: 0 auto;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    outline: none;
+    background-color: #163a1f;
+    background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+    border: 4px solid #2f6a3f;
+    box-shadow: 0 0 18px rgba(47, 106, 63, 0.5) inset;
+}
+
+.sn-field:focus-visible {
+    border-color: #ffe066;
+    box-shadow: 0 0 18px rgba(255, 224, 102, 0.5) inset;
+}
+
+.sn-food {
+    position: absolute;
+    width: calc(var(--cell) * 0.72);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ff8a80, #d32f2f 70%);
+    box-shadow: 0 0 6px rgba(211, 47, 47, 0.6);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.sn-segment {
+    position: absolute;
+    width: calc(var(--cell) * 0.82);
+    aspect-ratio: 1;
+    border-radius: 30%;
+    background: linear-gradient(160deg, #6fdc8c, #2f9e52);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+}
+
+.sn-head {
+    background: linear-gradient(160deg, #a4f7b8, #3fbf68);
+    border-radius: 35% 35% 45% 45%;
+    box-shadow: 0 0 6px rgba(164, 247, 184, 0.7), 0 1px 2px rgba(0, 0, 0, 0.35);
+    z-index: 2;
+}
+
+.sn-head::before,
+.sn-head::after {
+    content: "";
+    position: absolute;
+    top: 30%;
+    left: 62%;
+    width: 16%;
+    aspect-ratio: 1;
+    background: #0c2213;
+    border-radius: 50%;
+}
+
+.sn-head::after {
+    top: 55%;
+}

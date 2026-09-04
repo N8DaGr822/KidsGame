@@ -1,0 +1,428 @@
+@*
+    Snake.razor
+    Opens the "Real-Time Game-Loop Arcade" tier from GAMES_ROADMAP.md - the
+    classic grid-snake game. Reuses SpaceGame's proven loop shape
+    (CancellationTokenSource, Task.Delay-driven tick, try/catch per tick so
+    one bad frame doesn't freeze the run) but simplified: movement is a
+    discrete grid step on a fixed cadence rather than continuous physics, so
+    there's no fixed-timestep/substep accumulator to manage - the tick
+    interval itself IS the game speed, and it gets a little shorter each
+    time the snake eats (floored at MinTickMs) for a natural difficulty
+    ramp within a single run.
+
+    Also the first game in this app to use keyboard input
+    (@onkeydown/ArrowKeys) - no existing component to copy that from, so the
+    field div is a focusable (tabindex="0") element that grabs focus on
+    start via ElementReference.FocusAsync(). Swipe input reuses the
+    pointer-event convention every other real-time game here already uses
+    (drag delta on pointerup decides the direction) rather than touch
+    events, for consistency with SpaceGame/AirHockey/etc.
+
+    Rendering follows the same "only draw occupied cells, absolutely
+    positioned by percentage" idiom as SpaceGame's stars/meteors rather
+    than a full N*N div grid - the board's grid lines are a CSS background
+    pattern, not real elements.
+
+    Usage:
+        <Snake OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="sn-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="sn-setup game-setup-panel">
+            <h2>🐍 Snake</h2>
+            <p>Guide your snake to the apples - each one makes you grow (and speeds you up a little). Don't run into the walls or your own tail! Use arrow keys or swipe to steer.</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="sn-diff-name">@DifficultyName(diff)</span>
+                            <span class="sn-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="sn-title">Snake</span>
+            <span class="game-stat">🍎 @score</span>
+            <span class="game-stat">⏱️ @FormatTime(elapsedSeconds)</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="sn-field" @ref="fieldRef" tabindex="0"
+             style="background-size: calc(100% / @GridSize) calc(100% / @GridSize); --cell: calc(100% / @GridSize);"
+             @onkeydown="OnKeyDown" @onkeydown:preventDefault="true"
+             @onpointerdown="OnFieldPointerDown" @onpointerup="OnFieldPointerUp" @onpointercancel="OnFieldPointerUp">
+
+            <div class="sn-food" style="left:@(Pct(food.X))%; top:@(Pct(food.Y))%;"></div>
+
+            @for (var i = 0; i < snake.Count; i++)
+            {
+                var seg = snake[i];
+                var angle = i == 0 ? DirAngle(direction) : 0f;
+                <div class="sn-segment @(i == 0 ? "sn-head" : "")"
+                     style="left:@(Pct(seg.X))%; top:@(Pct(seg.Y))%; transform:translate(-50%,-50%) rotate(@(angle.ToString(Inv))deg);"></div>
+            }
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(won ? "🏆 You Filled the Board!" : "🐍 Game Over!")</h2>
+                    <p>@(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")@(won ? "incredible snake work!" : $"you grew to {snake.Count} in {FormatTime(elapsedSeconds)}!")</p>
+                    <div class="game-result-stats">
+                        <div><span class="game-stat-label">Score</span><span class="game-stat-value">@score</span></div>
+                        <div><span class="game-stat-label">Time</span><span class="game-stat-value">@FormatTime(elapsedSeconds)</span></div>
+                    </div>
+                    <PersonalBestBadge Value="@(bestScore is { } bs ? $"{bs} score" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<SnakeResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (high score, per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    private enum Difficulty { Easy, Medium, Hard }
+    private enum Direction { Up, Down, Left, Right }
+
+    private const int GridSize = 18;
+    private const int MinTickMs = 55;
+    private const int SpeedUpMsPerFood = 4;
+    private const double SwipeThresholdPx = 18;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static int BaseTickMs(Difficulty d) => d switch { Difficulty.Easy => 170, Difficulty.Medium => 125, _ => 90 };
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+
+    private readonly List<(int X, int Y)> snake = new();
+    private (int X, int Y) food;
+    private Direction direction = Direction.Right;
+    private Direction pendingDirection = Direction.Right;
+    private bool gameOver;
+    private bool won;
+
+    private int score;
+    private int elapsedSeconds;
+    private int tickMs;
+    private int? bestScore;
+    private bool isNewBest;
+    private DateTime startedAtUtc;
+
+    private ElementReference fieldRef;
+    private bool needsFocus;
+    private long? activePointerId;
+    private double pointerStartX, pointerStartY;
+
+    private CancellationTokenSource? _loopCts;
+    private readonly Random rng = new();
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (needsFocus && phase == Phase.Playing)
+        {
+            needsFocus = false;
+            await fieldRef.FocusAsync();
+        }
+    }
+
+    private void StartGame()
+    {
+        snake.Clear();
+        var startX = GridSize / 2;
+        var startY = GridSize / 2;
+        snake.Add((startX, startY));
+        snake.Add((startX - 1, startY));
+        snake.Add((startX - 2, startY));
+
+        direction = Direction.Right;
+        pendingDirection = Direction.Right;
+        gameOver = false;
+        won = false;
+        score = 0;
+        elapsedSeconds = 0;
+        tickMs = BaseTickMs(selectedDifficulty);
+        bestScore = null;
+        isNewBest = false;
+
+        TrySpawnFood();
+
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+        needsFocus = true;
+
+        _loopCts?.Cancel();
+        _loopCts = new CancellationTokenSource();
+        _ = RunLoopAsync(_loopCts.Token);
+    }
+
+    private async Task ExitToSetup()
+    {
+        _loopCts?.Cancel();
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SnakeResult(DifficultyName(selectedDifficulty), score, elapsedSeconds));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task RunLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(tickMs, ct);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            try
+            {
+                Step();
+                elapsedSeconds = (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds;
+
+                if (gameOver)
+                {
+                    await FinishGame();
+                    return;
+                }
+
+                StateHasChanged();
+            }
+            catch (Exception) when (!ct.IsCancellationRequested)
+            {
+            }
+        }
+    }
+
+    private void Step()
+    {
+        if (!IsOpposite(pendingDirection, direction)) direction = pendingDirection;
+
+        var (dx, dy) = Delta(direction);
+        var head = snake[0];
+        var newHead = (X: head.X + dx, Y: head.Y + dy);
+
+        if (newHead.X < 0 || newHead.X >= GridSize || newHead.Y < 0 || newHead.Y >= GridSize)
+        {
+            gameOver = true;
+            return;
+        }
+
+        var ateFood = newHead == food;
+        var checkCount = ateFood ? snake.Count : snake.Count - 1; // tail vacates its cell this tick unless growing
+        for (var i = 0; i < checkCount; i++)
+        {
+            if (snake[i] == newHead)
+            {
+                gameOver = true;
+                return;
+            }
+        }
+
+        snake.Insert(0, newHead);
+        if (ateFood)
+        {
+            score++;
+            tickMs = Math.Max(MinTickMs, tickMs - SpeedUpMsPerFood);
+            _ = Interop.InvokeVoidAsync("playSnakeEatSound");
+            if (!TrySpawnFood())
+            {
+                won = true;
+                gameOver = true;
+            }
+        }
+        else
+        {
+            snake.RemoveAt(snake.Count - 1);
+        }
+    }
+
+    private bool TrySpawnFood()
+    {
+        var occupied = new HashSet<(int, int)>(snake);
+        var free = new List<(int, int)>();
+        for (var x = 0; x < GridSize; x++)
+        {
+            for (var y = 0; y < GridSize; y++)
+            {
+                if (!occupied.Contains((x, y))) free.Add((x, y));
+            }
+        }
+
+        if (free.Count == 0) return false;
+        food = free[rng.Next(free.Count)];
+        return true;
+    }
+
+    private void OnKeyDown(KeyboardEventArgs e)
+    {
+        if (phase != Phase.Playing) return;
+
+        var dir = e.Key switch
+        {
+            "ArrowUp" or "w" or "W" => Direction.Up,
+            "ArrowDown" or "s" or "S" => Direction.Down,
+            "ArrowLeft" or "a" or "A" => Direction.Left,
+            "ArrowRight" or "d" or "D" => Direction.Right,
+            _ => (Direction?)null,
+        };
+        if (dir is { } d) QueueDirection(d);
+    }
+
+    private void OnFieldPointerDown(PointerEventArgs e)
+    {
+        if (phase != Phase.Playing) return;
+        activePointerId = e.PointerId;
+        pointerStartX = e.ClientX;
+        pointerStartY = e.ClientY;
+    }
+
+    private void OnFieldPointerUp(PointerEventArgs e)
+    {
+        if (activePointerId != e.PointerId) return;
+        activePointerId = null;
+
+        var dx = e.ClientX - pointerStartX;
+        var dy = e.ClientY - pointerStartY;
+        if (Math.Max(Math.Abs(dx), Math.Abs(dy)) < SwipeThresholdPx) return;
+
+        var dir = Math.Abs(dx) > Math.Abs(dy)
+            ? (dx > 0 ? Direction.Right : Direction.Left)
+            : (dy > 0 ? Direction.Down : Direction.Up);
+        QueueDirection(dir);
+    }
+
+    private void QueueDirection(Direction d)
+    {
+        if (IsOpposite(d, direction)) return;
+        pendingDirection = d;
+    }
+
+    private static (int Dx, int Dy) Delta(Direction d) => d switch
+    {
+        Direction.Up => (0, -1),
+        Direction.Down => (0, 1),
+        Direction.Left => (-1, 0),
+        _ => (1, 0),
+    };
+
+    private static bool IsOpposite(Direction a, Direction b)
+    {
+        var (adx, ady) = Delta(a);
+        var (bdx, bdy) = Delta(b);
+        return adx == -bdx && ady == -bdy;
+    }
+
+    private static float DirAngle(Direction d) => d switch
+    {
+        Direction.Right => 0f,
+        Direction.Down => 90f,
+        Direction.Left => 180f,
+        _ => 270f,
+    };
+
+    private static string Pct(int cellIndex) => ((cellIndex + 0.5) * 100.0 / GridSize).ToString(Inv);
+
+    private async Task FinishGame()
+    {
+        _loopCts?.Cancel();
+        phase = Phase.Finished;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"high-score-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestScore = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.Snake, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.Snake, key, score, lowerIsBetter: false);
+        }
+
+        _ = Interop.InvokeVoidAsync("playSnakeGameOverSound");
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new SnakeResult(DifficultyName(selectedDifficulty), score, elapsedSeconds));
+        }
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.Minutes > 0 ? $"{ts.Minutes}:{ts.Seconds:D2}" : $"{ts.Seconds}s";
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "A relaxed pace",
+        Difficulty.Medium => "A steady challenge",
+        _ => "Fast reflexes needed",
+    };
+
+    public ValueTask DisposeAsync()
+    {
+        _loopCts?.Cancel();
+        return ValueTask.CompletedTask;
+    }
+
+    public record SnakeResult(string Difficulty, int Score, int ElapsedSeconds);
+}

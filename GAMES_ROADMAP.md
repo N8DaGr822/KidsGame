@@ -158,7 +158,7 @@ and multi-step rules.
 
 These need a continuous loop, collision model, and responsive controls.
 
-- [ ] Snake
+- [x] Snake
 - [ ] Breakout
 - [ ] Pong
 - [ ] Maze Escape

@@ -700,3 +700,17 @@ export function playDrumHit(index) {
     noiseBurst(ctx, ctx.currentTime, 0.16, 0.22, freq + 400);
     tone(ctx, freq, ctx.currentTime, 0.15, 'sine', 0.22);
 }
+
+export function playSnakeEatSound() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    tone(ctx, 660, t, 0.07, 'square', 0.15);
+    tone(ctx, 880, t + 0.05, 0.09, 'square', 0.15);
+}
+
+export function playSnakeGameOverSound() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    slide(ctx, 300, 90, ctx.currentTime, 0.35, 'sawtooth', 0.18);
+}

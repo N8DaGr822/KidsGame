@@ -389,6 +389,10 @@
             {
                 <RacingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRacingGameComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.Snake)
+            {
+                <Snake PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSnakeComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.TimeTrialRacer)
             {
                 <TimeTrialRacer PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTimeTrialRacerComplete" />
@@ -1909,6 +1913,21 @@
     }
 
     private async Task HandleSpaceGameComplete(SpaceGame.SpaceGameResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = $"Score {result.Score}",
+            Moves = result.Score,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleSnakeComplete(Snake.SnakeResult result)
     {
         if (State.CurrentProfile is null || _game is null) return;
 
