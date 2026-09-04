@@ -1,0 +1,513 @@
+@*
+    KnightsMarch.razor
+    An escort/path-building game inspired by the SNES classic "King Arthur's
+    World" (an original game with its own theme/name, not a reproduction -
+    that title and its characters are Nintendo's). Sir Cedric auto-walks
+    forward along a road far longer than the screen and can't be steered
+    directly - the player's job is to race ahead of him, tapping gaps,
+    cliffs, and monsters to dispatch one of a small pool of squires who
+    clear each obstacle over a few seconds. Reach an obstacle before a
+    squire has started on it and Cedric stalls there; reach an unresolved
+    monster tile specifically and he fights it alone, taking damage until
+    it's cleared (dispatching a squire mid-fight immediately stops the
+    damage and finishes the job faster) - so priority matters, not just
+    speed.
+
+    Two things this app has never needed before, both built from scratch
+    here (see GAMES_ROADMAP.md research notes - nothing to copy):
+      - A horizontally scrolling camera: the road strip is rendered at a
+        fixed px tile size and translateX'd under a fixed-width viewport,
+        rather than the percentage-of-container positioning every other
+        real-time game here uses (SpaceGame, Snake) - percentages can't
+        express content that's wider than its own viewport and slides
+        partially off both edges.
+      - A build-progress indicator: a conic-gradient ring drawn straight in
+        CSS from a --progress custom property, no image/library needed.
+
+    The tick loop itself reuses SpaceGame's proven shape (fixed-timestep
+    accumulator, CancellationTokenSource, try/catch per frame) since
+    Cedric's position, squire timers, and HP drain are all continuous-time
+    simulation - closer to SpaceGame's physics than Snake's discrete grid
+    ticks.
+
+    Usage:
+        <KnightsMarch OnComplete="HandleGameComplete" />
+*@
+@implements IAsyncDisposable
+@inject InteropService Interop
+@inject AppDataService Data
+
+<div class="km-game">
+
+    @if (phase == Phase.Setup)
+    {
+        <div class="km-setup game-setup-panel">
+            <h2>🛡️ Knight's March</h2>
+            <p>Sir Cedric can't stop walking toward the castle! Tap the gaps, cliffs, and monsters ahead of him to send a squire to clear the way. Monsters hurt him if he has to fight alone - keep the road clear before he gets there.</p>
+
+            <h3 class="game-section-title">Choose a difficulty</h3>
+            @if (LockedDifficulty is { } locked)
+            {
+                <p class="game-choice-locked">🔒 A parent set this to <strong>@DifficultyName(locked)</strong> (@DifficultyDetail(locked)).</p>
+            }
+            else
+            {
+                <div class="game-option-grid">
+                    @foreach (var diff in Difficulties)
+                    {
+                        <button class="game-option-button @(diff == selectedDifficulty ? "selected" : "")" @onclick="() => selectedDifficulty = diff">
+                            <span class="km-diff-name">@DifficultyName(diff)</span>
+                            <span class="km-diff-detail">@DifficultyDetail(diff)</span>
+                        </button>
+                    }
+                </div>
+            }
+
+            <button class="game-primary-action" @onclick="StartGame">Start Game</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-hud">
+            <span class="km-title">Knight's March</span>
+            <span class="game-stat">❤️ @HpDisplay</span>
+            <span class="game-stat">🔨 @squiresIdle/@totalSquires</span>
+            <span class="game-stat">⭐ @score</span>
+            <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
+        </div>
+
+        <div class="km-progress-track"><div class="km-progress-fill" style="width:@(RoadProgressPercent)%;"></div></div>
+
+        <div class="km-viewport" style="width:@(ViewportTilesVisible * TileSizePx)px;">
+            <div class="km-strip" style="width:@(tiles.Length * TileSizePx)px; transform:translateX(@((-cameraLeftTile * TileSizePx).ToString(Inv))px);">
+
+                @foreach (var i in VisibleTileIndices())
+                {
+                    var tile = tiles[i];
+                    <div class="km-tile km-@(tile.Type.ToString().ToLowerInvariant()) @(tile.Cleared ? "cleared" : "") @(tile.Cleared ? "" : "tappable")"
+                         style="left:@(i * TileSizePx)px; width:@(TileSizePx)px;"
+                         @onclick="() => OnTileTapped(i)">
+                        @if (!tile.Cleared)
+                        {
+                            <span class="km-tile-icon">@TileIcon(tile.Type)</span>
+                            @if (tile.SquireAssigned || tile.AutoEngaging)
+                            {
+                                <div class="km-progress-ring @(tile.SquireAssigned ? "squire" : "auto")" style="--progress:@(ProgressPercent(tile))%;">
+                                    <span class="km-progress-icon">@(tile.SquireAssigned ? "🔨" : "⚔️")</span>
+                                </div>
+                            }
+                        }
+                        else if (tile.Type == TileType.Castle)
+                        {
+                            <span class="km-tile-icon">🏰</span>
+                        }
+                    </div>
+                }
+
+                <div class="km-knight @(isFightingEnemy ? "fighting" : "")" style="left:@((knightX * TileSizePx).ToString(Inv))px;">🛡️</div>
+            </div>
+        </div>
+
+        @if (phase == Phase.Finished)
+        {
+            <div class="game-result-overlay">
+                <div class="game-result-panel">
+                    <h2>@(won ? "🏆 The Castle Is Saved!" : "💀 Sir Cedric Has Fallen!")</h2>
+                    <p>
+                        @(string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ")
+                        @(won
+                            ? $"you got him home in {FormatTime(elapsedSeconds)} with {HpDisplay} HP to spare!"
+                            : $"he made it partway before running out of strength.")
+                    </p>
+                    <div class="game-result-stats">
+                        <div><span class="game-stat-label">Score</span><span class="game-stat-value">@score</span></div>
+                        <div><span class="game-stat-label">Time</span><span class="game-stat-value">@FormatTime(elapsedSeconds)</span></div>
+                    </div>
+                    <PersonalBestBadge Value="@(bestScore is { } bs ? $"{bs} score" : null)" IsNew="isNewBest" />
+                    <div class="game-result-actions">
+                        <button class="game-primary-action" @onclick="StartGame">Play Again</button>
+                        <button class="game-secondary-action" @onclick="ExitToSetup">Exit</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
+
+    [Parameter] public string? PlayerName { get; set; }
+    [Parameter] public EventCallback<KnightsMarchResult> OnComplete { get; set; }
+
+    /// <summary>Current kid profile's id, for the personal-best record
+    /// (high score, per difficulty) - null skips recording/display.</summary>
+    [Parameter] public string? ProfileId { get; set; }
+
+    /// <summary>A parent-locked difficulty name ("Easy"/"Medium"/"Hard")
+    /// from the admin panel; when set, the picker is replaced with a
+    /// locked note and that difficulty is used.</summary>
+    [Parameter] public string? ForcedDifficulty { get; set; }
+
+    private enum Phase { Setup, Playing, Finished }
+    private enum Difficulty { Easy, Medium, Hard }
+    private enum TileType { Road, Gap, Cliff, Enemy, Castle }
+
+    private const int TileSizePx = 50;
+    private const int ViewportTilesVisible = 7;
+    private const float KnightViewportFraction = 0.3f;
+    private const float MaxHp = 100f;
+    private const int ScorePerObstacle = 10;
+    private const float FixedDt = 1f / 60f;
+    private const int MaxSubstepsPerFrame = 8;
+    private const int FrameDelayMs = 16;
+
+    private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
+
+    private Difficulty? LockedDifficulty =>
+        Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
+
+    private static float WalkSpeed(Difficulty d) => d switch { Difficulty.Easy => 1.0f, Difficulty.Medium => 1.3f, _ => 1.6f };
+    private static int SquireCount(Difficulty d) => d switch { Difficulty.Easy => 3, Difficulty.Medium => 2, _ => 2 };
+    private static float ObstacleDensity(Difficulty d) => d switch { Difficulty.Easy => 0.30f, Difficulty.Medium => 0.38f, _ => 0.46f };
+    private static float EnemyDps(Difficulty d) => d switch { Difficulty.Easy => 8f, Difficulty.Medium => 12f, _ => 16f };
+    private static int LevelLength(Difficulty d) => d switch { Difficulty.Easy => 36, Difficulty.Medium => 46, _ => 56 };
+
+    private static float BuildSeconds(TileType t) => t switch
+    {
+        TileType.Gap => 1.6f,
+        TileType.Cliff => 2.0f,
+        TileType.Enemy => 1.3f,
+        _ => 0f,
+    };
+
+    // If nobody sends a squire, Cedric eventually clears an obstacle alone -
+    // slowly for gaps/cliffs (no harm, just wasted time), and for monsters
+    // specifically at the cost of steady HP loss the whole time he's engaged.
+    private static float AutoResolveSeconds(TileType t) => t switch
+    {
+        TileType.Enemy => 3.0f,
+        _ => 6.0f,
+    };
+
+    private class TileState
+    {
+        public TileType Type;
+        public bool Cleared;
+        public bool SquireAssigned;
+        public bool AutoEngaging;
+        public float ResolveSecondsRemaining;
+        public float ResolveTotalSeconds;
+    }
+
+    private Phase phase = Phase.Setup;
+    private Difficulty selectedDifficulty = Difficulty.Easy;
+
+    private TileState[] tiles = Array.Empty<TileState>();
+    private float knightX;
+    private float cameraLeftTile;
+    private bool isFightingEnemy;
+    private float hp = MaxHp;
+    private int totalSquires;
+    private int squiresIdle;
+    private int score;
+    private int elapsedSeconds;
+    private bool won;
+    private int? bestScore;
+    private bool isNewBest;
+    private DateTime startedAtUtc;
+
+    private CancellationTokenSource? _loopCts;
+    private float accumulator;
+    private readonly Random rng = new();
+
+    private string HpDisplay => ((int)MathF.Ceiling(hp)).ToString(Inv);
+    private int RoadProgressPercent => tiles.Length <= 1 ? 0 : Math.Clamp((int)(knightX * 100f / (tiles.Length - 1)), 0, 100);
+
+    protected override void OnInitialized()
+    {
+        if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+    }
+
+    private void StartGame()
+    {
+        GenerateLevel(selectedDifficulty);
+        knightX = 0f;
+        cameraLeftTile = 0f;
+        isFightingEnemy = false;
+        hp = MaxHp;
+        totalSquires = SquireCount(selectedDifficulty);
+        squiresIdle = totalSquires;
+        score = 0;
+        elapsedSeconds = 0;
+        won = false;
+        bestScore = null;
+        isNewBest = false;
+        accumulator = 0f;
+
+        startedAtUtc = DateTime.UtcNow;
+        phase = Phase.Playing;
+
+        _loopCts?.Cancel();
+        _loopCts = new CancellationTokenSource();
+        _ = RunLoopAsync(_loopCts.Token);
+    }
+
+    private void GenerateLevel(Difficulty d)
+    {
+        var length = LevelLength(d);
+        var density = ObstacleDensity(d);
+        tiles = new TileState[length];
+        tiles[0] = new TileState { Type = TileType.Road, Cleared = true };
+        // A short safe-start stretch so the very first frame doesn't force
+        // an instant reaction before the player has gotten their bearings.
+        var safeStart = Math.Min(3, length - 1);
+        for (var i = 1; i < safeStart; i++)
+        {
+            tiles[i] = new TileState { Type = TileType.Road, Cleared = true };
+        }
+        for (var i = safeStart; i < length - 1; i++)
+        {
+            var type = rng.NextDouble() < density
+                ? rng.Next(3) switch { 0 => TileType.Gap, 1 => TileType.Cliff, _ => TileType.Enemy }
+                : TileType.Road;
+            tiles[i] = new TileState { Type = type, Cleared = type == TileType.Road };
+        }
+        tiles[length - 1] = new TileState { Type = TileType.Castle, Cleared = true };
+    }
+
+    private async Task ExitToSetup()
+    {
+        _loopCts?.Cancel();
+        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new KnightsMarchResult(DifficultyName(selectedDifficulty), score, elapsedSeconds, Won: false));
+        }
+        phase = Phase.Setup;
+    }
+
+    private async Task RunLoopAsync(CancellationToken ct)
+    {
+        var lastTick = DateTime.UtcNow;
+
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(FrameDelayMs, ct);
+            }
+            catch (TaskCanceledException)
+            {
+                return;
+            }
+
+            try
+            {
+                var now = DateTime.UtcNow;
+                var elapsed = (float)(now - lastTick).TotalSeconds;
+                lastTick = now;
+
+                accumulator += elapsed;
+                var substeps = 0;
+                while (accumulator >= FixedDt && substeps < MaxSubstepsPerFrame)
+                {
+                    StepPhysics(FixedDt);
+                    accumulator -= FixedDt;
+                    substeps++;
+                }
+                if (substeps >= MaxSubstepsPerFrame) accumulator = 0f;
+
+                elapsedSeconds = (int)(now - startedAtUtc).TotalSeconds;
+
+                if (hp <= 0f)
+                {
+                    await FinishGame(won: false);
+                    return;
+                }
+                if (knightX >= tiles.Length - 1)
+                {
+                    await FinishGame(won: true);
+                    return;
+                }
+
+                StateHasChanged();
+            }
+            catch (Exception) when (!ct.IsCancellationRequested)
+            {
+                accumulator = 0f;
+            }
+        }
+    }
+
+    private void StepPhysics(float dt)
+    {
+        UpdateSquireBuilds(dt);
+        UpdateKnight(dt);
+        UpdateCamera();
+    }
+
+    private void UpdateSquireBuilds(float dt)
+    {
+        foreach (var tile in tiles)
+        {
+            if (!tile.SquireAssigned || tile.Cleared) continue;
+
+            tile.ResolveSecondsRemaining -= dt;
+            if (tile.ResolveSecondsRemaining <= 0f)
+            {
+                tile.Cleared = true;
+                tile.SquireAssigned = false;
+                squiresIdle++;
+                score += ScorePerObstacle;
+                _ = Interop.InvokeVoidAsync("playBuildCompleteSound");
+            }
+        }
+    }
+
+    private void UpdateKnight(float dt)
+    {
+        var currentTileIndex = (int)MathF.Floor(knightX);
+        var targetTileIndex = currentTileIndex + 1;
+        if (targetTileIndex >= tiles.Length)
+        {
+            isFightingEnemy = false;
+            return;
+        }
+
+        var target = tiles[targetTileIndex];
+        if (target.Cleared)
+        {
+            isFightingEnemy = false;
+            knightX = Math.Min(knightX + WalkSpeed(selectedDifficulty) * dt, targetTileIndex);
+            return;
+        }
+
+        if (!target.SquireAssigned && !target.AutoEngaging)
+        {
+            target.AutoEngaging = true;
+            target.ResolveTotalSeconds = AutoResolveSeconds(target.Type);
+            target.ResolveSecondsRemaining = target.ResolveTotalSeconds;
+            if (target.Type == TileType.Enemy) _ = Interop.InvokeVoidAsync("playImpactSound");
+        }
+
+        if (target.AutoEngaging && !target.SquireAssigned)
+        {
+            target.ResolveSecondsRemaining -= dt;
+            isFightingEnemy = target.Type == TileType.Enemy;
+            if (target.Type == TileType.Enemy)
+            {
+                hp = Math.Max(0f, hp - EnemyDps(selectedDifficulty) * dt);
+            }
+
+            if (target.ResolveSecondsRemaining <= 0f)
+            {
+                target.Cleared = true;
+                target.AutoEngaging = false;
+                score += ScorePerObstacle;
+                _ = Interop.InvokeVoidAsync("playBuildCompleteSound");
+            }
+        }
+        else
+        {
+            isFightingEnemy = false;
+        }
+    }
+
+    private void UpdateCamera()
+    {
+        var maxLeft = Math.Max(0, tiles.Length - ViewportTilesVisible);
+        var desired = knightX - ViewportTilesVisible * KnightViewportFraction;
+        cameraLeftTile = Math.Clamp(desired, 0f, maxLeft);
+    }
+
+    private IEnumerable<int> VisibleTileIndices()
+    {
+        var start = Math.Max(0, (int)MathF.Floor(cameraLeftTile) - 1);
+        var end = Math.Min(tiles.Length - 1, (int)MathF.Ceiling(cameraLeftTile) + ViewportTilesVisible + 1);
+        for (var i = start; i <= end; i++) yield return i;
+    }
+
+    private void OnTileTapped(int index)
+    {
+        if (phase != Phase.Playing) return;
+        if (index < 0 || index >= tiles.Length) return;
+
+        var tile = tiles[index];
+        if (tile.Cleared || tile.SquireAssigned) return;
+        if (squiresIdle <= 0) return;
+
+        squiresIdle--;
+        tile.SquireAssigned = true;
+        tile.AutoEngaging = false; // a squire arriving mid-fight takes over and stops any HP drain immediately
+        tile.ResolveTotalSeconds = BuildSeconds(tile.Type);
+        tile.ResolveSecondsRemaining = tile.ResolveTotalSeconds;
+    }
+
+    private static int ProgressPercent(TileState tile)
+    {
+        if (tile.ResolveTotalSeconds <= 0f) return 0;
+        var pct = 100f - tile.ResolveSecondsRemaining / tile.ResolveTotalSeconds * 100f;
+        return Math.Clamp((int)pct, 0, 100);
+    }
+
+    private static string TileIcon(TileType t) => t switch
+    {
+        TileType.Gap => "🕳️",
+        TileType.Cliff => "⛰️",
+        TileType.Enemy => "👹",
+        TileType.Castle => "🏰",
+        _ => "",
+    };
+
+    private async Task FinishGame(bool won)
+    {
+        _loopCts?.Cancel();
+        phase = Phase.Finished;
+        this.won = won;
+        if (won) score += (int)MathF.Ceiling(hp) * 2;
+
+        if (!string.IsNullOrEmpty(ProfileId))
+        {
+            var key = $"high-score-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+            bestScore = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.KnightsMarch, key);
+            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.KnightsMarch, key, score, lowerIsBetter: false);
+        }
+
+        _ = Interop.InvokeVoidAsync(won ? "playFanfareSound" : "playMismatchSound");
+        StateHasChanged();
+
+        if (OnComplete.HasDelegate)
+        {
+            await OnComplete.InvokeAsync(new KnightsMarchResult(DifficultyName(selectedDifficulty), score, elapsedSeconds, won));
+        }
+    }
+
+    private static string FormatTime(int totalSeconds)
+    {
+        var ts = TimeSpan.FromSeconds(totalSeconds);
+        return ts.Minutes > 0 ? $"{ts.Minutes}:{ts.Seconds:D2}" : $"{ts.Seconds}s";
+    }
+
+    private static string DifficultyName(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "Easy",
+        Difficulty.Medium => "Medium",
+        _ => "Hard",
+    };
+
+    private static string DifficultyDetail(Difficulty d) => d switch
+    {
+        Difficulty.Easy => "3 squires, a shorter road",
+        Difficulty.Medium => "2 squires, a longer road",
+        _ => "2 squires, fast and dangerous",
+    };
+
+    public ValueTask DisposeAsync()
+    {
+        _loopCts?.Cancel();
+        return ValueTask.CompletedTask;
+    }
+
+    public record KnightsMarchResult(string Difficulty, int Score, int ElapsedSeconds, bool Won);
+}

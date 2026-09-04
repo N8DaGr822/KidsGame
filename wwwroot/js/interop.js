@@ -714,3 +714,21 @@ export function playSnakeGameOverSound() {
     if (!ctx) return;
     slide(ctx, 300, 90, ctx.currentTime, 0.35, 'sawtooth', 0.18);
 }
+
+export function playBuildCompleteSound() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    tone(ctx, 587.33, t, 0.08, 'triangle', 0.18);
+    tone(ctx, 880, t + 0.07, 0.14, 'triangle', 0.2);
+}
+
+export function playFanfareSound() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    tone(ctx, 523.25, t, 0.14, 'triangle', 0.2);
+    tone(ctx, 659.25, t + 0.12, 0.14, 'triangle', 0.2);
+    tone(ctx, 783.99, t + 0.24, 0.16, 'triangle', 0.2);
+    tone(ctx, 1046.5, t + 0.4, 0.3, 'triangle', 0.22);
+}

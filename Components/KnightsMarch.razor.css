@@ -1,0 +1,165 @@
+.km-game {
+    display: grid;
+    gap: 0.75rem;
+    color: var(--text);
+}
+
+.km-title {
+    font-weight: 900;
+}
+
+.km-diff-name {
+    font-weight: 900;
+}
+
+.km-diff-detail {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.km-progress-track {
+    width: 350px;
+    max-width: 94vw;
+    margin: 0 auto;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+}
+
+.km-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #7ee881, #4ecdc4);
+    transition: width 0.2s linear;
+}
+
+.km-viewport {
+    position: relative;
+    max-width: 94vw;
+    height: 150px;
+    margin: 0 auto;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 4px solid #4a3826;
+    box-shadow: 0 0 18px rgba(74, 56, 38, 0.5) inset;
+    background: linear-gradient(180deg, #7ec8f5 0%, #bfe6ff 60%, transparent 60%);
+}
+
+.km-strip {
+    position: relative;
+    height: 100%;
+}
+
+.km-strip::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 38%;
+    background: linear-gradient(180deg, #8a6d3b, #6b5228);
+}
+
+.km-tile {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 12px;
+    box-sizing: border-box;
+    cursor: default;
+    z-index: 1;
+}
+
+.km-tile.tappable {
+    cursor: pointer;
+}
+
+.km-tile:not(.cleared)::before {
+    content: "";
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    width: 38px;
+    height: 38px;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.25);
+    z-index: 0;
+}
+
+.km-tile.km-gap:not(.cleared)::before {
+    background: rgba(30, 60, 120, 0.4);
+}
+
+.km-tile.km-cliff:not(.cleared)::before {
+    background: rgba(90, 60, 30, 0.4);
+}
+
+.km-tile.km-enemy:not(.cleared)::before {
+    background: rgba(150, 20, 20, 0.4);
+}
+
+.km-tile-icon {
+    position: relative;
+    z-index: 1;
+    font-size: 24px;
+    line-height: 1;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+.km-progress-ring {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+    z-index: 2;
+}
+
+.km-progress-ring.squire {
+    background: conic-gradient(#7ee881 var(--progress), rgba(255, 255, 255, 0.28) 0);
+}
+
+.km-progress-ring.auto {
+    background: conic-gradient(#ff8a65 var(--progress), rgba(255, 255, 255, 0.28) 0);
+}
+
+.km-progress-icon {
+    font-size: 10px;
+    line-height: 1;
+}
+
+.km-knight {
+    position: absolute;
+    bottom: 10px;
+    font-size: 30px;
+    line-height: 1;
+    z-index: 3;
+    filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
+    animation: km-bob 0.5s ease-in-out infinite;
+}
+
+.km-knight.fighting {
+    animation: km-shake 0.15s ease-in-out infinite;
+}
+
+@keyframes km-bob {
+    0%, 100% { transform: translate(-50%, 0); }
+    50% { transform: translate(-50%, -4px); }
+}
+
+@keyframes km-shake {
+    0%, 100% { transform: translate(-50%, 0) rotate(0deg); }
+    25% { transform: translate(-53%, 0) rotate(-10deg); }
+    75% { transform: translate(-47%, 0) rotate(10deg); }
+}

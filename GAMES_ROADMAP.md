@@ -199,6 +199,13 @@ All shipped 2026-09-01 - see COMPLETED_GAMES.md.
 
 ## Physics, Sports, And Skill Challenges
 
+- [x] Knight's March - an escort/path-building game inspired by "King
+  Arthur's World": a knight auto-walks a long road and can't be steered;
+  the player taps gaps/cliffs/monsters ahead to dispatch squires who clear
+  them before he arrives. Original name/theme, not a reproduction of the
+  SNES game or its characters. First game here with a scrolling camera and
+  a build-progress ring, both built from scratch (see `Components/KnightsMarch.razor`'s
+  header comment for the technique notes).
 - [ ] Bridge Builder
 - [ ] Physics Puzzle
 - [ ] Marble Run

@@ -119,6 +119,7 @@ public static class BuiltInGames
     public const string SlotMachine = "slot-machine";
     public const string Solitaire = "solitaire";
     public const string Snake = "snake";
+    public const string KnightsMarch = "knights-march";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -230,5 +231,6 @@ public static class BuiltInGames
         new BuiltInGame("Lucky Spin Slots", "🎰", SlotMachine, MinAge: 18),
         new BuiltInGame("Solitaire", "♠️", Solitaire, MinAge: 6),
         new BuiltInGame("Snake", "🐍", Snake, MinAge: 6, MaxAge: 13),
+        new BuiltInGame("Knight's March", "🛡️", KnightsMarch, MinAge: 6, MaxAge: 13),
     };
 }
