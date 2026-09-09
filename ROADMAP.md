@@ -98,9 +98,12 @@ Fastest visual wins, in order:
 - [ ] Replace Manners Garden props/rewards with images (currently emoji)
       **[art needed]**
 - [x] Replace Memory Match animal emoji with image cards
-- [ ] Simon Says stays CSS (no art migration planned) - but push on making
+- [x] Simon Says stays CSS (no art migration planned) - but push on making
       the CSS itself feel like a polished toy (pad materials/shadows/press
-      feedback), not a placeholder
+      feedback), not a placeholder. Done: circular bezel console (dark
+      radial-gradient plate with an inset rim shadow), domed radial-gradient
+      pad materials instead of flat fills, a center hub cap like the real
+      toy, and inset/outer shadow layering for press and lit-glow feedback.
 
 ## 4. Asset naming cleanup
 

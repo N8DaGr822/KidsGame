@@ -48,15 +48,18 @@
 
         <div class="simon-status">@StatusText()</div>
 
-        <div class="simon-pad-grid">
-            @for (var i = 0; i < 4; i++)
-            {
-                var idx = i;
-                <button class="simon-pad @PadColorClass(idx) @(litIndex == idx ? "lit" : "") @(pressedIndex == idx ? "pressed" : "")"
-                        disabled="@(phase != Phase.Listening)"
-                        @onclick="() => OnPadTap(idx)"
-                        aria-label="@PadName(idx)"></button>
-            }
+        <div class="simon-console">
+            <div class="simon-pad-grid">
+                @for (var i = 0; i < 4; i++)
+                {
+                    var idx = i;
+                    <button class="simon-pad @PadColorClass(idx) @(litIndex == idx ? "lit" : "") @(pressedIndex == idx ? "pressed" : "")"
+                            disabled="@(phase != Phase.Listening)"
+                            @onclick="() => OnPadTap(idx)"
+                            aria-label="@PadName(idx)"></button>
+                }
+                <div class="simon-hub" aria-hidden="true"></div>
+            </div>
         </div>
 
         @if (phase == Phase.RoundEnd)
