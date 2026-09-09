@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="ss-green" cx="34%" cy="28%" r="75%">
+      <stop offset="0%" stop-color="#4fdb95"/>
+      <stop offset="70%" stop-color="#1f8f56"/>
+    </radialGradient>
+    <radialGradient id="ss-red" cx="34%" cy="28%" r="75%">
+      <stop offset="0%" stop-color="#f16a6a"/>
+      <stop offset="70%" stop-color="#b9302f"/>
+    </radialGradient>
+    <radialGradient id="ss-yellow" cx="34%" cy="28%" r="75%">
+      <stop offset="0%" stop-color="#f0bf4c"/>
+      <stop offset="70%" stop-color="#b97e12"/>
+    </radialGradient>
+    <radialGradient id="ss-blue" cx="34%" cy="28%" r="75%">
+      <stop offset="0%" stop-color="#4d9eea"/>
+      <stop offset="70%" stop-color="#1857a3"/>
+    </radialGradient>
+    <radialGradient id="ss-hub" cx="35%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#3a3e57"/>
+      <stop offset="100%" stop-color="#1a1c29"/>
+    </radialGradient>
+  </defs>
+
+  <circle cx="128" cy="128" r="118" fill="#12131e"/>
+  <path d="M128 128 L128 12 A116 116 0 0 0 12 128 Z" fill="url(#ss-green)"/>
+  <path d="M128 128 L244 128 A116 116 0 0 0 128 12 Z" fill="url(#ss-red)"/>
+  <path d="M128 128 L12 128 A116 116 0 0 0 128 244 Z" fill="url(#ss-yellow)"/>
+  <path d="M128 128 L128 244 A116 116 0 0 0 244 128 Z" fill="url(#ss-blue)"/>
+  <circle cx="128" cy="128" r="38" fill="url(#ss-hub)"/>
+</svg>

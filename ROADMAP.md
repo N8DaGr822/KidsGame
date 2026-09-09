@@ -87,11 +87,18 @@ Current state is uneven:
 
 Fastest visual wins, in order:
 
-- [ ] Real game thumbnails for every entry in `Services/BuiltInGames.cs`
-      **[partially done]** - Memory Match, Fishing Catch, Dress Up, Manners
-      Garden, Tank Duel, and Whack-a-Mole now have image-backed defaults;
-      UNO, Simon Says, Sliding Puzzle, Word Scramble, Minesweeper, and Sudoku
-      still need purpose-built thumbnails rather than unrelated filler art.
+- [x] Real game thumbnails for every entry in `Services/BuiltInGames.cs`.
+      Memory Match, Fishing Catch, Dress Up, Manners Garden, Tank Duel, and
+      Whack-a-Mole already had image-backed defaults (raster sprites from
+      asset packs); UNO, Simon Says, Sliding Puzzle, Word Scramble,
+      Minesweeper, and Sudoku had none of that kind of art available, so
+      each got a small hand-authored SVG icon instead (`wwwroot/images/
+      game-thumbs/*.svg`) depicting an actual scene from the game (a
+      3-card fan for UNO, the Simon pad wheel, a scrambled numbered tile
+      grid, tilted Scrabble-style letters spelling PLAY, a mine-flagged
+      grid, and a shaded Sudoku grid) rather than generic clip art -
+      verified rendered at the real 104px card-thumb size, not just at
+      native resolution.
 - [ ] Finish Lulu Lamb and Tilly Turtle art in `MannersGarden` - noted
       already in `wwwroot/images/README.md` (no sheep/lamb or turtle in the
       Kenney animal pack this project otherwise draws from) **[art needed]**

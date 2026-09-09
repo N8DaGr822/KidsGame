@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="ms-raised" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#d4dde8"/>
+      <stop offset="100%" stop-color="#8fa0b8"/>
+    </linearGradient>
+    <symbol id="ms-raised-cell" viewBox="0 0 48 48">
+      <rect width="48" height="48" rx="7" fill="url(#ms-raised)"/>
+    </symbol>
+    <symbol id="ms-revealed-cell" viewBox="0 0 48 48">
+      <rect width="48" height="48" rx="7" fill="#eef2f7"/>
+      <rect width="48" height="48" rx="7" fill="none" stroke="#c3ccd8" stroke-width="2"/>
+    </symbol>
+    <symbol id="ms-flag" viewBox="0 0 48 48">
+      <line x1="20" y1="12" x2="20" y2="36" stroke="#2b2f3e" stroke-width="3" stroke-linecap="round"/>
+      <path d="M20 12 L34 18 L20 24 Z" fill="#e14b4b"/>
+    </symbol>
+  </defs>
+
+  <rect x="10" y="10" width="236" height="236" rx="26" fill="#232847"/>
+
+  <g transform="translate(23 23)"><use href="#ms-raised-cell" width="48" height="48"/></g>
+  <g transform="translate(77 23)">
+    <use href="#ms-raised-cell" width="48" height="48"/>
+    <use href="#ms-flag" width="48" height="48"/>
+  </g>
+  <g transform="translate(131 23)">
+    <use href="#ms-revealed-cell" width="48" height="48"/>
+    <text x="24" y="33" font-family="Verdana, Geneva, sans-serif" font-weight="700" font-size="26" fill="#2f6fd4" text-anchor="middle">1</text>
+  </g>
+  <g transform="translate(185 23)"><use href="#ms-raised-cell" width="48" height="48"/></g>
+
+  <g transform="translate(23 77)">
+    <use href="#ms-revealed-cell" width="48" height="48"/>
+    <text x="24" y="33" font-family="Verdana, Geneva, sans-serif" font-weight="700" font-size="26" fill="#2f9e52" text-anchor="middle">2</text>
+  </g>
+  <g transform="translate(77 77)"><use href="#ms-raised-cell" width="48" height="48"/></g>
+  <g transform="translate(131 77)"><use href="#ms-raised-cell" width="48" height="48"/></g>
+  <g transform="translate(185 77)">
+    <use href="#ms-revealed-cell" width="48" height="48"/>
+    <text x="24" y="33" font-family="Verdana, Geneva, sans-serif" font-weight="700" font-size="26" fill="#2f6fd4" text-anchor="middle">1</text>
+  </g>
+
+  <g transform="translate(23 131)">
+    <use href="#ms-raised-cell" width="48" height="48"/>
+    <use href="#ms-flag" width="48" height="48"/>
+  </g>
+  <g transform="translate(77 131)">
+    <use href="#ms-revealed-cell" width="48" height="48"/>
+    <text x="24" y="33" font-family="Verdana, Geneva, sans-serif" font-weight="700" font-size="26" fill="#d1443a" text-anchor="middle">3</text>
+  </g>
+  <g transform="translate(131 131)"><use href="#ms-raised-cell" width="48" height="48"/></g>
+  <g transform="translate(185 131)"><use href="#ms-raised-cell" width="48" height="48"/></g>
+
+  <g transform="translate(23 185)"><use href="#ms-raised-cell" width="48" height="48"/></g>
+  <g transform="translate(77 185)"><use href="#ms-raised-cell" width="48" height="48"/></g>
+  <g transform="translate(131 185)">
+    <use href="#ms-revealed-cell" width="48" height="48"/>
+    <text x="24" y="33" font-family="Verdana, Geneva, sans-serif" font-weight="700" font-size="26" fill="#2f6fd4" text-anchor="middle">1</text>
+  </g>
+  <g transform="translate(185 185)"><use href="#ms-raised-cell" width="48" height="48"/></g>
+</svg>

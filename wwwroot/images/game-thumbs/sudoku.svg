@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <rect x="10" y="10" width="236" height="236" rx="26" fill="#232847"/>
+
+  <!-- 3x3 box shading (checker pattern), boxes are 69x69 starting at 25,25 -->
+  <g>
+    <rect x="25" y="25" width="69" height="69" fill="#eef2f7"/>
+    <rect x="94" y="25" width="69" height="69" fill="#d7deea"/>
+    <rect x="163" y="25" width="69" height="69" fill="#eef2f7"/>
+
+    <rect x="25" y="94" width="69" height="69" fill="#d7deea"/>
+    <rect x="94" y="94" width="69" height="69" fill="#eef2f7"/>
+    <rect x="163" y="94" width="69" height="69" fill="#d7deea"/>
+
+    <rect x="25" y="163" width="69" height="69" fill="#eef2f7"/>
+    <rect x="94" y="163" width="69" height="69" fill="#d7deea"/>
+    <rect x="163" y="163" width="69" height="69" fill="#eef2f7"/>
+  </g>
+
+  <!-- thin per-cell grid lines -->
+  <g stroke="#aab4c4" stroke-width="1">
+    <line x1="48" y1="25" x2="48" y2="232"/>
+    <line x1="71" y1="25" x2="71" y2="232"/>
+    <line x1="117" y1="25" x2="117" y2="232"/>
+    <line x1="140" y1="25" x2="140" y2="232"/>
+    <line x1="186" y1="25" x2="186" y2="232"/>
+    <line x1="209" y1="25" x2="209" y2="232"/>
+    <line x1="25" y1="48" x2="232" y2="48"/>
+    <line x1="25" y1="71" x2="232" y2="71"/>
+    <line x1="25" y1="117" x2="232" y2="117"/>
+    <line x1="25" y1="140" x2="232" y2="140"/>
+    <line x1="25" y1="186" x2="232" y2="186"/>
+    <line x1="25" y1="209" x2="232" y2="209"/>
+  </g>
+
+  <!-- bold 3x3 box borders -->
+  <g stroke="#232847" stroke-width="4" fill="none">
+    <rect x="25" y="25" width="207" height="207"/>
+    <line x1="94" y1="25" x2="94" y2="232"/>
+    <line x1="163" y1="25" x2="163" y2="232"/>
+    <line x1="25" y1="94" x2="232" y2="94"/>
+    <line x1="25" y1="163" x2="232" y2="163"/>
+  </g>
+
+  <g font-family="Verdana, Geneva, sans-serif" font-weight="700" font-size="17" fill="#2b3350" text-anchor="middle">
+    <text x="36.5" y="42">5</text>
+    <text x="128.5" y="42">3</text>
+    <text x="82.5" y="65">7</text>
+    <text x="197.5" y="111">1</text>
+    <text x="59.5" y="134">8</text>
+    <text x="128.5" y="157">9</text>
+    <text x="220.5" y="157">2</text>
+    <text x="105.5" y="180">6</text>
+    <text x="36.5" y="203">4</text>
+    <text x="174.5" y="203">5</text>
+    <text x="197.5" y="226">3</text>
+  </g>
+</svg>

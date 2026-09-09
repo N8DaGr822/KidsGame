@@ -315,6 +315,14 @@ selectively rather than bulk-importing whole ZIPs:
   used - both need a different rendering approach than this project's flat
   2D/CSS style.
 
+- `game-thumbs/{uno,simon-says,sliding-puzzle,word-scramble,minesweeper,
+  sudoku}.svg` (added 2026-09-09) are hand-authored SVG icons, not from any
+  asset pack - these six games have no raster art available and are
+  CSS/emoji-driven internally, so a flat vector icon depicting an actual
+  scene from each game (not generic clip art) was drawn directly instead of
+  leaving them on the plain single-emoji fallback. Sized to read clearly at
+  the 104px `.game-card-thumb` badge, not just at native resolution.
+
 Lulu Lamb and Tilly Turtle don't have matching art in the Kenney animal pack
 (no sheep/lamb or turtle in that set) and still render as emoji - drop in
 `manners/lulu-lamb.png` / `manners/tilly-turtle.png` and set `ImagePath` on

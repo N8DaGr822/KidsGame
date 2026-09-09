@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="sp-tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffd58a"/>
+      <stop offset="100%" stop-color="#f2a54a"/>
+    </linearGradient>
+    <g id="sp-cell">
+      <rect width="62" height="62" rx="12" fill="url(#sp-tile)"/>
+      <rect width="62" height="62" rx="12" fill="none" stroke="#c97a1e" stroke-width="2" stroke-opacity="0.5"/>
+    </g>
+  </defs>
+
+  <rect x="10" y="10" width="236" height="236" rx="26" fill="#232847"/>
+
+  <g font-family="Verdana, Geneva, sans-serif" font-weight="700" font-size="30" fill="#7a4a12" text-anchor="middle">
+    <g transform="translate(20 20)"><use href="#sp-cell"/><text x="31" y="41">1</text></g>
+    <g transform="translate(88 20)"><use href="#sp-cell"/><text x="31" y="41">4</text></g>
+    <g transform="translate(162 14)"><use href="#sp-cell"/><text x="31" y="41">2</text></g>
+
+    <g transform="translate(20 88)"><use href="#sp-cell"/><text x="31" y="41">7</text></g>
+    <g transform="translate(156 88)"><use href="#sp-cell"/><text x="31" y="41">8</text></g>
+
+    <g transform="translate(20 156)"><use href="#sp-cell"/><text x="31" y="41">6</text></g>
+    <g transform="translate(88 156)"><use href="#sp-cell"/><text x="31" y="41">3</text></g>
+    <g transform="translate(156 156)"><use href="#sp-cell"/><text x="31" y="41">5</text></g>
+  </g>
+</svg>

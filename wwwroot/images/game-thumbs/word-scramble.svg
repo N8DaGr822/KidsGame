@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <symbol id="ws-tile" viewBox="-37 -37 74 74">
+      <rect x="-37" y="-37" width="74" height="74" rx="11" fill="#f5e6c8"/>
+      <rect x="-37" y="-37" width="74" height="74" rx="11" fill="none" stroke="#c9a86a" stroke-width="3"/>
+    </symbol>
+  </defs>
+
+  <g font-family="Verdana, Geneva, sans-serif" font-weight="700" fill="#6b4a20">
+    <g transform="translate(66 84) rotate(-14)">
+      <use href="#ws-tile" width="74" height="74" x="-37" y="-37"/>
+      <text x="-6" y="14" font-size="40" text-anchor="middle">P</text>
+      <text x="20" y="24" font-size="12">3</text>
+    </g>
+    <g transform="translate(152 58) rotate(10)">
+      <use href="#ws-tile" width="74" height="74" x="-37" y="-37"/>
+      <text x="-6" y="14" font-size="40" text-anchor="middle">L</text>
+      <text x="20" y="24" font-size="12">1</text>
+    </g>
+    <g transform="translate(192 142) rotate(-8)">
+      <use href="#ws-tile" width="74" height="74" x="-37" y="-37"/>
+      <text x="-6" y="14" font-size="40" text-anchor="middle">A</text>
+      <text x="20" y="24" font-size="12">1</text>
+    </g>
+    <g transform="translate(96 178) rotate(16)">
+      <use href="#ws-tile" width="74" height="74" x="-37" y="-37"/>
+      <text x="-6" y="14" font-size="40" text-anchor="middle">Y</text>
+      <text x="20" y="24" font-size="12">4</text>
+    </g>
+  </g>
+</svg>
