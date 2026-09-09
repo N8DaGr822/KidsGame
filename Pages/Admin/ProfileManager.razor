@@ -31,12 +31,16 @@
                     @foreach (var profile in _profiles.Where(p => p.Type == ProfileType.Kid))
                     {
                         <div class="admin-profile-row" style="--card-color:@profile.ColorHex">
-                            <AssetGlyph Class="admin-profile-avatar" Src="@profile.AvatarImagePath" Fallback="@profile.AvatarEmoji" Alt="@profile.Name" />
-                            <span class="admin-profile-name">@profile.Name</span>
-                            <a class="btn-secondary" href="@($"admin/access/{profile.Id}")">Manage games</a>
-                            <a class="btn-secondary" href="@($"admin/history/{profile.Id}")">Screen time</a>
-                            <button class="btn-secondary" @onclick="() => StartEditProfile(profile)">Edit</button>
-                            <button class="btn-danger" @onclick="() => DeleteProfileAsync(profile)">Remove</button>
+                            <div class="admin-profile-identity">
+                                <AssetGlyph Class="admin-profile-avatar" Src="@profile.AvatarImagePath" Fallback="@profile.AvatarEmoji" Alt="@profile.Name" />
+                                <span class="admin-profile-name">@profile.Name</span>
+                            </div>
+                            <div class="admin-profile-actions">
+                                <a class="btn-secondary" href="@($"admin/access/{profile.Id}")">Manage games</a>
+                                <a class="btn-secondary" href="@($"admin/history/{profile.Id}")">Screen time</a>
+                                <button class="btn-secondary" @onclick="() => StartEditProfile(profile)">Edit</button>
+                                <button class="btn-danger" @onclick="() => DeleteProfileAsync(profile)">Remove</button>
+                            </div>
                         </div>
                     }
                 </div>

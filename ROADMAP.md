@@ -60,8 +60,20 @@ touched `*.razor.css` file now documents this inline where it matters.
       like one design language). **Real thumbnail art is still
       art-needed** - the framing now exists to drop real images into, but
       every built-in game still renders its emoji fallback.
-- [ ] Admin screens - light spacing pass only so far (`.admin-section`
-      padding/margin bumped); no deeper redesign yet
+- [x] Admin screens - re-audited 2026-09-09 by actually screenshotting all
+      three screens (`/admin`, `/admin/access/{id}`, `/admin/history/{id}`)
+      rather than trusting this stale note: the card-section/badge/button
+      language already matches the rest of the app (the `.access-row`
+      catalog list in particular already has thumbnails, age badges, and a
+      colored left accent per row - this note predates that). The one real
+      bug found: `.admin-profile-row` was a 5-column CSS grid fed 6
+      children (avatar, name, and 4 action buttons), so "Remove" alone
+      overflowed into its own implicit row under the avatar instead of
+      grouping with its sibling buttons. Fixed by wrapping avatar+name and
+      the 4 actions into their own flex groups (`.admin-profile-identity`,
+      `.admin-profile-actions`) so each wraps as a unit - verified at both
+      a wide and a narrow viewport, since the first flex-based fix attempt
+      passed wide but crushed the kid's name down to 2 characters narrow.
 
 Also fixed in this pass (found while screenshotting, not originally on the
 list): Blazor's `FocusOnNavigate` focuses the page's `h1` on every route

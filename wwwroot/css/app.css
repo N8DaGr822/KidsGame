@@ -1005,11 +1005,40 @@ h1[tabindex="-1"]:focus {
   gap: 0.7rem;
 }
 
-.admin-profile-row,
 .access-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
   align-items: center;
+  gap: 0.75rem;
+  min-height: 62px;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--card-color, var(--accent));
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  width: 100%;
+  text-align: left;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.access-row:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: color-mix(in srgb, var(--card-color, var(--accent)) 45%, var(--line));
+}
+
+/* Flex rather than grid: a fixed column count doesn't hold up once the
+   identity block (avatar+name) and the action-button cluster both need
+   to wrap independently at narrow widths - grid's "auto" track sizing
+   let the actions column's wrapped buttons balloon and crush the name
+   column down to a couple of characters. flex-wrap lets each group claim
+   only the width it needs and drop to its own line as a unit. */
+.admin-profile-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.75rem;
   min-height: 62px;
   padding: 0.75rem;
@@ -1021,17 +1050,30 @@ h1[tabindex="-1"]:focus {
   transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
-.admin-profile-row:hover,
-.access-row:hover {
+.admin-profile-row:hover {
   transform: translateY(-2px);
   background: rgba(255, 255, 255, 0.08);
   border-color: color-mix(in srgb, var(--card-color, var(--accent)) 45%, var(--line));
 }
 
-.access-row {
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
-  width: 100%;
-  text-align: left;
+.admin-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+/* Groups Manage games/Screen time/Edit/Remove as one wrapping unit so a
+   narrow viewport pushes them all onto a shared second line together,
+   right-aligned - not just whichever button doesn't fit the row's own
+   grid-column count (previously "Remove" alone would overflow into its
+   own implicit grid row, landing under the avatar instead of with its
+   sibling buttons). */
+.admin-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 /* Ring treatment matching .profile-card-avatar - a kid profile is a
