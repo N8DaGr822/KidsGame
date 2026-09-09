@@ -114,26 +114,20 @@ Fastest visual wins, in order:
 
 ## 4. Asset naming cleanup
 
-`wwwroot/images/dressup/stickers/` has accumulated mixed casing, spaces, and
-duplicate-suffix filenames (`Dress4 (2).png`, `Crown.jpg`, `FairyWings3.png`).
-Normalize to lowercase-kebab, e.g.:
-
-- `Crown.jpg` → `crown.jpg`
-- `Dress1.png` / `Dress2.png` / `Dress3.png` → `dress-pink.png` /
-  `dress-green.png` / `dress-blue.png`
-- `FairyWings2.png` / `FairyWings3.png` → `fairy-wings.png` /
-  `fairy-wings-alt.png`
-- `Volcano.jpg` → `volcano.jpg`
-- (etc. for the rest of the sticker set)
-
-Needs a coordinated pass: rename on disk + update every `StickerArt + "..."`
-reference in `DressUpGame.razor` in the same change, so nothing 404s
-mid-migration. Going forward, new art dropped into that folder should already
-follow the convention rather than needing another cleanup pass later - done
-this way for the 22 gowns added 2026-08-14 (were UUID-named, e.g.
-`009c08a4-b018-4a11-87b9-d39af385a3f3.png`, renamed to
-`periwinkle-vine-gown.png` etc. while wiring them in). The pre-existing
-`Dress1.png`/`Crown.jpg`/mixed-casing files above are still unmigrated.
+- [x] Normalize `wwwroot/images/dressup/stickers/` to lowercase-kebab
+      filenames, no spaces/mixed-casing/duplicate-suffix leftovers
+      (`Dress4 (2).png`, `Crown.jpg`, `FairyWings3.png`, etc.). Checked
+      2026-09-09: the whole 200-file folder is already lowercase-kebab (a
+      `grep` for uppercase/space/paren characters across every filename
+      turns up nothing), and every `StickerArt + "..."` reference in
+      `DressUpGame.razor` matches an on-disk file 1:1 in both directions -
+      nothing orphaned, nothing dangling. Whatever pass did this rename
+      (see git history around 2026-08-14 through 2026-09-01, e.g. the 22
+      gowns added 2026-08-14 that came in UUID-named and were renamed while
+      wiring them in) already finished the job this section was tracking;
+      it just never got checked off here. Going forward, new art dropped
+      into that folder should keep following the convention rather than
+      needing another cleanup pass later.
 
 ## 5. Immersive game screens
 
