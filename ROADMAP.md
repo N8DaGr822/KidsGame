@@ -140,17 +140,36 @@ this way for the 22 gowns added 2026-08-14 (were UUID-named, e.g.
 The global dark shell is right for admin/launcher, but gameplay should feel
 more like a small world once it starts:
 
-- [ ] Minimize top chrome during active play
+- [ ] Minimize top chrome during active play - the outer `.game-host-bar`
+      is already a thin 44px strip with just a compact icon button for most
+      games (see next item), so there isn't much air left to cut without a
+      real per-game "focus mode" (e.g. auto-fade after a few seconds of
+      inactivity). Not attempted yet - touches `GameHost.razor`, the single
+      shared host for all 90+ games, so needs its own careful pass.
 - [ ] Let the game scene be the dominant surface (less HUD chrome fighting
-      it for attention)
-- [ ] Themed background per game (Dress Up's pastel sky gradient is the
-      model to extend to the others - most currently sit on the flat app
-      shell background)
-- [ ] Move "Exit game" into a compact overlay button instead of a full HUD
-      bar item
-
-This depends on `GameHud` (item 1) existing first, so the chrome-minimizing
-behavior can be built once and inherited rather than hand-tuned per game.
+      it for attention) - investigated 2026-09-09: the outer host bar's
+      circular exit icon and a game's own inner "Exit" button (from
+      `GameHud`) can both show on the same screen (e.g. Simon Says), which
+      reads like duplicate chrome at a glance. Confirmed this is
+      *intentional*, not drift, before touching it - they're not redundant:
+      the outer icon is a no-save "just leave" escape hatch
+      (`GameHost.GoBack`, a plain nav-away), the inner button records the
+      in-progress score/best and logs play history before exiting
+      (e.g. `SimonSays.ExitToSetup`). Left as-is.
+- [x] Themed background per game - `Services/GameThemes.cs` (landed
+      2026-09-03 alongside unrelated feature work, never checked off here)
+      maps every game to one of 6 curated category tints (toddler, nature,
+      cardtable, puzzle, action, adventure) rather than one bespoke gradient
+      each, a deliberate scope call given 90+ games - see that file's own
+      header comment. Coverage gap found and closed 2026-09-09: Simon Says,
+      Snake, and Knight's March had shipped after the map was last updated
+      and were falling through to the flat untinted default; Build-a-Monster
+      had no fitting bucket, so it seeded a new `gh-theme-creative` tint
+      (warm amber) that the upcoming creative/sandbox game tier can reuse.
+      Dress Up stays deliberately unmapped (owns its own full-bleed scene).
+- [x] Move "Exit game" into a compact overlay button instead of a full HUD
+      bar item - already true (`.game-host-exit-btn`: a 34px icon-only
+      circle, not a labeled bar item), just never checked off here.
 
 ## 6. Responsive layout
 

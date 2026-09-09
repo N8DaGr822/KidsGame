@@ -134,6 +134,12 @@ public static class GameThemes
         [BuiltInGames.LogicGridPuzzle] = "gh-theme-puzzle",
         [BuiltInGames.Nonogram] = "gh-theme-puzzle",
         [BuiltInGames.ThreesPuzzle] = "gh-theme-puzzle",
+        [BuiltInGames.SimonSays] = "gh-theme-puzzle",
+        [BuiltInGames.Snake] = "gh-theme-action",
+        [BuiltInGames.KnightsMarch] = "gh-theme-adventure",
+
+        // ---- creative: building/crafting/assembly toys ----
+        [BuiltInGames.BuildAMonster] = "gh-theme-creative",
     };
 
     public static string For(string launchTarget) =>

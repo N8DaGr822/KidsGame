@@ -935,6 +935,10 @@ h1[tabindex="-1"]:focus {
   background: radial-gradient(ellipse at top, rgba(155, 89, 217, 0.2), transparent 60%), var(--bg);
 }
 
+.gh-theme-creative {
+  background: radial-gradient(ellipse at top, rgba(255, 176, 59, 0.18), transparent 60%), var(--bg);
+}
+
 /* DressUpGame lays its own stage edge-to-edge, so it needs the full
    surface rather than the padded card other games sit in. */
 .game-host-surface:has(.dress-up-game) {
