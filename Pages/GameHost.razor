@@ -397,6 +397,10 @@
             {
                 <KnightsMarch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleKnightsMarchComplete" />
             }
+            else if (_game.LaunchTarget == BuiltInGames.MineForTheOnePiece)
+            {
+                <MineForTheOnePiece PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMineForTheOnePieceComplete" />
+            }
             else if (_game.LaunchTarget == BuiltInGames.TimeTrialRacer)
             {
                 <TimeTrialRacer PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTimeTrialRacerComplete" />
@@ -1972,6 +1976,21 @@
             Theme = result.Difficulty,
             Difficulty = result.Won ? "Won the race" : $"Finished {result.Placement}",
             Moves = result.Placement,
+            ElapsedSeconds = result.ElapsedSeconds,
+        });
+    }
+
+    private async Task HandleMineForTheOnePieceComplete(MineForTheOnePiece.MineForTheOnePieceResult result)
+    {
+        if (State.CurrentProfile is null || _game is null) return;
+
+        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        {
+            ProfileId = State.CurrentProfile.Id,
+            GameId = _game.Id,
+            Theme = result.Difficulty,
+            Difficulty = result.FoundTreasure ? "Found the One Piece" : $"Reached {result.DeepestDepth}m",
+            Moves = result.Gold,
             ElapsedSeconds = result.ElapsedSeconds,
         });
     }

@@ -137,6 +137,7 @@ public static class GameThemes
         [BuiltInGames.SimonSays] = "gh-theme-puzzle",
         [BuiltInGames.Snake] = "gh-theme-action",
         [BuiltInGames.KnightsMarch] = "gh-theme-adventure",
+        [BuiltInGames.MineForTheOnePiece] = "gh-theme-adventure",
 
         // ---- creative: building/crafting/assembly toys ----
         [BuiltInGames.BuildAMonster] = "gh-theme-creative",

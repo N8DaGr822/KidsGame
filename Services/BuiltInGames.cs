@@ -120,6 +120,7 @@ public static class BuiltInGames
     public const string Solitaire = "solitaire";
     public const string Snake = "snake";
     public const string KnightsMarch = "knights-march";
+    public const string MineForTheOnePiece = "mine-for-the-one-piece";
 
     public static readonly IReadOnlyList<BuiltInGame> All = new List<BuiltInGame>
     {
@@ -232,5 +233,6 @@ public static class BuiltInGames
         new BuiltInGame("Solitaire", "♠️", Solitaire, MinAge: 6),
         new BuiltInGame("Snake", "🐍", Snake, MinAge: 6, MaxAge: 13),
         new BuiltInGame("Knight's March", "🛡️", KnightsMarch, MinAge: 6, MaxAge: 13),
+        new BuiltInGame("Mine for the One Piece", "🏴‍☠️", MineForTheOnePiece, MinAge: 7, MaxAge: 14),
     };
 }
