@@ -94,6 +94,8 @@ public class AppDataService
         data.GardenItems.Remove(profileId);
         data.GameDifficultyOverrides.Remove(profileId);
         data.GameBests.Remove(profileId);
+        data.CardBattleCollection.Remove(profileId);
+        data.CardBattleDeck.Remove(profileId);
         await SaveAsync();
     }
 
@@ -441,6 +443,36 @@ public class AppDataService
         }
 
         items.Add(item);
+        await SaveAsync();
+    }
+
+    // ---- Card Battle collection/deck (persists across sessions - cards
+    // earned from wins stay owned, and the saved deck is remembered so
+    // the player doesn't have to rebuild it before every match) ---------
+
+    public async Task<List<string>> GetCardBattleCollectionAsync(string profileId)
+    {
+        var data = await LoadAsync();
+        return data.CardBattleCollection.TryGetValue(profileId, out var owned) ? owned : new List<string>();
+    }
+
+    public async Task SetCardBattleCollectionAsync(string profileId, List<string> ownedCardIds)
+    {
+        var data = await LoadAsync();
+        data.CardBattleCollection[profileId] = ownedCardIds;
+        await SaveAsync();
+    }
+
+    public async Task<List<string>?> GetCardBattleDeckAsync(string profileId)
+    {
+        var data = await LoadAsync();
+        return data.CardBattleDeck.TryGetValue(profileId, out var deck) ? deck : null;
+    }
+
+    public async Task SaveCardBattleDeckAsync(string profileId, List<string> cardIds)
+    {
+        var data = await LoadAsync();
+        data.CardBattleDeck[profileId] = cardIds;
         await SaveAsync();
     }
 

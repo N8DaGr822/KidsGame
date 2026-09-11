@@ -1,12 +1,12 @@
 .cbg-game {
-    width: min(1100px, 100%);
+    width: min(1200px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
-    gap: 1.25rem;
+    gap: 1.1rem;
 }
 
-.cbg-setup {
+.cbg-setup, .cbg-deckbuilder {
     display: grid;
     gap: 1rem;
     padding: clamp(1rem, 4vw, 2rem);
@@ -18,13 +18,13 @@
     justify-items: center;
 }
 
-.cbg-setup h2 {
+.cbg-setup h2, .cbg-deckbuilder h2 {
     margin-bottom: 0;
     font-size: clamp(2rem, 7vw, 3rem);
 }
 
-.cbg-setup p {
-    max-width: 32rem;
+.cbg-setup p, .cbg-deckbuilder p {
+    max-width: 34rem;
     color: var(--text-muted);
 }
 
@@ -37,9 +37,115 @@
     color: var(--text-muted);
 }
 
+.cbg-setup-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: center;
+}
+
+.cbg-collection-note {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
 .cbg-title {
     font-weight: 900;
 }
+
+/* ---- Deckbuilder ---- */
+
+.cbg-deck-count {
+    font-weight: 900;
+    font-size: 1.1rem;
+    padding: 0.3rem 0.9rem;
+    border-radius: 999px;
+    background: var(--control-bg-subtle);
+    border: 1px solid var(--line);
+}
+
+.cbg-deck-count.full {
+    background: rgba(78, 205, 196, 0.18);
+    border-color: #4ecdc4;
+    color: #4ecdc4;
+}
+
+.cbg-collection-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+    gap: 0.75rem;
+    width: 100%;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 0.25rem;
+}
+
+.cbg-mini-card {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 0.25rem;
+    padding: 0.75rem 0.5rem 0.6rem;
+    border: 2px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    cursor: pointer;
+    transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.cbg-mini-card:hover {
+    transform: translateY(-2px);
+}
+
+.cbg-mini-card.in-deck {
+    border-color: #4ecdc4;
+    background: rgba(78, 205, 196, 0.12);
+}
+
+.cbg-mini-cost {
+    position: absolute;
+    top: 0.35rem;
+    left: 0.4rem;
+    width: 1.4rem;
+    height: 1.4rem;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #4dabf7;
+    color: #06202f;
+    font-weight: 900;
+    font-size: 0.78rem;
+}
+
+.cbg-mini-icon {
+    font-size: 1.8rem;
+    margin-top: 0.4rem;
+}
+
+.cbg-mini-name {
+    font-weight: 800;
+    font-size: 0.8rem;
+    text-align: center;
+    line-height: 1.15;
+}
+
+.cbg-mini-stats {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+.cbg-mini-owned {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: var(--text-soft);
+}
+
+.cbg-deck-hint {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+/* ---- Battle arena ---- */
 
 .cbg-arena {
     display: grid;
@@ -91,27 +197,139 @@
     color: var(--text-muted);
 }
 
+.cbg-energy-readout {
+    display: grid;
+    gap: 0.35rem;
+    justify-items: center;
+    text-align: center;
+}
+
 .cbg-vs {
     font-weight: 900;
-    font-size: clamp(1rem, 3vw, 1.35rem);
+    font-size: clamp(0.9rem, 2.6vw, 1.15rem);
     text-align: center;
     white-space: nowrap;
 }
+
+.cbg-energy {
+    font-weight: 800;
+    font-size: 0.9rem;
+    color: #4dabf7;
+}
+
+/* ---- Board ---- */
+
+.cbg-board {
+    display: grid;
+    gap: 0.5rem;
+    padding: clamp(0.75rem, 2.5vw, 1.25rem);
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+}
+
+.cbg-board-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.6rem;
+}
+
+.cbg-slot {
+    min-height: 5.5rem;
+    border-radius: var(--radius-md);
+    border: 2px dashed var(--line);
+    display: grid;
+    place-items: center;
+}
+
+.cbg-slot.occupied {
+    border-style: solid;
+    border-color: transparent;
+}
+
+.cbg-unit {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 5.5rem;
+    display: grid;
+    justify-items: center;
+    align-content: center;
+    gap: 0.2rem;
+    border: 2px solid var(--line);
+    border-radius: var(--radius-md);
+    background: #fff;
+    cursor: default;
+    padding: 0.35rem;
+}
+
+.cbg-unit.can-act {
+    cursor: pointer;
+    box-shadow: 0 0 0 2px rgba(78, 205, 196, 0.5);
+}
+
+.cbg-unit.can-act:hover {
+    transform: translateY(-2px);
+}
+
+.cbg-unit.selected {
+    box-shadow: 0 0 0 3px #ffd60a;
+    transform: translateY(-4px);
+}
+
+.cbg-unit.targetable {
+    cursor: pointer;
+    box-shadow: 0 0 0 3px #ff6b6b;
+    animation: cbg-pulse 1s ease-in-out infinite;
+}
+
+@keyframes cbg-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.9); }
+    50% { box-shadow: 0 0 0 5px rgba(255, 107, 107, 0.4); }
+}
+
+.cbg-unit:disabled {
+    cursor: default;
+}
+
+.cbg-unit-badge {
+    position: absolute;
+    top: 0.2rem;
+    right: 0.2rem;
+    font-size: 0.9rem;
+}
+
+.cbg-unit-icon {
+    font-size: clamp(1.6rem, 5vw, 2.1rem);
+}
+
+.cbg-unit-stats {
+    display: flex;
+    gap: 0.5rem;
+    font-weight: 800;
+    font-size: 0.78rem;
+}
+
+.cbg-atk { color: #e8590c; }
+.cbg-hp { color: #c92a2a; }
+
+/* ---- Hand ---- */
 
 .cbg-hand {
     display: flex;
     justify-content: center;
     flex-wrap: wrap;
-    gap: clamp(0.75rem, 3vw, 1.25rem);
+    gap: clamp(0.6rem, 2.5vw, 1rem);
     padding: clamp(0.5rem, 2vw, 1rem) 0;
 }
 
 .cbg-card {
+    position: relative;
     display: grid;
     justify-items: center;
-    gap: 0.35rem;
-    width: clamp(6rem, 20vw, 8rem);
-    padding: clamp(0.75rem, 3vw, 1.1rem) 0.5rem;
+    gap: 0.3rem;
+    width: clamp(5.5rem, 17vw, 7rem);
+    padding: clamp(0.65rem, 2.5vw, 1rem) 0.4rem;
     border: none;
     border-radius: var(--radius-md);
     background: #fff;
@@ -131,28 +349,60 @@
 }
 
 .cbg-card:disabled {
-    opacity: 0.55;
+    opacity: 0.5;
     cursor: default;
 }
 
+.cbg-card.selected {
+    box-shadow: 0 0 0 3px #ffd60a;
+    transform: translateY(-4px);
+}
+
+.cbg-card-cost {
+    position: absolute;
+    top: 0.35rem;
+    left: 0.4rem;
+    width: 1.4rem;
+    height: 1.4rem;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #4dabf7;
+    color: #06202f;
+    font-weight: 900;
+    font-size: 0.78rem;
+}
+
 .cbg-card-icon {
-    font-size: clamp(1.75rem, 6vw, 2.25rem);
+    font-size: clamp(1.5rem, 5vw, 2rem);
+    margin-top: 0.35rem;
 }
 
 .cbg-card-name {
     font-weight: 800;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
+    text-align: center;
 }
 
 .cbg-card-value {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--text-muted);
 }
 
-.cbg-card.strike { border-top: 4px solid #ff8787; }
-.cbg-card.heavystrike { border-top: 4px solid #e03131; }
-.cbg-card.heal { border-top: 4px solid #40c057; }
-.cbg-card.shield { border-top: 4px solid #4dabf7; }
+/* Rarity accents shared by hand cards, board units, and deckbuilder tiles */
+.rarity-common { border-top: 4px solid #adb5bd; }
+.rarity-rare { border-top: 4px solid #4dabf7; }
+.rarity-epic { border-top: 4px solid #be4bdb; }
+
+.cbg-actions-row {
+    display: flex;
+    justify-content: center;
+}
+
+.cbg-unlock-note {
+    font-weight: 700;
+    color: #4ecdc4;
+}
 
 .cbg-win-stats > div {
     display: grid;

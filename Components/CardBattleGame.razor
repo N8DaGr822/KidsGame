@@ -1,20 +1,30 @@
 @*
     CardBattleGame.razor
-    A small 1v1 card-battle vertical slice (older-kid strategy tier): each
-    side has its own 12-card deck (Strike/Heavy Strike/Heal/Shield) and a
-    3-card hand drawn from it. Tap a card in your hand to play it - Strike
-    and Heavy Strike hit the enemy, Heal restores your own HP, Shield halves
-    the next hit you take. Playing a card discards it and draws a
-    replacement (reshuffling the discard pile back into the deck once the
-    deck runs dry), then the computer replies the same way. First to drop
-    the other's HP to 0 wins the match.
+    A real trading-card-battle vertical slice (older-kid strategy tier),
+    modeled on the shared core of MTG/Hearthstone/Pokemon TCG rather than
+    the old 4-fixed-card slice this replaced:
+      - A 24-card catalog (18 creatures, 6 spells) with a per-turn energy
+        curve (1 energy turn 1, +1/turn, capped at 8).
+      - Creatures sit on a 4-slot board per side and fight each other:
+        tap your creature, then tap a target - matching combat deals
+        damage both ways, and an enemy "Guard" creature must be attacked
+        before anything else on that side (Rush lets a creature attack
+        the turn it's played; without it, a creature is summoning-sick
+        for one turn - both keywords match their usual meaning across
+        the genre).
+      - A persistent collection: every profile starts with a 10-card
+        starter set (2 copies each) and unlocks a new card on every win
+        (see AppDataService.GetCardBattleCollectionAsync/
+        SetCardBattleCollectionAsync). A deckbuilder screen (reachable
+        from Setup) lets the player assemble a custom 16-card deck (max 2
+        copies/card) from whatever they own; SaveCardBattleDeckAsync
+        remembers it. Until a deck is saved, a sensible default is
+        auto-built from the owned collection so the game is playable
+        immediately.
 
-    No deck-building or card collection meta here - both decks are fixed,
-    matching the roadmap's "small vertical slice" guidance for this tier
-    rather than a full economy. Difficulty controls the computer's HP pool
-    and how well it plays (Easy is random-ish, Hard prioritizes healing low
-    HP and finishing you off). Tracks a win streak alongside the match
-    score, following RockPaperScissors' PersonalBestBadge pattern.
+    OnComplete's result shape is unchanged from the old version
+    (Difficulty/Won/TurnsTaken/BestStreak/ElapsedSeconds) so GameHost's
+    handler didn't need touching.
 
     Usage:
         <CardBattleGame OnComplete="HandleGameComplete" />
@@ -28,7 +38,7 @@
     {
         <div class="cbg-setup game-setup-panel">
             <h2>🃏 Card Battle</h2>
-            <p>Play cards from your hand to Strike, Heal, or Shield - knock the computer's HP to zero to win!</p>
+            <p>Play creatures and spells from your hand, then attack with your creatures - knock the other side's HP to zero to win! Each turn you get a little more energy to spend.</p>
 
             <h3 class="game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
@@ -48,7 +58,45 @@
                 </div>
             }
 
-            <button class="cbg-start-btn game-primary-action" @onclick="StartGame">Start Battle</button>
+            <div class="cbg-setup-actions">
+                <button class="game-secondary-action" @onclick="OpenDeckbuilder">🛠️ Build Deck (@deckCount/@DeckSize)</button>
+                <button class="cbg-start-btn game-primary-action" @onclick="StartGame">Start Battle</button>
+            </div>
+            <p class="cbg-collection-note">You own @ownedUniqueCount of @Catalog.Count cards. Win matches to unlock more!</p>
+        </div>
+    }
+    else if (phase == Phase.Deckbuilder)
+    {
+        <div class="cbg-deckbuilder game-setup-panel">
+            <h2>🛠️ Build Your Deck</h2>
+            <p>Tap an owned card to add or remove a copy - up to 2 copies each, @DeckSize cards total.</p>
+
+            <div class="cbg-deck-count @(draftDeck.Count == DeckSize ? "full" : "")">@draftDeck.Count / @DeckSize cards</div>
+
+            <div class="cbg-collection-grid">
+                @foreach (var card in Catalog.OrderBy(c => c.Cost).ThenBy(c => c.Name))
+                {
+                    var owned = OwnedCopies(card.Id);
+                    if (owned == 0) continue;
+                    var inDeck = draftDeck.Count(id => id == card.Id);
+                    <button class="cbg-mini-card @RarityClass(card.Rarity) @(inDeck > 0 ? "in-deck" : "")" @onclick="() => ToggleDeckCard(card)">
+                        <span class="cbg-mini-cost">@card.Cost</span>
+                        <span class="cbg-mini-icon">@card.Icon</span>
+                        <span class="cbg-mini-name">@card.Name</span>
+                        <span class="cbg-mini-stats">@CardStatsLabel(card)</span>
+                        <span class="cbg-mini-owned">@inDeck/@owned owned</span>
+                    </button>
+                }
+            </div>
+
+            <div class="cbg-setup-actions">
+                <button class="game-secondary-action" @onclick="() => phase = Phase.Setup">← Back</button>
+                <button class="game-primary-action" disabled="@(draftDeck.Count < MinDeckSize)" @onclick="SaveDeckAsync">Save Deck</button>
+            </div>
+            @if (draftDeck.Count < MinDeckSize)
+            {
+                <p class="cbg-deck-hint">Add at least @MinDeckSize cards to save this deck.</p>
+            }
         </div>
     }
     else
@@ -56,32 +104,91 @@
         <div class="cbg-hud game-hud">
             <span class="cbg-title">Card Battle</span>
             <span class="game-stat">🔥 Streak @streak</span>
+            <span class="game-stat">🔷 Turn @turnsTaken</span>
             <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
         <div class="cbg-arena">
             <div class="cbg-fighter">
-                <span class="cbg-fighter-name">You @(playerShielded ? "🛡️" : "")</span>
-                <div class="cbg-hp-track"><div class="cbg-hp-fill player" style="width:@(HpPercent(playerHp, PlayerMaxHp))%;"></div></div>
-                <span class="cbg-hp-label">@Math.Max(0, playerHp)/@PlayerMaxHp</span>
-            </div>
-            <span class="cbg-vs">@(turnMessage == "" ? "VS" : turnMessage)</span>
-            <div class="cbg-fighter">
-                <span class="cbg-fighter-name">Computer @(enemyShielded ? "🛡️" : "")</span>
+                <span class="cbg-fighter-name">Computer</span>
                 <div class="cbg-hp-track"><div class="cbg-hp-fill enemy" style="width:@(HpPercent(enemyHp, enemyMaxHp))%;"></div></div>
-                <span class="cbg-hp-label">@Math.Max(0, enemyHp)/@enemyMaxHp</span>
+                <span class="cbg-hp-label">@Math.Max(0, enemyHp)/@enemyMaxHp HP</span>
+            </div>
+            <div class="cbg-energy-readout">
+                <span class="cbg-vs">@(turnMessage == "" ? (isPlayerTurn ? "Your Turn" : "Computer's Turn") : turnMessage)</span>
+                <span class="cbg-energy">🔷 @playerEnergy/@playerMaxEnergy</span>
+            </div>
+            <div class="cbg-fighter">
+                <span class="cbg-fighter-name">You</span>
+                <div class="cbg-hp-track"><div class="cbg-hp-fill player" style="width:@(HpPercent(playerHp, PlayerMaxHp))%;"></div></div>
+                <span class="cbg-hp-label">@Math.Max(0, playerHp)/@PlayerMaxHp HP</span>
+            </div>
+        </div>
+
+        <div class="cbg-board">
+            <div class="cbg-board-row enemy">
+                @for (var i = 0; i < BoardSlots; i++)
+                {
+                    var slot = i;
+                    var unit = enemyBoard[slot];
+                    <div class="cbg-slot @(unit is not null ? "occupied" : "")">
+                        @if (unit is not null)
+                        {
+                            <button class="cbg-unit @RarityClass(unit.Def.Rarity) @(IsValidTarget(isEnemySlot: true, slot) ? "targetable" : "")" @onclick="() => OnBoardUnitClicked(isEnemySlot: true, slot)">
+                                @if (unit.Def.Keyword == Keyword.Guard)
+                                {
+                                    <span class="cbg-unit-badge">🛡️</span>
+                                }
+                                <span class="cbg-unit-icon">@unit.Def.Icon</span>
+                                <span class="cbg-unit-stats"><span class="cbg-atk">⚔️@unit.Attack</span><span class="cbg-hp">❤️@unit.Health</span></span>
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="cbg-board-row player">
+                @for (var i = 0; i < BoardSlots; i++)
+                {
+                    var slot = i;
+                    var unit = playerBoard[slot];
+                    <div class="cbg-slot @(unit is not null ? "occupied" : "")">
+                        @if (unit is not null)
+                        {
+                            var canAct = isPlayerTurn && !turnInProgress && !unit.HasAttacked && (!unit.Sick || unit.Def.Keyword == Keyword.Rush);
+                            <button class="cbg-unit @RarityClass(unit.Def.Rarity) @(canAct ? "can-act" : "") @(selectedAttackerSlot == slot ? "selected" : "")" disabled="@(!canAct && selectedAttackerSlot != slot)" @onclick="() => OnBoardUnitClicked(isEnemySlot: false, slot)">
+                                @if (unit.Def.Keyword == Keyword.Guard)
+                                {
+                                    <span class="cbg-unit-badge">🛡️</span>
+                                }
+                                else if (unit.Def.Keyword == Keyword.Rush)
+                                {
+                                    <span class="cbg-unit-badge">⚡</span>
+                                }
+                                <span class="cbg-unit-icon">@unit.Def.Icon</span>
+                                <span class="cbg-unit-stats"><span class="cbg-atk">⚔️@unit.Attack</span><span class="cbg-hp">❤️@unit.Health</span></span>
+                            </button>
+                        }
+                    </div>
+                }
             </div>
         </div>
 
         <div class="cbg-hand">
             @foreach (var card in playerHand)
             {
-                <button class="cbg-card @card.Type.ToString().ToLowerInvariant()" disabled="@(turnInProgress || phase != Phase.Playing)" @onclick="() => PlayCard(card)">
+                var affordable = card.Cost <= playerEnergy;
+                <button class="cbg-card @RarityClass(card.Rarity) @(pendingSpell == card ? "selected" : "")" disabled="@(!isPlayerTurn || turnInProgress || !affordable)" @onclick="() => OnHandCardClicked(card)">
+                    <span class="cbg-card-cost">@card.Cost</span>
                     <span class="cbg-card-icon">@card.Icon</span>
                     <span class="cbg-card-name">@card.Name</span>
-                    <span class="cbg-card-value">@card.ValueLabel</span>
+                    <span class="cbg-card-value">@CardStatsLabel(card)</span>
                 </button>
             }
+        </div>
+
+        <div class="cbg-actions-row">
+            <button class="game-primary-action" disabled="@(!isPlayerTurn || turnInProgress)" @onclick="EndPlayerTurnAsync">End Turn</button>
         </div>
 
         @if (phase == Phase.Finished)
@@ -103,6 +210,10 @@
                         <div><span class="game-stat-label">Streak</span><span class="game-stat-value">@streak</span></div>
                         <div><span class="game-stat-label">Best streak</span><span class="game-stat-value">@bestStreak</span></div>
                     </div>
+                    @if (unlockedCard is not null)
+                    {
+                        <p class="cbg-unlock-note">@(unlockedIsNewUnique ? "🎉 New card unlocked: " : "🃏 Another copy of ")<strong>@unlockedCard.Icon @unlockedCard.Name</strong>@(unlockedIsNewUnique ? "!" : "!")</p>
+                    }
                     <PersonalBestBadge Value="@((persistedBestStreak ?? bestStreak).ToString())" IsNew="isNewBest" />
                     <div class="cbg-win-actions game-result-actions">
                         <button class="cbg-start-btn game-primary-action" @onclick="StartGame">Play Again</button>
@@ -121,35 +232,77 @@
     [Parameter] public string? ProfileId { get; set; }
     [Parameter] public EventCallback<CardBattleGameResult> OnComplete { get; set; }
 
-    private enum Phase { Setup, Playing, Finished }
+    private enum Phase { Setup, Deckbuilder, Playing, Finished }
     public enum Difficulty { Easy, Medium, Hard }
-    private enum CardType { Strike, HeavyStrike, Heal, Shield }
+    private enum CardKind { Creature, Spell }
+    private enum Keyword { None, Guard, Rush }
+    private enum SpellEffect { Damage, Heal, Draw, Buff, DamageAllEnemyCreatures }
+    private enum Rarity { Common, Rare, Epic }
 
-    private record Card(CardType Type, string Name, string Icon, int Value)
+    private record CardDef(string Id, string Name, string Icon, CardKind Kind, int Cost, Rarity Rarity,
+        int Attack = 0, int Health = 0, Keyword Keyword = Keyword.None,
+        SpellEffect Effect = default, int EffectValue = 0);
+
+    private class BoardUnit
     {
-        public string ValueLabel => Type switch
-        {
-            CardType.Strike or CardType.HeavyStrike => $"-{Value} HP",
-            CardType.Heal => $"+{Value} HP",
-            _ => "Block half",
-        };
+        public required CardDef Def;
+        public int Attack;
+        public int Health;
+        public bool Sick = true;
+        public bool HasAttacked;
     }
 
-    private const int PlayerMaxHp = 20;
-    private const int HandSize = 3;
+    private const int PlayerMaxHp = 30;
+    private const int BoardSlots = 4;
+    private const int HandCap = 7;
+    private const int InitialHandSize = 4;
+    private const int MaxEnergy = 8;
+    public const int DeckSize = 16;
+    public const int MinDeckSize = 10;
+    private const int MaxCopiesPerCard = 2;
+
+    // ---- Card catalog: 18 creatures + 6 spells, cost 1-6 -------------
+    private static readonly IReadOnlyList<CardDef> Catalog = new List<CardDef>
+    {
+        new("pixie-scout", "Pixie Scout", "🧚", CardKind.Creature, 1, Rarity.Common, Attack: 1, Health: 1, Keyword: Keyword.Rush),
+        new("shield-pup", "Shield Pup", "🐕", CardKind.Creature, 1, Rarity.Common, Attack: 1, Health: 3, Keyword: Keyword.Guard),
+        new("ember-imp", "Ember Imp", "👹", CardKind.Creature, 2, Rarity.Common, Attack: 2, Health: 2),
+        new("stone-turtle", "Stone Turtle", "🐢", CardKind.Creature, 2, Rarity.Common, Attack: 1, Health: 4, Keyword: Keyword.Guard),
+        new("wind-falcon", "Wind Falcon", "🦅", CardKind.Creature, 2, Rarity.Common, Attack: 3, Health: 1, Keyword: Keyword.Rush),
+        new("vine-sprite", "Vine Sprite", "🌱", CardKind.Creature, 3, Rarity.Common, Attack: 2, Health: 3),
+        new("crag-golem", "Crag Golem", "🗿", CardKind.Creature, 3, Rarity.Common, Attack: 2, Health: 5, Keyword: Keyword.Guard),
+        new("sky-griffin", "Sky Griffin", "🦁", CardKind.Creature, 3, Rarity.Rare, Attack: 4, Health: 2, Keyword: Keyword.Rush),
+        new("frost-wolf", "Frost Wolf", "🐺", CardKind.Creature, 4, Rarity.Common, Attack: 3, Health: 4),
+        new("iron-knight", "Iron Knight", "⚔️", CardKind.Creature, 4, Rarity.Rare, Attack: 3, Health: 6, Keyword: Keyword.Guard),
+        new("storm-drake", "Storm Drake", "🐉", CardKind.Creature, 4, Rarity.Rare, Attack: 5, Health: 3, Keyword: Keyword.Rush),
+        new("swamp-hydra", "Swamp Hydra", "🐍", CardKind.Creature, 5, Rarity.Rare, Attack: 4, Health: 6),
+        new("titan-guardian", "Titan Guardian", "🛡️", CardKind.Creature, 5, Rarity.Rare, Attack: 3, Health: 8, Keyword: Keyword.Guard),
+        new("thunder-roc", "Thunder Roc", "🦖", CardKind.Creature, 5, Rarity.Epic, Attack: 6, Health: 4, Keyword: Keyword.Rush),
+        new("ancient-treant", "Ancient Treant", "🌳", CardKind.Creature, 6, Rarity.Epic, Attack: 5, Health: 8),
+        new("bastion-sentinel", "Bastion Sentinel", "🏯", CardKind.Creature, 6, Rarity.Epic, Attack: 4, Health: 10, Keyword: Keyword.Guard),
+        new("star-phoenix", "Star Phoenix", "🔥", CardKind.Creature, 6, Rarity.Epic, Attack: 7, Health: 5, Keyword: Keyword.Rush),
+        new("world-serpent", "World Serpent", "🐲", CardKind.Creature, 6, Rarity.Epic, Attack: 6, Health: 9),
+
+        new("spark-bolt", "Spark Bolt", "⚡", CardKind.Spell, 1, Rarity.Common, Effect: SpellEffect.Damage, EffectValue: 2),
+        new("quick-study", "Quick Study", "📚", CardKind.Spell, 1, Rarity.Common, Effect: SpellEffect.Draw, EffectValue: 2),
+        new("mend", "Mend", "💚", CardKind.Spell, 2, Rarity.Common, Effect: SpellEffect.Heal, EffectValue: 5),
+        new("growth-tonic", "Growth Tonic", "🧪", CardKind.Spell, 2, Rarity.Common, Effect: SpellEffect.Buff, EffectValue: 2),
+        new("fireball", "Fireball", "🔥", CardKind.Spell, 3, Rarity.Rare, Effect: SpellEffect.Damage, EffectValue: 5),
+        new("meteor-strike", "Meteor Strike", "☄️", CardKind.Spell, 5, Rarity.Epic, Effect: SpellEffect.DamageAllEnemyCreatures, EffectValue: 4),
+    };
+
+    // First 10 unique cards (mostly cheap, playable ones) every profile
+    // starts owning 2 copies of - enough to build a full legal deck
+    // immediately without unlocking anything.
+    private static readonly string[] StarterCardIds =
+    {
+        "pixie-scout", "shield-pup", "ember-imp", "stone-turtle", "wind-falcon",
+        "vine-sprite", "crag-golem", "frost-wolf", "spark-bolt", "mend",
+    };
+
+    private static readonly Dictionary<string, CardDef> ById = Catalog.ToDictionary(c => c.Id);
 
     private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
-
-    private static List<Card> BuildDeck() => new()
-    {
-        new(CardType.Strike, "Strike", "⚔️", 3), new(CardType.Strike, "Strike", "⚔️", 3),
-        new(CardType.Strike, "Strike", "⚔️", 3), new(CardType.Strike, "Strike", "⚔️", 3),
-        new(CardType.Strike, "Strike", "⚔️", 3),
-        new(CardType.HeavyStrike, "Heavy Strike", "💥", 6), new(CardType.HeavyStrike, "Heavy Strike", "💥", 6),
-        new(CardType.HeavyStrike, "Heavy Strike", "💥", 6),
-        new(CardType.Heal, "Heal", "💚", 5), new(CardType.Heal, "Heal", "💚", 5),
-        new(CardType.Shield, "Shield", "🛡️", 0), new(CardType.Shield, "Shield", "🛡️", 0),
-    };
 
     private Difficulty? LockedDifficulty =>
         Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
@@ -158,18 +311,29 @@
     private Difficulty selectedDifficulty = Difficulty.Easy;
     private readonly Random rng = new();
 
-    private List<Card> playerDeck = new();
-    private List<Card> playerDiscard = new();
-    private List<Card> playerHand = new();
-    private List<Card> enemyDeck = new();
-    private List<Card> enemyDiscard = new();
-    private List<Card> enemyHand = new();
+    private List<string> ownedCardIds = new();
+    private int ownedUniqueCount;
+    private List<string> draftDeck = new();
+    private int deckCount;
+
+    private List<CardDef> playerDeck = new();
+    private List<CardDef> playerDiscard = new();
+    private List<CardDef> playerHand = new();
+    private List<CardDef> enemyDeck = new();
+    private List<CardDef> enemyDiscard = new();
+    private List<CardDef> enemyHand = new();
+
+    private BoardUnit?[] playerBoard = new BoardUnit?[BoardSlots];
+    private BoardUnit?[] enemyBoard = new BoardUnit?[BoardSlots];
 
     private int playerHp;
     private int enemyHp;
     private int enemyMaxHp;
-    private bool playerShielded;
-    private bool enemyShielded;
+    private int playerEnergy;
+    private int playerMaxEnergy;
+    private int enemyEnergy;
+    private int enemyMaxEnergy;
+    private bool isPlayerTurn;
     private bool turnInProgress;
     private string turnMessage = "";
     private int turnsTaken;
@@ -180,9 +344,113 @@
     private bool isNewBest;
     private DateTime startedAtUtc;
 
-    protected override void OnInitialized()
+    private int? selectedAttackerSlot;
+    private CardDef? pendingSpell;
+    private CardDef? unlockedCard;
+    private bool unlockedIsNewUnique;
+
+    protected override async Task OnInitializedAsync()
     {
         if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+        await LoadCollectionAsync();
+        pendingDraftDeck = await GetOrBuildDeckAsync();
+        deckCount = pendingDraftDeck.Count;
+    }
+
+    private async Task LoadCollectionAsync()
+    {
+        if (string.IsNullOrEmpty(ProfileId))
+        {
+            ownedCardIds = StarterCardIds.SelectMany(id => new[] { id, id }).ToList();
+        }
+        else
+        {
+            ownedCardIds = await Data.GetCardBattleCollectionAsync(ProfileId);
+            if (ownedCardIds.Count == 0)
+            {
+                ownedCardIds = StarterCardIds.SelectMany(id => new[] { id, id }).ToList();
+                await Data.SetCardBattleCollectionAsync(ProfileId, ownedCardIds);
+            }
+        }
+        ownedUniqueCount = ownedCardIds.Distinct().Count();
+    }
+
+    private int OwnedCopies(string cardId) => ownedCardIds.Count(id => id == cardId);
+
+    private async Task<List<string>> GetOrBuildDeckAsync()
+    {
+        var saved = string.IsNullOrEmpty(ProfileId) ? null : await Data.GetCardBattleDeckAsync(ProfileId);
+        if (saved is { Count: > 0 })
+        {
+            // Drop anything no longer owned in the right quantity (e.g. after
+            // a profile reset) rather than crash building an illegal deck.
+            var legal = new List<string>();
+            foreach (var group in saved.GroupBy(id => id))
+            {
+                var copies = Math.Min(group.Count(), Math.Min(MaxCopiesPerCard, OwnedCopies(group.Key)));
+                for (var i = 0; i < copies; i++) legal.Add(group.Key);
+            }
+            if (legal.Count >= MinDeckSize) return legal;
+        }
+        return AutoBuildDeck();
+    }
+
+    private List<string> AutoBuildDeck()
+    {
+        var deck = new List<string>();
+        foreach (var cardId in ownedCardIds.Distinct().OrderBy(id => ById[id].Cost).ThenBy(id => id))
+        {
+            if (deck.Count >= DeckSize) break;
+            var copies = Math.Min(MaxCopiesPerCard, OwnedCopies(cardId));
+            for (var i = 0; i < copies && deck.Count < DeckSize; i++) deck.Add(cardId);
+        }
+        return deck;
+    }
+
+    private void OpenDeckbuilder()
+    {
+        draftDeck = pendingDraftDeck ?? new List<string>();
+        deckCount = draftDeck.Count;
+        phase = Phase.Deckbuilder;
+        _ = InitDraftDeckAsync();
+    }
+
+    private List<string>? pendingDraftDeck;
+
+    private async Task InitDraftDeckAsync()
+    {
+        draftDeck = await GetOrBuildDeckAsync();
+        deckCount = draftDeck.Count;
+        StateHasChanged();
+    }
+
+    // Tapping a card cycles its deck copy count 0 -> 1 -> 2 -> 0 (capped by
+    // how many copies are owned and by the deck's total size limit), so
+    // one control handles both adding and removing without separate +/-
+    // buttons.
+    private void ToggleDeckCard(CardDef card)
+    {
+        var inDeck = draftDeck.Count(id => id == card.Id);
+        var owned = OwnedCopies(card.Id);
+        var canAddOne = inDeck < owned && inDeck < MaxCopiesPerCard && draftDeck.Count < DeckSize;
+
+        if (canAddOne)
+        {
+            draftDeck.Add(card.Id);
+        }
+        else
+        {
+            draftDeck.RemoveAll(id => id == card.Id);
+        }
+        deckCount = draftDeck.Count;
+    }
+
+    private async Task SaveDeckAsync()
+    {
+        if (draftDeck.Count < MinDeckSize) return;
+        if (!string.IsNullOrEmpty(ProfileId)) await Data.SaveCardBattleDeckAsync(ProfileId, draftDeck);
+        pendingDraftDeck = draftDeck;
+        phase = Phase.Setup;
     }
 
     private static void Shuffle<T>(IList<T> list, Random rng)
@@ -194,10 +462,11 @@
         }
     }
 
-    private Card Draw(List<Card> deck, List<Card> discard)
+    private CardDef? Draw(List<CardDef> deck, List<CardDef> discard)
     {
         if (deck.Count == 0)
         {
+            if (discard.Count == 0) return null;
             deck.AddRange(discard);
             discard.Clear();
             Shuffle(deck, rng);
@@ -207,31 +476,98 @@
         return card;
     }
 
-    private void StartGame()
+    private async Task StartGame()
     {
-        playerDeck = BuildDeck();
+        var deckIds = await GetOrBuildDeckAsync();
+        playerDeck = deckIds.Select(id => ById[id]).ToList();
         Shuffle(playerDeck, rng);
         playerDiscard = new();
-        playerHand = Enumerable.Range(0, HandSize).Select(_ => Draw(playerDeck, playerDiscard)).ToList();
+        playerHand = DrawInitialHand(playerDeck);
 
-        enemyDeck = BuildDeck();
+        enemyDeck = BuildEnemyDeck(selectedDifficulty);
         Shuffle(enemyDeck, rng);
         enemyDiscard = new();
-        enemyHand = Enumerable.Range(0, HandSize).Select(_ => Draw(enemyDeck, enemyDiscard)).ToList();
+        enemyHand = DrawInitialHand(enemyDeck);
 
-        enemyMaxHp = selectedDifficulty switch { Difficulty.Easy => 16, Difficulty.Medium => 20, _ => 24 };
+        playerBoard = new BoardUnit?[BoardSlots];
+        enemyBoard = new BoardUnit?[BoardSlots];
+
+        enemyMaxHp = selectedDifficulty switch { Difficulty.Easy => 25, Difficulty.Medium => 30, _ => 35 };
         playerHp = PlayerMaxHp;
         enemyHp = enemyMaxHp;
-        playerShielded = false;
-        enemyShielded = false;
+        playerEnergy = 0;
+        playerMaxEnergy = 0;
+        enemyEnergy = 0;
+        enemyMaxEnergy = 0;
         turnMessage = "";
         turnsTaken = 0;
         streak = 0;
         bestStreak = 0;
         isNewBest = false;
         matchWon = false;
+        selectedAttackerSlot = null;
+        pendingSpell = null;
+        unlockedCard = null;
+        turnInProgress = false;
         startedAtUtc = DateTime.UtcNow;
         phase = Phase.Playing;
+
+        StartPlayerTurn(isFirstTurn: true);
+        StateHasChanged();
+    }
+
+    // Draws the opening hand and guarantees at least one card costs 1
+    // energy or less - turn 1 only ever grants 1 energy, so without this
+    // a normal shuffle occasionally hands out an opening hand nobody can
+    // do anything with (bad luck, not a real choice, and confusing for a
+    // young player who doesn't know why every card is greyed out).
+    private List<CardDef> DrawInitialHand(List<CardDef> deck)
+    {
+        var hand = new List<CardDef>();
+        var scratchDiscard = new List<CardDef>();
+        for (var i = 0; i < InitialHandSize; i++)
+        {
+            var c = Draw(deck, scratchDiscard);
+            if (c is not null) hand.Add(c);
+        }
+
+        if (!hand.Any(c => c.Cost <= 1))
+        {
+            var cheapIndex = deck.FindIndex(c => c.Cost <= 1);
+            if (cheapIndex >= 0)
+            {
+                var cheapCard = deck[cheapIndex];
+                deck.RemoveAt(cheapIndex);
+                var swapOut = hand.OrderByDescending(c => c.Cost).First();
+                hand.Remove(swapOut);
+                hand.Add(cheapCard);
+                deck.Add(swapOut);
+                Shuffle(deck, rng);
+            }
+        }
+
+        return hand;
+    }
+
+    // The computer plays a full copy of the current catalog (minus the
+    // player's owned-collection gating) scaled by difficulty, so it's
+    // always a fair fight regardless of how far the player's own
+    // collection has grown.
+    private List<CardDef> BuildEnemyDeck(Difficulty d)
+    {
+        var pool = d switch
+        {
+            Difficulty.Easy => Catalog.Where(c => c.Cost <= 4).ToList(),
+            Difficulty.Medium => Catalog.ToList(),
+            _ => Catalog.ToList(),
+        };
+        var deck = new List<CardDef>();
+        foreach (var card in pool)
+        {
+            deck.Add(card);
+            if (d != Difficulty.Easy) deck.Add(card);
+        }
+        return deck;
     }
 
     private static double HpPercent(int hp, int max) => Math.Clamp(hp, 0, max) * 100.0 / max;
@@ -250,91 +586,390 @@
         phase = Phase.Setup;
     }
 
-    private async Task PlayCard(Card card)
+    private void StartPlayerTurn(bool isFirstTurn)
     {
-        if (turnInProgress || phase != Phase.Playing) return;
-        turnInProgress = true;
+        isPlayerTurn = true;
         turnsTaken++;
-
-        await ResolveCard(card, playerIsActor: true);
-        playerHand.Remove(card);
-        playerDiscard.Add(card);
-        playerHand.Add(Draw(playerDeck, playerDiscard));
-        StateHasChanged();
-
-        if (enemyHp <= 0)
+        playerMaxEnergy = Math.Min(MaxEnergy, playerMaxEnergy + 1);
+        playerEnergy = playerMaxEnergy;
+        foreach (var unit in playerBoard)
         {
-            await FinishMatch(true);
-            return;
+            if (unit is null) continue;
+            unit.Sick = false;
+            unit.HasAttacked = false;
         }
-
-        await Task.Delay(650);
-
-        var enemyCard = PickEnemyCard();
-        turnMessage = $"Computer plays {enemyCard.Name}!";
-        StateHasChanged();
-        await ResolveCard(enemyCard, playerIsActor: false);
-        enemyHand.Remove(enemyCard);
-        enemyDiscard.Add(enemyCard);
-        enemyHand.Add(Draw(enemyDeck, enemyDiscard));
-        StateHasChanged();
-
-        if (playerHp <= 0)
+        if (!isFirstTurn && playerHand.Count < HandCap)
         {
-            await FinishMatch(false);
-            return;
+            var c = Draw(playerDeck, playerDiscard);
+            if (c is not null) playerHand.Add(c);
         }
-
-        await Task.Delay(600);
+        selectedAttackerSlot = null;
+        pendingSpell = null;
         turnMessage = "";
+    }
+
+    // ---- Player interactions -----------------------------------------
+
+    private bool IsValidTarget(bool isEnemySlot, int slot)
+    {
+        if (pendingSpell is { } spell)
+        {
+            if (spell.Effect == SpellEffect.Damage) return isEnemySlot && enemyBoard[slot] is not null;
+            if (spell.Effect == SpellEffect.Buff) return !isEnemySlot && playerBoard[slot] is not null;
+            return false;
+        }
+        if (selectedAttackerSlot is { } attackerSlot && isEnemySlot)
+        {
+            if (enemyBoard[slot] is null) return false;
+            return !EnemyHasGuard() || enemyBoard[slot]!.Def.Keyword == Keyword.Guard;
+        }
+        return false;
+    }
+
+    private bool EnemyHasGuard() => enemyBoard.Any(u => u is not null && u.Def.Keyword == Keyword.Guard);
+    private bool PlayerHasGuard() => playerBoard.Any(u => u is not null && u.Def.Keyword == Keyword.Guard);
+
+    private async Task OnHandCardClicked(CardDef card)
+    {
+        if (!isPlayerTurn || turnInProgress || phase != Phase.Playing) return;
+
+        if (pendingSpell == card)
+        {
+            pendingSpell = null;
+            return;
+        }
+        if (card.Cost > playerEnergy) return;
+
+        if (card.Kind == CardKind.Creature)
+        {
+            var openSlot = Array.IndexOf(playerBoard, null);
+            if (openSlot < 0)
+            {
+                turnMessage = "Your board is full!";
+                await Interop.InvokeVoidAsync("playSimonErrorSound");
+                return;
+            }
+            playerEnergy -= card.Cost;
+            playerHand.Remove(card);
+            playerBoard[openSlot] = new BoardUnit { Def = card, Attack = card.Attack, Health = card.Health, Sick = true, HasAttacked = false };
+            await Interop.InvokeVoidAsync("playCatchSound");
+            return;
+        }
+
+        // Spell
+        selectedAttackerSlot = null;
+        switch (card.Effect)
+        {
+            case SpellEffect.Draw:
+                playerEnergy -= card.Cost;
+                playerHand.Remove(card);
+                playerDiscard.Add(card);
+                for (var i = 0; i < card.EffectValue && playerHand.Count < HandCap; i++)
+                {
+                    var c = Draw(playerDeck, playerDiscard);
+                    if (c is not null) playerHand.Add(c);
+                }
+                await Interop.InvokeVoidAsync("playMatchSound");
+                break;
+            case SpellEffect.Heal:
+                playerEnergy -= card.Cost;
+                playerHand.Remove(card);
+                playerDiscard.Add(card);
+                playerHp = Math.Min(PlayerMaxHp, playerHp + card.EffectValue);
+                await Interop.InvokeVoidAsync("playMatchSound");
+                break;
+            case SpellEffect.DamageAllEnemyCreatures:
+                playerEnergy -= card.Cost;
+                playerHand.Remove(card);
+                playerDiscard.Add(card);
+                foreach (var unit in enemyBoard) if (unit is not null) unit.Health -= card.EffectValue;
+                ClearDeadUnits(enemyBoard);
+                await Interop.InvokeVoidAsync("playExplosionSound");
+                break;
+            default:
+                // Damage / Buff need a target - enter targeting mode, cost paid on resolution.
+                pendingSpell = card;
+                break;
+        }
+    }
+
+    private async Task OnBoardUnitClicked(bool isEnemySlot, int slot)
+    {
+        if (!isPlayerTurn || turnInProgress || phase != Phase.Playing) return;
+
+        if (pendingSpell is { } spell)
+        {
+            if (!IsValidTarget(isEnemySlot, slot)) return;
+            playerEnergy -= spell.Cost;
+            playerHand.Remove(spell);
+            playerDiscard.Add(spell);
+            if (spell.Effect == SpellEffect.Damage)
+            {
+                var target = enemyBoard[slot]!;
+                target.Health -= spell.EffectValue;
+                ClearDeadUnits(enemyBoard);
+            }
+            else if (spell.Effect == SpellEffect.Buff)
+            {
+                var target = playerBoard[slot]!;
+                target.Attack += spell.EffectValue;
+                target.Health += spell.EffectValue;
+            }
+            pendingSpell = null;
+            await Interop.InvokeVoidAsync("playImpactSound");
+            if (await CheckMatchEndAsync()) return;
+            return;
+        }
+
+        if (!isEnemySlot)
+        {
+            var unit = playerBoard[slot];
+            if (unit is null) return;
+            var canAct = !unit.HasAttacked && (!unit.Sick || unit.Def.Keyword == Keyword.Rush);
+            if (!canAct) return;
+            selectedAttackerSlot = selectedAttackerSlot == slot ? null : slot;
+            return;
+        }
+
+        // Enemy slot tapped with an attacker selected
+        if (selectedAttackerSlot is not { } atk) return;
+        if (!IsValidTarget(isEnemySlot: true, slot))
+        {
+            if (EnemyHasGuard())
+            {
+                turnMessage = "That enemy has a Guard - attack it first!";
+                await Interop.InvokeVoidAsync("playSimonErrorSound");
+            }
+            return;
+        }
+
+        await ResolveAttackAsync(playerBoard, atk, enemyBoard, slot, isPlayerAttacking: true);
+        selectedAttackerSlot = null;
+        await CheckMatchEndAsync();
+    }
+
+    private async Task ResolveAttackAsync(BoardUnit?[] attackerBoard, int attackerSlot, BoardUnit?[] defenderBoard, int defenderSlot, bool isPlayerAttacking)
+    {
+        var attacker = attackerBoard[attackerSlot];
+        var defender = defenderBoard[defenderSlot];
+        if (attacker is null || defender is null) return;
+
+        defender.Health -= attacker.Attack;
+        attacker.Health -= defender.Attack;
+        attacker.HasAttacked = true;
+
+        await Interop.InvokeVoidAsync("playImpactSound");
+        ClearDeadUnits(attackerBoard);
+        ClearDeadUnits(defenderBoard);
+    }
+
+    private void ClearDeadUnits(BoardUnit?[] board)
+    {
+        for (var i = 0; i < board.Length; i++)
+        {
+            if (board[i] is { Health: <= 0 }) board[i] = null;
+        }
+    }
+
+    private async Task<bool> CheckMatchEndAsync()
+    {
+        if (enemyHp <= 0) { await FinishMatch(true); return true; }
+        if (playerHp <= 0) { await FinishMatch(false); return true; }
+        return false;
+    }
+
+    private async Task EndPlayerTurnAsync()
+    {
+        if (!isPlayerTurn || turnInProgress || phase != Phase.Playing) return;
+        turnInProgress = true;
+        isPlayerTurn = false;
+        selectedAttackerSlot = null;
+        pendingSpell = null;
+        StateHasChanged();
+
+        await Task.Delay(400);
+        await RunEnemyTurnAsync();
+
+        if (await CheckMatchEndAsync()) return;
+
+        await Task.Delay(400);
+        StartPlayerTurn(isFirstTurn: false);
         turnInProgress = false;
         StateHasChanged();
     }
 
-    private async Task ResolveCard(Card card, bool playerIsActor)
-    {
-        switch (card.Type)
-        {
-            case CardType.Strike:
-            case CardType.HeavyStrike:
-                var dmg = card.Value;
-                if (playerIsActor && enemyShielded) { dmg /= 2; enemyShielded = false; }
-                if (!playerIsActor && playerShielded) { dmg /= 2; playerShielded = false; }
-                if (playerIsActor) enemyHp = Math.Max(0, enemyHp - dmg); else playerHp = Math.Max(0, playerHp - dmg);
-                await Interop.InvokeVoidAsync("playImpactSound");
-                break;
-            case CardType.Heal:
-                if (playerIsActor) playerHp = Math.Min(PlayerMaxHp, playerHp + card.Value);
-                else enemyHp = Math.Min(enemyMaxHp, enemyHp + card.Value);
-                await Interop.InvokeVoidAsync("playMatchSound");
-                break;
-            case CardType.Shield:
-                if (playerIsActor) playerShielded = true; else enemyShielded = true;
-                await Interop.InvokeVoidAsync("playCatchSound");
-                break;
-        }
-    }
+    // ---- Enemy AI ------------------------------------------------------
 
-    private Card PickEnemyCard()
+    private async Task RunEnemyTurnAsync()
     {
-        var lowHp = enemyHp <= enemyMaxHp * 0.35;
+        enemyMaxEnergy = Math.Min(MaxEnergy, enemyMaxEnergy + 1);
+        enemyEnergy = enemyMaxEnergy;
+        foreach (var unit in enemyBoard)
+        {
+            if (unit is null) continue;
+            unit.Sick = false;
+            unit.HasAttacked = false;
+        }
+        if (turnsTaken > 1)
+        {
+            var c = Draw(enemyDeck, enemyDiscard);
+            if (c is not null && enemyHand.Count < HandCap) enemyHand.Add(c);
+        }
+
+        turnMessage = "Computer is thinking...";
+        StateHasChanged();
+        await Task.Delay(500);
+
         var smart = selectedDifficulty == Difficulty.Hard || (selectedDifficulty == Difficulty.Medium && rng.NextDouble() < 0.5);
 
-        if (smart)
+        // Play phase
+        for (var guard = 0; guard < 12; guard++)
         {
-            if (lowHp)
+            var playable = enemyHand.Where(c => c.Cost <= enemyEnergy).ToList();
+            if (playable.Count == 0) break;
+
+            CardDef? choice = null;
+            if (smart)
             {
-                var heal = enemyHand.FirstOrDefault(c => c.Type == CardType.Heal);
-                if (heal is not null) return heal;
+                var lowHp = enemyHp <= enemyMaxHp * 0.4;
+                if (lowHp) choice = playable.FirstOrDefault(c => c.Kind == CardKind.Spell && c.Effect == SpellEffect.Heal);
+                choice ??= playable.Where(c => c.Kind == CardKind.Creature && Array.IndexOf(enemyBoard, null) >= 0)
+                    .OrderByDescending(c => c.Cost).FirstOrDefault();
+                if (choice is null && playerBoard.Count(u => u is not null) >= 3)
+                {
+                    choice = playable.FirstOrDefault(c => c.Effect == SpellEffect.DamageAllEnemyCreatures);
+                }
+                choice ??= playable.FirstOrDefault(c => c.Kind == CardKind.Spell && c.Effect == SpellEffect.Damage);
             }
-            if (!enemyShielded && playerHp > enemyMaxHp * 0.4)
+            else
             {
-                var heavy = enemyHand.FirstOrDefault(c => c.Type == CardType.HeavyStrike);
-                if (heavy is not null) return heavy;
+                choice = playable[rng.Next(playable.Count)];
             }
+            choice ??= playable[rng.Next(playable.Count)];
+
+            if (!await EnemyPlayCardAsync(choice, smart)) break;
+            await Task.Delay(350);
+            StateHasChanged();
         }
 
-        return enemyHand[rng.Next(enemyHand.Count)];
+        // Attack phase
+        for (var slot = 0; slot < BoardSlots; slot++)
+        {
+            var unit = enemyBoard[slot];
+            if (unit is null) continue;
+            var canAct = !unit.HasAttacked && (!unit.Sick || unit.Def.Keyword == Keyword.Rush);
+            if (!canAct) continue;
+
+            var targetSlot = PickEnemyAttackTarget(unit, smart);
+            if (targetSlot is { } ts)
+            {
+                await ResolveAttackAsync(enemyBoard, slot, playerBoard, ts, isPlayerAttacking: false);
+            }
+            else
+            {
+                playerHp = Math.Max(0, playerHp - unit.Attack);
+                unit.HasAttacked = true;
+                await Interop.InvokeVoidAsync("playImpactSound");
+            }
+            await Task.Delay(300);
+            StateHasChanged();
+            if (playerHp <= 0) return;
+        }
+
+        turnMessage = "";
+    }
+
+    private async Task<bool> EnemyPlayCardAsync(CardDef card, bool smart)
+    {
+        if (card.Kind == CardKind.Creature)
+        {
+            var openSlot = Array.IndexOf(enemyBoard, null);
+            if (openSlot < 0) return false;
+            enemyEnergy -= card.Cost;
+            enemyHand.Remove(card);
+            enemyBoard[openSlot] = new BoardUnit { Def = card, Attack = card.Attack, Health = card.Health, Sick = true, HasAttacked = false };
+            await Interop.InvokeVoidAsync("playCatchSound");
+            return true;
+        }
+
+        switch (card.Effect)
+        {
+            case SpellEffect.Draw:
+                enemyEnergy -= card.Cost;
+                enemyHand.Remove(card);
+                enemyDiscard.Add(card);
+                for (var i = 0; i < card.EffectValue && enemyHand.Count < HandCap; i++)
+                {
+                    var c = Draw(enemyDeck, enemyDiscard);
+                    if (c is not null) enemyHand.Add(c);
+                }
+                return true;
+            case SpellEffect.Heal:
+                enemyEnergy -= card.Cost;
+                enemyHand.Remove(card);
+                enemyDiscard.Add(card);
+                enemyHp = Math.Min(enemyMaxHp, enemyHp + card.EffectValue);
+                await Interop.InvokeVoidAsync("playMatchSound");
+                return true;
+            case SpellEffect.DamageAllEnemyCreatures:
+                enemyEnergy -= card.Cost;
+                enemyHand.Remove(card);
+                enemyDiscard.Add(card);
+                foreach (var unit in playerBoard) if (unit is not null) unit.Health -= card.EffectValue;
+                ClearDeadUnits(playerBoard);
+                await Interop.InvokeVoidAsync("playExplosionSound");
+                return true;
+            case SpellEffect.Damage:
+                var target = smart
+                    ? playerBoard.Select((u, i) => (u, i)).Where(t => t.u is not null).OrderByDescending(t => t.u!.Health <= card.EffectValue).ThenByDescending(t => t.u!.Attack).FirstOrDefault()
+                    : default;
+                enemyEnergy -= card.Cost;
+                enemyHand.Remove(card);
+                enemyDiscard.Add(card);
+                if (target.u is not null)
+                {
+                    target.u.Health -= card.EffectValue;
+                    ClearDeadUnits(playerBoard);
+                }
+                else
+                {
+                    playerHp = Math.Max(0, playerHp - card.EffectValue);
+                }
+                await Interop.InvokeVoidAsync("playImpactSound");
+                return true;
+            case SpellEffect.Buff:
+                var mine = enemyBoard.Where(u => u is not null).OrderByDescending(u => u!.Attack).FirstOrDefault();
+                if (mine is null) return false;
+                enemyEnergy -= card.Cost;
+                enemyHand.Remove(card);
+                enemyDiscard.Add(card);
+                mine.Attack += card.EffectValue;
+                mine.Health += card.EffectValue;
+                return true;
+        }
+        return false;
+    }
+
+    private int? PickEnemyAttackTarget(BoardUnit attacker, bool smart)
+    {
+        if (PlayerHasGuard())
+        {
+            var guards = playerBoard.Select((u, i) => (u, i)).Where(t => t.u is { Def.Keyword: Keyword.Guard }).ToList();
+            var pick = smart ? guards.OrderBy(t => t.u!.Health).First() : guards[rng.Next(guards.Count)];
+            return pick.i;
+        }
+
+        var candidates = playerBoard.Select((u, i) => (u, i)).Where(t => t.u is not null).ToList();
+        if (candidates.Count == 0) return null; // attack face
+
+        if (!smart) return rng.NextDouble() < 0.5 ? candidates[rng.Next(candidates.Count)].i : null;
+
+        // Favor a trade that kills their creature without losing ours, otherwise go face.
+        var goodTrade = candidates.FirstOrDefault(t => t.u!.Health <= attacker.Attack && t.u!.Attack < attacker.Health);
+        if (goodTrade.u is not null) return goodTrade.i;
+        if (playerHp <= 12) return null; // go for the win
+        var anyKill = candidates.FirstOrDefault(t => t.u!.Health <= attacker.Attack);
+        return anyKill.u is not null ? anyKill.i : (int?)null;
     }
 
     private async Task FinishMatch(bool won)
@@ -345,6 +980,20 @@
         streak = won ? streak + 1 : 0;
         bestStreak = Math.Max(bestStreak, streak);
         phase = Phase.Finished;
+        unlockedCard = null;
+
+        if (won && !string.IsNullOrEmpty(ProfileId))
+        {
+            var reward = PickUnlockReward();
+            if (reward is not null)
+            {
+                unlockedIsNewUnique = !ownedCardIds.Contains(reward.Id);
+                unlockedCard = reward;
+                ownedCardIds.Add(reward.Id);
+                await Data.SetCardBattleCollectionAsync(ProfileId, ownedCardIds);
+                ownedUniqueCount = ownedCardIds.Distinct().Count();
+            }
+        }
 
         if (!string.IsNullOrEmpty(ProfileId))
         {
@@ -353,6 +1002,7 @@
             isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.CardBattleGame, key, bestStreak, lowerIsBetter: false);
         }
 
+        _ = Interop.InvokeVoidAsync(won ? "playFanfareSound" : "playMismatchSound");
         StateHasChanged();
 
         if (OnComplete.HasDelegate)
@@ -366,6 +1016,36 @@
         }
     }
 
+    private CardDef? PickUnlockReward()
+    {
+        var notMaxed = Catalog.Where(c => OwnedCopies(c.Id) < MaxCopiesPerCard).ToList();
+        if (notMaxed.Count == 0) return null;
+        var newUniques = notMaxed.Where(c => OwnedCopies(c.Id) == 0).ToList();
+        var pool = newUniques.Count > 0 ? newUniques : notMaxed;
+        return pool[rng.Next(pool.Count)];
+    }
+
+    private static string CardStatsLabel(CardDef c) => c.Kind switch
+    {
+        CardKind.Creature => $"⚔️{c.Attack} ❤️{c.Health}",
+        _ => c.Effect switch
+        {
+            SpellEffect.Damage => $"Deal {c.EffectValue} dmg",
+            SpellEffect.Heal => $"Heal {c.EffectValue}",
+            SpellEffect.Draw => $"Draw {c.EffectValue}",
+            SpellEffect.Buff => $"+{c.EffectValue}/+{c.EffectValue}",
+            SpellEffect.DamageAllEnemyCreatures => $"{c.EffectValue} dmg to all enemies",
+            _ => "",
+        },
+    };
+
+    private static string RarityClass(Rarity r) => r switch
+    {
+        Rarity.Rare => "rarity-rare",
+        Rarity.Epic => "rarity-epic",
+        _ => "rarity-common",
+    };
+
     private static string DifficultyName(Difficulty d) => d switch
     {
         Difficulty.Easy => "Easy",
@@ -375,7 +1055,7 @@
 
     private static string DifficultyDetail(Difficulty d) => d switch
     {
-        Difficulty.Easy => "Weaker computer, plays mostly at random",
+        Difficulty.Easy => "Weaker computer, plays a smaller deck",
         Difficulty.Medium => "Even HP, computer sometimes plays smart",
         _ => "Tougher computer, always plays smart",
     };

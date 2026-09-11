@@ -45,4 +45,16 @@ public class AppData
     // direction isn't persisted since it's a property of the metric, not
     // the data.
     public Dictionary<string, Dictionary<string, Dictionary<string, double>>> GameBests { get; set; } = new();
+
+    // profileId -> owned Card Battle card ids, one list entry per copy
+    // owned (so a card with 2 copies appears twice) - starts pre-seeded
+    // with the starter set the first time a profile opens the game, then
+    // only grows via match rewards.
+    public Dictionary<string, List<string>> CardBattleCollection { get; set; } = new();
+
+    // profileId -> the player's saved Card Battle deck (card ids, one
+    // entry per copy). Absent means "no custom deck saved yet" - the game
+    // auto-builds one from the owned collection until the player saves
+    // their own.
+    public Dictionary<string, List<string>> CardBattleDeck { get; set; } = new();
 }
