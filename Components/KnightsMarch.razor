@@ -13,8 +13,20 @@
     damage and finishes the job faster) - so priority matters, not just
     speed.
 
-    Two things this app has never needed before, both built from scratch
-    here (see GAMES_ROADMAP.md research notes - nothing to copy):
+    Three parallel lanes, not one: the road is 3 lanes wide the whole way,
+    and at each junction column (every JunctionSpacing tiles, always a
+    plain safe tile in every lane so a switch is never blocked) the player
+    can tap ahead of time which lane Cedric takes next - he can't be
+    steered directly, but his route CAN be planned. All 3 lanes are always
+    visible and tappable, so the strategic loop is: scout the lane you're
+    about to commit to at the next junction, dispatch squires to clear it
+    (or a lane you're eyeing further out) before he arrives, and choose
+    the junction accordingly. An unchosen junction defaults to "keep
+    going straight" (same lane).
+
+    Two things this app had never needed before v1 of this game, both
+    built from scratch (see GAMES_ROADMAP.md research notes - nothing to
+    copy):
       - A horizontally scrolling camera: the road strip is rendered at a
         fixed px tile size and translateX'd under a fixed-width viewport,
         rather than the percentage-of-container positioning every other
@@ -23,6 +35,11 @@
         partially off both edges.
       - A build-progress indicator: a conic-gradient ring drawn straight in
         CSS from a --progress custom property, no image/library needed.
+    The multi-lane pass added a 2D tile grid (lane x column, vs. the
+    original flat column array) and vertical lane rows stacked inside the
+    same horizontally-scrolling strip - Cedric's `top` offset switches
+    lanes with a CSS transition while `left` keeps scrolling with the
+    strip's translateX, so the two axes never fight each other.
 
     The tick loop itself reuses SpaceGame's proven shape (fixed-timestep
     accumulator, CancellationTokenSource, try/catch per frame) since
@@ -43,7 +60,7 @@
     {
         <div class="km-setup game-setup-panel">
             <h2>🛡️ Knight's March</h2>
-            <p>Sir Cedric can't stop walking toward the castle! Tap the gaps, cliffs, and monsters ahead of him to send a squire to clear the way. Monsters hurt him if he has to fight alone - keep the road clear before he gets there.</p>
+            <p>Sir Cedric can't stop walking toward the castle! The road is three lanes wide - tap the gaps, cliffs, and monsters ahead of him to send a squire to clear the way, and tap a junction's flag to choose which lane he takes next. Monsters hurt him if he has to fight alone - plan his route and keep it clear before he gets there.</p>
 
             <h3 class="game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
@@ -77,34 +94,47 @@
         </div>
 
         <div class="km-progress-track"><div class="km-progress-fill" style="width:@(RoadProgressPercent)%;"></div></div>
+        <p class="km-hint">Tap a flag 🚩 at a junction to route Cedric down that lane next.</p>
 
-        <div class="km-viewport" style="width:@(ViewportTilesVisible * TileSizePx)px;">
-            <div class="km-strip" style="width:@(tiles.Length * TileSizePx)px; transform:translateX(@((-cameraLeftTile * TileSizePx).ToString(Inv))px);">
+        <div class="km-viewport" style="width:@(ViewportTilesVisible * TileSizePx)px; height:@(Lanes * LaneHeightPx)px;">
+            <div class="km-strip" style="width:@(length * TileSizePx)px; transform:translateX(@((-cameraLeftTile * TileSizePx).ToString(Inv))px);">
 
-                @foreach (var i in VisibleTileIndices())
+                @for (var laneIndex = 0; laneIndex < Lanes; laneIndex++)
                 {
-                    var tile = tiles[i];
-                    <div class="km-tile km-@(tile.Type.ToString().ToLowerInvariant()) @(tile.Cleared ? "cleared" : "") @(tile.Cleared ? "" : "tappable")"
-                         style="left:@(i * TileSizePx)px; width:@(TileSizePx)px;"
-                         @onclick="() => OnTileTapped(i)">
-                        @if (!tile.Cleared)
+                    var lane = laneIndex;
+                    <div class="km-lane-row" style="top:@(lane * LaneHeightPx)px; height:@(LaneHeightPx)px;">
+                        @foreach (var i in VisibleTileIndices())
                         {
-                            <span class="km-tile-icon">@TileIcon(tile.Type)</span>
-                            @if (tile.SquireAssigned || tile.AutoEngaging)
-                            {
-                                <div class="km-progress-ring @(tile.SquireAssigned ? "squire" : "auto")" style="--progress:@(ProgressPercent(tile))%;">
-                                    <span class="km-progress-icon">@(tile.SquireAssigned ? "🔨" : "⚔️")</span>
-                                </div>
-                            }
-                        }
-                        else if (tile.Type == TileType.Castle)
-                        {
-                            <span class="km-tile-icon">🏰</span>
+                            var tile = tiles[lane, i];
+                            var isJunction = junctionColumns.Contains(i);
+                            var isFutureJunction = isJunction && knightX < i;
+                            <div class="km-tile km-@(tile.Type.ToString().ToLowerInvariant()) @(tile.Cleared ? "cleared" : "") @(tile.Cleared ? "" : "tappable") @(isJunction ? "km-junction" : "")"
+                                 style="left:@(i * TileSizePx)px; width:@(TileSizePx)px;"
+                                 @onclick="() => OnTileTapped(lane, i)">
+                                @if (!tile.Cleared)
+                                {
+                                    <span class="km-tile-icon">@TileIcon(tile.Type)</span>
+                                    @if (tile.SquireAssigned || tile.AutoEngaging)
+                                    {
+                                        <div class="km-progress-ring @(tile.SquireAssigned ? "squire" : "auto")" style="--progress:@(ProgressPercent(tile))%;">
+                                            <span class="km-progress-icon">@(tile.SquireAssigned ? "🔨" : "⚔️")</span>
+                                        </div>
+                                    }
+                                }
+                                else if (tile.Type == TileType.Castle)
+                                {
+                                    <span class="km-tile-icon">🏰</span>
+                                }
+                                @if (isFutureJunction)
+                                {
+                                    <span class="km-junction-flag @(LaneChoiceOrDefault(i) == lane ? "chosen" : "")">🚩</span>
+                                }
+                            </div>
                         }
                     </div>
                 }
 
-                <div class="km-knight @(isFightingEnemy ? "fighting" : "")" style="left:@((knightX * TileSizePx).ToString(Inv))px;">🛡️</div>
+                <div class="km-knight @(isFightingEnemy ? "fighting" : "")" style="left:@((knightX * TileSizePx).ToString(Inv))px; top:@(KnightTopPx)px;">🛡️</div>
             </div>
         </div>
 
@@ -155,6 +185,11 @@
     private enum TileType { Road, Gap, Cliff, Enemy, Castle }
 
     private const int TileSizePx = 50;
+    private const int LaneHeightPx = 64;
+    private const int Lanes = 3;
+    private const int StartLane = 1;
+    private const int JunctionSpacing = 6;
+    private const int MinEnemySpacing = 5;
     private const int ViewportTilesVisible = 7;
     private const float KnightViewportFraction = 0.3f;
     private const float MaxHp = 100f;
@@ -169,8 +204,8 @@
         Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
 
     private static float WalkSpeed(Difficulty d) => d switch { Difficulty.Easy => 1.0f, Difficulty.Medium => 1.3f, _ => 1.6f };
-    private static int SquireCount(Difficulty d) => d switch { Difficulty.Easy => 3, Difficulty.Medium => 2, _ => 2 };
-    private static float ObstacleDensity(Difficulty d) => d switch { Difficulty.Easy => 0.30f, Difficulty.Medium => 0.38f, _ => 0.46f };
+    private static int SquireCount(Difficulty d) => d switch { Difficulty.Easy => 3, Difficulty.Medium => 3, _ => 2 };
+    private static float ObstacleDensity(Difficulty d) => d switch { Difficulty.Easy => 0.26f, Difficulty.Medium => 0.34f, _ => 0.42f };
     private static float EnemyDps(Difficulty d) => d switch { Difficulty.Easy => 8f, Difficulty.Medium => 12f, _ => 16f };
     private static int LevelLength(Difficulty d) => d switch { Difficulty.Easy => 36, Difficulty.Medium => 46, _ => 56 };
 
@@ -204,7 +239,13 @@
     private Phase phase = Phase.Setup;
     private Difficulty selectedDifficulty = Difficulty.Easy;
 
-    private TileState[] tiles = Array.Empty<TileState>();
+    private TileState[,] tiles = new TileState[Lanes, 0];
+    private int length;
+    private HashSet<int> junctionColumns = new();
+    private Dictionary<int, int> laneChoiceAtJunction = new();
+    private int lastAppliedJunctionCol = -1;
+
+    private int knightLane = StartLane;
     private float knightX;
     private float cameraLeftTile;
     private bool isFightingEnemy;
@@ -223,7 +264,8 @@
     private readonly Random rng = new();
 
     private string HpDisplay => ((int)MathF.Ceiling(hp)).ToString(Inv);
-    private int RoadProgressPercent => tiles.Length <= 1 ? 0 : Math.Clamp((int)(knightX * 100f / (tiles.Length - 1)), 0, 100);
+    private int KnightTopPx => knightLane * LaneHeightPx + LaneHeightPx - 40;
+    private int RoadProgressPercent => length <= 1 ? 0 : Math.Clamp((int)(knightX * 100f / (length - 1)), 0, 100);
 
     protected override void OnInitialized()
     {
@@ -233,6 +275,7 @@
     private void StartGame()
     {
         GenerateLevel(selectedDifficulty);
+        knightLane = StartLane;
         knightX = 0f;
         cameraLeftTile = 0f;
         isFightingEnemy = false;
@@ -245,6 +288,8 @@
         bestScore = null;
         isNewBest = false;
         accumulator = 0f;
+        lastAppliedJunctionCol = -1;
+        laneChoiceAtJunction.Clear();
 
         startedAtUtc = DateTime.UtcNow;
         phase = Phase.Playing;
@@ -256,39 +301,49 @@
 
     private void GenerateLevel(Difficulty d)
     {
-        var length = LevelLength(d);
+        length = LevelLength(d);
         var density = ObstacleDensity(d);
-        tiles = new TileState[length];
-        tiles[0] = new TileState { Type = TileType.Road, Cleared = true };
-        // A short safe-start stretch so the very first frame doesn't force
-        // an instant reaction before the player has gotten their bearings.
+        tiles = new TileState[Lanes, length];
+        junctionColumns = new HashSet<int>();
+
         var safeStart = Math.Min(3, length - 1);
-        for (var i = 1; i < safeStart; i++)
+        for (var c = safeStart; c < length - 1; c++)
         {
-            tiles[i] = new TileState { Type = TileType.Road, Cleared = true };
+            if (c % JunctionSpacing == 0) junctionColumns.Add(c);
         }
-        // Enemy tiles are the only ones that cost HP when nobody's dispatched
-        // in time, so unlike gaps/cliffs they're kept a minimum distance
-        // apart - otherwise independent per-tile odds regularly roll two (or
-        // three) in close succession, which can cost half of max HP with no
-        // way to avoid it if both squires are already busy elsewhere. That's
-        // a bad-luck loss, not a skill one, so it's worth ruling out here
-        // rather than tuning damage numbers around it.
-        const int minEnemySpacing = 5;
-        var lastEnemyIndex = safeStart - minEnemySpacing;
-        for (var i = safeStart; i < length - 1; i++)
+
+        var lastEnemyIndex = new int[Lanes];
+        for (var l = 0; l < Lanes; l++) lastEnemyIndex[l] = safeStart - MinEnemySpacing;
+
+        for (var c = 0; c < length; c++)
         {
-            var type = rng.NextDouble() < density
-                ? rng.Next(3) switch { 0 => TileType.Gap, 1 => TileType.Cliff, _ => TileType.Enemy }
-                : TileType.Road;
-            if (type == TileType.Enemy && i - lastEnemyIndex < minEnemySpacing)
+            var forcedSafe = c == 0 || c < safeStart || c == length - 1 || junctionColumns.Contains(c);
+            for (var l = 0; l < Lanes; l++)
             {
-                type = rng.Next(2) == 0 ? TileType.Gap : TileType.Cliff;
+                if (forcedSafe)
+                {
+                    var safeType = c == length - 1 ? TileType.Castle : TileType.Road;
+                    tiles[l, c] = new TileState { Type = safeType, Cleared = true };
+                    continue;
+                }
+
+                var type = rng.NextDouble() < density
+                    ? rng.Next(3) switch { 0 => TileType.Gap, 1 => TileType.Cliff, _ => TileType.Enemy }
+                    : TileType.Road;
+                // Enemy tiles are the only ones that cost HP when nobody's
+                // dispatched in time, so unlike gaps/cliffs they're kept a
+                // minimum distance apart per lane - otherwise independent
+                // per-tile odds regularly roll two (or three) in close
+                // succession, which can cost half of max HP with no way to
+                // avoid it if squires are already busy elsewhere.
+                if (type == TileType.Enemy && c - lastEnemyIndex[l] < MinEnemySpacing)
+                {
+                    type = rng.Next(2) == 0 ? TileType.Gap : TileType.Cliff;
+                }
+                if (type == TileType.Enemy) lastEnemyIndex[l] = c;
+                tiles[l, c] = new TileState { Type = type, Cleared = type == TileType.Road };
             }
-            if (type == TileType.Enemy) lastEnemyIndex = i;
-            tiles[i] = new TileState { Type = type, Cleared = type == TileType.Road };
         }
-        tiles[length - 1] = new TileState { Type = TileType.Castle, Cleared = true };
     }
 
     private async Task ExitToSetup()
@@ -339,7 +394,7 @@
                     await FinishGame(won: false);
                     return;
                 }
-                if (knightX >= tiles.Length - 1)
+                if (knightX >= length - 1)
                 {
                     await FinishGame(won: true);
                     return;
@@ -363,33 +418,50 @@
 
     private void UpdateSquireBuilds(float dt)
     {
-        foreach (var tile in tiles)
+        for (var l = 0; l < Lanes; l++)
         {
-            if (!tile.SquireAssigned || tile.Cleared) continue;
-
-            tile.ResolveSecondsRemaining -= dt;
-            if (tile.ResolveSecondsRemaining <= 0f)
+            for (var c = 0; c < length; c++)
             {
-                tile.Cleared = true;
-                tile.SquireAssigned = false;
-                squiresIdle++;
-                score += ScorePerObstacle;
-                _ = Interop.InvokeVoidAsync("playBuildCompleteSound");
+                var tile = tiles[l, c];
+                if (!tile.SquireAssigned || tile.Cleared) continue;
+
+                tile.ResolveSecondsRemaining -= dt;
+                if (tile.ResolveSecondsRemaining <= 0f)
+                {
+                    tile.Cleared = true;
+                    tile.SquireAssigned = false;
+                    squiresIdle++;
+                    score += ScorePerObstacle;
+                    _ = Interop.InvokeVoidAsync("playBuildCompleteSound");
+                }
             }
         }
     }
 
+    private int LaneChoiceOrDefault(int junctionCol) =>
+        laneChoiceAtJunction.TryGetValue(junctionCol, out var lane) ? lane : knightLane;
+
     private void UpdateKnight(float dt)
     {
         var currentTileIndex = (int)MathF.Floor(knightX);
+
+        // A junction's lane choice takes effect exactly once, the moment
+        // Cedric arrives standing on that column - after this his walk
+        // target comes from the newly-chosen lane's tiles.
+        if (currentTileIndex != lastAppliedJunctionCol && junctionColumns.Contains(currentTileIndex))
+        {
+            lastAppliedJunctionCol = currentTileIndex;
+            knightLane = LaneChoiceOrDefault(currentTileIndex);
+        }
+
         var targetTileIndex = currentTileIndex + 1;
-        if (targetTileIndex >= tiles.Length)
+        if (targetTileIndex >= length)
         {
             isFightingEnemy = false;
             return;
         }
 
-        var target = tiles[targetTileIndex];
+        var target = tiles[knightLane, targetTileIndex];
         if (target.Cleared)
         {
             isFightingEnemy = false;
@@ -430,7 +502,7 @@
 
     private void UpdateCamera()
     {
-        var maxLeft = Math.Max(0, tiles.Length - ViewportTilesVisible);
+        var maxLeft = Math.Max(0, length - ViewportTilesVisible);
         var desired = knightX - ViewportTilesVisible * KnightViewportFraction;
         cameraLeftTile = Math.Clamp(desired, 0f, maxLeft);
     }
@@ -438,16 +510,30 @@
     private IEnumerable<int> VisibleTileIndices()
     {
         var start = Math.Max(0, (int)MathF.Floor(cameraLeftTile) - 1);
-        var end = Math.Min(tiles.Length - 1, (int)MathF.Ceiling(cameraLeftTile) + ViewportTilesVisible + 1);
+        var end = Math.Min(length - 1, (int)MathF.Ceiling(cameraLeftTile) + ViewportTilesVisible + 1);
         for (var i = start; i <= end; i++) yield return i;
     }
 
-    private void OnTileTapped(int index)
+    private void OnTileTapped(int lane, int index)
     {
         if (phase != Phase.Playing) return;
-        if (index < 0 || index >= tiles.Length) return;
+        if (index < 0 || index >= length) return;
 
-        var tile = tiles[index];
+        // Tapping any lane's cell at a junction column commits that lane
+        // as the route for after the junction - only while Cedric hasn't
+        // reached it yet, so a choice can't be sniped at the last instant
+        // to dodge something he's already fighting.
+        if (junctionColumns.Contains(index))
+        {
+            if (knightX < index)
+            {
+                laneChoiceAtJunction[index] = lane;
+                _ = Interop.InvokeVoidAsync("playCatchSound");
+            }
+            return;
+        }
+
+        var tile = tiles[lane, index];
         if (tile.Cleared || tile.SquireAssigned) return;
         if (squiresIdle <= 0)
         {
@@ -518,7 +604,7 @@
     private static string DifficultyDetail(Difficulty d) => d switch
     {
         Difficulty.Easy => "3 squires, a shorter road",
-        Difficulty.Medium => "2 squires, a longer road",
+        Difficulty.Medium => "3 squires, a longer road",
         _ => "2 squires, fast and dangerous",
     };
 

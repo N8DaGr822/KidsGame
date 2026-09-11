@@ -34,16 +34,23 @@
     transition: width 0.2s linear;
 }
 
+.km-hint {
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    margin: -0.35rem 0 0;
+}
+
 .km-viewport {
     position: relative;
     max-width: 94vw;
-    height: 150px;
     margin: 0 auto;
     border-radius: var(--radius-md);
     overflow: hidden;
     border: 4px solid #4a3826;
     box-shadow: 0 0 18px rgba(74, 56, 38, 0.5) inset;
-    background: linear-gradient(180deg, #7ec8f5 0%, #bfe6ff 60%, transparent 60%);
+    background: linear-gradient(180deg, #7ec8f5 0%, #bfe6ff 100%);
 }
 
 .km-strip {
@@ -51,7 +58,13 @@
     height: 100%;
 }
 
-.km-strip::after {
+.km-lane-row {
+    position: absolute;
+    left: 0;
+    right: 0;
+}
+
+.km-lane-row::after {
     content: "";
     position: absolute;
     left: 0;
@@ -59,6 +72,10 @@
     bottom: 0;
     height: 38%;
     background: linear-gradient(180deg, #8a6d3b, #6b5228);
+}
+
+.km-lane-row + .km-lane-row {
+    border-top: 2px dashed rgba(255, 255, 255, 0.25);
 }
 
 .km-tile {
@@ -72,6 +89,11 @@
     box-sizing: border-box;
     cursor: default;
     z-index: 1;
+}
+
+.km-tile.km-junction:not(.cleared)::before,
+.km-tile.km-junction.cleared {
+    background: rgba(255, 214, 10, 0.12);
 }
 
 .km-tile.tappable {
@@ -139,14 +161,38 @@
     line-height: 1;
 }
 
+.km-junction-flag {
+    position: absolute;
+    top: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 14px;
+    line-height: 1;
+    z-index: 2;
+    opacity: 0.55;
+    filter: grayscale(0.6);
+    transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+.km-junction-flag.chosen {
+    opacity: 1;
+    filter: none;
+    animation: km-flag-pulse 1s ease-in-out infinite;
+}
+
+@keyframes km-flag-pulse {
+    0%, 100% { transform: translateX(-50%) scale(1); }
+    50% { transform: translateX(-50%) scale(1.25); }
+}
+
 .km-knight {
     position: absolute;
-    bottom: 10px;
     font-size: 30px;
     line-height: 1;
     z-index: 3;
     filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5));
     animation: km-bob 0.5s ease-in-out infinite;
+    transition: top 0.3s ease;
 }
 
 .km-knight.fighting {
