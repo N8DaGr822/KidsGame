@@ -1,5 +1,5 @@
 .mo-game {
-    width: min(780px, 100%);
+    width: min(920px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -80,7 +80,7 @@
 
 .mo-field {
     position: relative;
-    width: min(620px, 90vw, 62vh);
+    width: min(820px, 92vw, 78vh);
     aspect-ratio: 9 / 11;
     container-type: inline-size;
     margin: 0 auto;
