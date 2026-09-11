@@ -1,5 +1,5 @@
 .mo-game {
-    width: min(720px, 100%);
+    width: min(780px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -80,16 +80,19 @@
 
 .mo-field {
     position: relative;
-    width: min(520px, 92vw, 62vh);
+    width: min(620px, 90vw, 62vh);
     aspect-ratio: 9 / 11;
+    container-type: inline-size;
     margin: 0 auto;
     border-radius: var(--radius-md);
     overflow: hidden;
     touch-action: none;
     user-select: none;
-    background: linear-gradient(180deg, #1a3a5c 0%, #12263f 6%, #241a12 100%);
-    border: 7px solid #6b4423;
-    border-image: repeating-linear-gradient(115deg, #7a5330 0 9px, #4a3320 9px 18px) 7;
+    background: radial-gradient(ellipse at 50% 0%, #173c46, #081721 85%);
+    border: 5px solid #3e646b;
+    outline: 1px solid #bca571;
+    max-width: 100%;
+    box-sizing: border-box;
     box-shadow: var(--shadow-sm);
 }
 
@@ -134,21 +137,25 @@
     display: grid;
     place-items: center;
     box-sizing: border-box;
-    border: 1px solid rgba(0, 0, 0, 0.3);
-    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.1), inset 0 -3px 6px rgba(0, 0, 0, 0.3);
-    background-blend-mode: overlay, normal;
+    border: 0;
+    box-shadow: inset 0 0 0 0.5px #10262c25;
 }
 
 .mo-tile-glyph {
-    font-size: clamp(0.55rem, 3.2cqw, 0.9rem);
-    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
-    display: inline-block;
-    animation: mo-glyph-bob 1.8s ease-in-out infinite;
+    font-size: clamp(1rem, 5cqw, 2rem);
+    opacity: .8;
 }
 
-@keyframes mo-glyph-bob {
-    0%, 100% { transform: translateY(0) scale(1); }
-    50% { transform: translateY(-6%) scale(1.06); }
+.mo-tile-art {
+    width: 76%;
+    height: 76%;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 2px #0008);
+    pointer-events: none;
+}
+
+.mo-tile-copper .mo-tile-art {
+    filter: sepia(1) saturate(3) hue-rotate(330deg) brightness(.85) drop-shadow(0 2px 2px #0008);
 }
 
 .mo-dig-progress {
@@ -173,83 +180,50 @@
 }
 
 .mo-tile-empty {
-    background:
-        radial-gradient(circle at 30% 25%, rgba(0, 0, 0, 0.5), transparent 60%),
-        #150f0a;
-    box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.75);
+    background: transparent;
+    box-shadow: none;
 }
 
-.mo-tile-dirt {
-    background:
-        radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.12) 0 2px, transparent 2px) 0 0 / 12px 12px,
-        radial-gradient(circle at 65% 60%, rgba(0, 0, 0, 0.18) 0 2px, transparent 2px) 4px 5px / 14px 14px,
-        linear-gradient(160deg, #96693e, #6b4423);
+.mo-cell:not(.mo-tile-empty) {
+    background-image: url('images/mining/stone.png');
+    background-size: 100% 100%;
+    background-blend-mode: multiply;
 }
 
-.mo-tile-stone {
-    background:
-        radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.14) 0 2px, transparent 2px) 0 0 / 13px 13px,
-        linear-gradient(160deg, #868c9c, #5c616f);
+.mo-cell.mo-tile-dirt {
+    background-image: url('images/mining/dirt.png');
+    background-color: #bc8c61;
 }
 
-.mo-tile-hardrock {
-    background:
-        radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.1) 0 2px, transparent 2px) 0 0 / 13px 13px,
-        linear-gradient(160deg, #656b7c, #3f4350);
+.mo-tile-stone { background-color: #91a1a6; }
+.mo-tile-hardrock { background-color: #657f8b; }
+.mo-tile-denserock { background-color: #57627d; }
+.mo-tile-bedrock { background-color: #3b445f; }
+.mo-tile-copper { background-color: #9f805f; }
+.mo-tile-silver { background-color: #809698; }
+.mo-tile-gold { background-color: #7c7960; }
+.mo-tile-emerald { background-color: #557e74; }
+.mo-tile-ruby { background-color: #806478; }
+.mo-tile-diamond { background-color: #5e869b; }
+.mo-tile-relic { background-color: #756590; }
+
+.mo-cell.mo-tile-lava {
+    background-image: url('images/mining/lava.png');
+    background-color: #ffae65;
+    box-shadow: inset 0 0 12px #f35b13, 0 0 12px #ff710050;
 }
 
-.mo-tile-denserock {
-    background:
-        radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.08) 0 2px, transparent 2px) 0 0 / 13px 13px,
-        linear-gradient(160deg, #454a5c, #262835);
+.mo-cell.mo-tile-gas {
+    background-image: radial-gradient(ellipse at 30% 60%, #c2e88990, transparent 65%),
+        radial-gradient(ellipse at 70% 35%, #aadf6590, #354a37);
 }
 
-.mo-tile-bedrock {
-    background:
-        radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.06) 0 2px, transparent 2px) 0 0 / 13px 13px,
-        linear-gradient(160deg, #2b2d38, #131419);
+.mo-cell.mo-tile-treasure {
+    background-image: radial-gradient(circle, #f6ca6b80, #4b3c37);
+    box-shadow: inset 0 0 20px #ffd87870;
 }
 
-.mo-tile-copper,
-.mo-tile-silver,
-.mo-tile-gold,
-.mo-tile-emerald,
-.mo-tile-ruby,
-.mo-tile-diamond,
-.mo-tile-relic {
-    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.22), inset 0 -3px 6px rgba(0, 0, 0, 0.35), 0 0 9px 1px var(--mo-glow, transparent);
-}
-
-.mo-tile-copper { background: radial-gradient(circle at 35% 30%, #d98850, #7a4420 75%); --mo-glow: rgba(211, 130, 68, 0.55); }
-.mo-tile-silver { background: radial-gradient(circle at 35% 30%, #dde2e8, #7d828e 75%); --mo-glow: rgba(200, 206, 216, 0.55); }
-.mo-tile-gold { background: radial-gradient(circle at 35% 30%, #ffd873, #a37c1f 75%); --mo-glow: rgba(255, 209, 100, 0.65); }
-.mo-tile-emerald { background: radial-gradient(circle at 35% 30%, #63d894, #256b45 75%); --mo-glow: rgba(80, 217, 144, 0.6); }
-.mo-tile-ruby { background: radial-gradient(circle at 35% 30%, #f0728c, #7f1f31 75%); --mo-glow: rgba(232, 90, 118, 0.6); }
-.mo-tile-diamond { background: radial-gradient(circle at 35% 30%, #d3f7fb, #5fa9b3 75%); --mo-glow: rgba(180, 240, 247, 0.75); }
-.mo-tile-relic { background: radial-gradient(circle at 35% 30%, #cba8e8, #6a4890 75%); --mo-glow: rgba(191, 152, 224, 0.6); }
-
-.mo-tile-lava {
-    background: linear-gradient(160deg, #ffab5c, #b32d0f);
-    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.15), inset 0 -3px 6px rgba(0, 0, 0, 0.35), 0 0 10px 2px rgba(255, 120, 40, 0.65);
-    animation: mo-glow 1.1s ease-in-out infinite alternate;
-}
-
-.mo-tile-gas {
-    background: linear-gradient(160deg, #d7ec7c, #7fa62a);
-    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.15), inset 0 -3px 6px rgba(0, 0, 0, 0.35), 0 0 10px 2px rgba(199, 224, 90, 0.6);
-    animation: mo-glow 1.4s ease-in-out infinite alternate;
-}
-
-.mo-tile-treasure {
-    background: radial-gradient(circle, #fff2c4, #e0b13a 55%, #7a5716 100%);
-    box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.4), 0 0 16px 4px rgba(255, 216, 115, 0.85);
-    animation: mo-glow 0.9s ease-in-out infinite alternate;
-}
-
-@keyframes mo-glow {
-    from { filter: brightness(1); }
-    to { filter: brightness(1.35); }
-}
+.mo-tile-treasure .mo-tile-art { width: 90%; height: 90%; }
 
 .mo-pod {
     position: absolute;
@@ -266,39 +240,21 @@
 .mo-pod.mo-facing-down { transform: translate(-50%, -50%) rotate(180deg); }
 .mo-pod.mo-facing-left { transform: translate(-50%, -50%) rotate(270deg); }
 
-.mo-pod-body {
+.mo-pod::before {
+    content: "";
     position: absolute;
-    inset: 8% 10% 26% 10%;
-    border-radius: 45% 45% 35% 35% / 62% 62% 28% 28%;
-    background: linear-gradient(160deg, #ffd989, #d98f1f 55%, #96650f 100%);
-    box-shadow:
-        inset 0 2px 3px rgba(255, 255, 255, 0.6),
-        inset 0 -5px 7px rgba(0, 0, 0, 0.4),
-        0 2px 4px rgba(0, 0, 0, 0.5);
-}
-
-.mo-pod-drill {
-    position: absolute;
-    top: -30%;
-    left: 50%;
-    width: 38%;
-    height: 40%;
-    transform: translateX(-50%);
-    background: linear-gradient(160deg, #eef2f7, #8b95a3);
-    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-}
-
-.mo-pod-window {
-    position: absolute;
-    top: 24%;
-    left: 50%;
-    width: 46%;
-    aspect-ratio: 1;
-    transform: translateX(-50%);
+    inset: -65%;
     border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #d3f6ff, #2f7fa8 65%, #163e52 100%);
-    box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.55), 0 0 5px rgba(140, 220, 255, 0.7);
+    background: radial-gradient(circle, #99f5ed25, transparent 68%);
+}
+
+.mo-pod-art {
+    display: block;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 3px #0009);
 }
 
 .mo-pod-thrust {
@@ -347,7 +303,7 @@
     position: relative;
     display: grid;
     grid-template-columns: repeat(3, 56px);
-    grid-template-rows: repeat(3, 56px);
+    grid-template-rows: repeat(2, 48px);
     gap: 0.35rem;
     justify-content: center;
 }
@@ -356,8 +312,8 @@
     content: "";
     position: absolute;
     left: 50%;
-    top: 50%;
-    width: 46px;
+    top: 25%;
+    width: 32px;
     height: 46px;
     transform: translate(-50%, -50%);
     border-radius: 50%;
@@ -394,7 +350,7 @@
 
 .mo-dpad-up { grid-column: 2; grid-row: 1; }
 .mo-dpad-left { grid-column: 1; grid-row: 2; }
-.mo-dpad-down { grid-column: 2; grid-row: 3; }
+.mo-dpad-down { grid-column: 2; grid-row: 2; }
 .mo-dpad-right { grid-column: 3; grid-row: 2; }
 
 .mo-shop {
@@ -462,4 +418,46 @@
     margin: 0;
     color: var(--text-muted);
     font-size: 0.78rem;
+}
+
+/* Nautical scene dressing; all decoration stays outside the input path. */
+.mo-hero {
+    position: relative;
+    width: 100%;
+    height: clamp(180px, 30vw, 240px);
+    overflow: hidden;
+    border-radius: 18px;
+    background: radial-gradient(ellipse at 50% 0%, #357b81, transparent 70%),
+        linear-gradient(160deg, #173d4a, #091924);
+    border-bottom: 4px solid #bda16d;
+}
+.mo-hero::after {
+    content: "";
+    position: absolute;
+    inset: 65% 0 0;
+    background: url('images/mining/stone.png') repeat-x bottom / 80px 80px;
+    opacity: .14;
+    pointer-events: none;
+}
+.mo-hero-pod { position: absolute; height: 78%; left: 50%; top: 5%; transform: translateX(-50%) rotate(18deg); }
+.mo-hero-anchor { position: absolute; height: 65%; left: 8%; top: -8%; transform: rotate(-15deg); opacity: .55; }
+.mo-hero-treasure { position: absolute; height: 36%; right: 10%; bottom: 16%; transform: rotate(-8deg); }
+.mo-hero-caption { position: absolute; bottom: 10px; left: 0; right: 0; color: #f2d49a; font-size: .7rem; letter-spacing: .25em; font-weight: 900; z-index: 1; }
+.mo-expedition { display: flex; justify-content: space-between; gap: 1rem; color: var(--text-muted); font-size: .78rem; font-weight: 800; padding: 0 .4rem; }
+.mo-expedition > :first-child { color: var(--text); }
+.mo-hud { padding: .65rem; border: 1px solid #709b9b50; border-radius: 14px; }
+.mo-bar { width: 110px; height: 26px; }
+.mo-hull-fill { background: linear-gradient(90deg, #358976, #74c3a2); }
+.mo-field:focus-visible { outline: 3px solid #91e2dd; outline-offset: 3px; }
+.mo-surface-row { justify-content: flex-start; padding-left: 8%; gap: .4rem; box-sizing: border-box; background: url('images/mining/deck.png') repeat-x center / auto 100%; }
+.mo-deck-anchor { height: 72%; width: 7%; object-fit: contain; }
+.mo-surface-label { font-size: clamp(.4rem, 1.5cqw, .7rem); }
+.mo-message { display: grid; place-items: center; min-height: 3rem; font-size: .75rem; text-align: center; color: var(--text-muted); }
+.mo-toast { margin: 0; }
+.mo-dpad::after { display: none; }
+.mo-dpad-btn { border-radius: 14px; background: linear-gradient(#355d66, #203a45); border: 1px solid #82adaa60; }
+.mo-pod-thrust { background: radial-gradient(circle, #e3ffff, #68d7e6 45%, transparent 75%); }
+@media (prefers-reduced-motion: reduce) {
+    .mo-pod, .mo-bar-fill, .mo-pod-thrust, .mo-dpad-btn { transition: none; }
+    .mo-cell.digging, .mo-pod-thrusting .mo-pod-thrust, .mo-toast { animation: none; }
 }

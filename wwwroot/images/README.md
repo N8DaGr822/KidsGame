@@ -17,6 +17,25 @@ do not leave blank UI.
 
 ## Sources
 
+- `mining/` (2026-09-11), used by `MineForTheOnePiece.razor`:
+  - `dirt.png`, `stone.png`, `deck.png`, `silver.png`, `gold.png`,
+    `emerald.png`, `ruby.png`, `diamond.png`, `lava.png`: the user's
+    `kenney_new-platformer-pack-1.1.zip`, `Sprites/Tiles/Default/` subset.
+    Original names: `terrain_dirt_block_center`, `terrain_stone_block_center`,
+    `block_planks`, `rock`, `gem_yellow`, `gem_green`, `gem_red`, `gem_blue`,
+    `lava`, respectively. Kenney CC0. Copper uses the rock sprite with a CSS
+    tint; terrain tiers use CSS multiply blending. Originals remain intact.
+  - `anchor.png`, `relic.png`, `treasure.png`: the user's
+    `craftpix-901245-free-underwater-world-2d-game-objects.zip`, respectively
+    `PNG/Let/Anchor.png`, `PNG/Bonus/Crown.png`, and the closed chest under
+    `PNG/Neutral/` (the archive's chest filenames begin with a curly quote).
+    CraftPix free asset pack; only this used subset was copied.
+  - `pod.png`: original artwork generated with the built-in imagegen tool.
+    Transparent PNG, preserved as generated. Prompt recorded below for
+    reproducibility. No runtime image generation or external asset requests.
+
+    > Use case: stylized-concept. Asset type: transparent PNG game sprite for a children's underwater mining game. Single small brass and golden-yellow submarine mining pod, viewed straight-on in an orthographic 2D side-scrolling game style, with a large round turquoise glass porthole, chunky riveted brass armor, two small side stabilizers and a steel spiral drill pointing straight UP at twelve o'clock. Compact symmetrical vertical silhouette, drill at top, small engine nozzle at bottom, no flame. Clean hand-painted cartoon game asset with bold readable shapes, restrained highlights, dark teal outlines, readable at 60px. Entire vehicle centered with small padding, no text, no scene, no shadows outside silhouette. Genuinely transparent background.
+
 - `fishing/*.png`, `manners/benny-bear.png`, `manners/poppy-penguin.png`,
   `manners/milo-monkey.png`, `memory/animals/*.png`,
   `whack/mole.png`, and `tanks/*.png` are all from

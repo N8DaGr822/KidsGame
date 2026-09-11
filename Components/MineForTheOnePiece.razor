@@ -36,6 +36,12 @@
     @if (phase == Phase.Setup)
     {
         <div class="mo-setup game-setup-panel">
+            <div class="mo-hero" aria-hidden="true">
+                <img class="mo-hero-anchor" src="images/mining/anchor.png" alt="" />
+                <img class="mo-hero-pod" src="images/mining/pod.png" alt="" />
+                <img class="mo-hero-treasure" src="images/mining/treasure.png" alt="" />
+                <span class="mo-hero-caption">THE DEEP IS CALLING</span>
+            </div>
             <h2>🏴‍☠️ Mine for the One Piece</h2>
             <p>Dig deep beneath the waves in search of treasure - and the legendary One Piece itself. Watch your fuel, your cargo hold, and your hull as you go. Sell your haul back at the ship to refuel, repair, and upgrade before diving again.</p>
 
@@ -78,7 +84,8 @@
             <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
-        <div class="mo-field" @ref="fieldRef" tabindex="0"
+        <div class="mo-expedition"><span>@DepthZone</span><span>Deepest: @(deepestRow * 10)m</span></div>
+        <div class="mo-field" @ref="fieldRef" tabindex="0" aria-label="Mining field. Hold arrow keys or WASD to move and dig. Return to the ship to sell and refill."
              @onkeydown="OnKeyDown" @onkeydown:preventDefault="true" @onkeyup="OnKeyUp">
 
             @foreach (var r in VisibleRowIndexes)
@@ -89,7 +96,8 @@
                 if (r == 0)
                 {
                     <div class="mo-row mo-surface-row" style="top:@(topPct.ToString(Inv))%; height:@(rowHeightPct.ToString(Inv))%;">
-                        <span class="mo-surface-label">⚓ Ship Deck</span>
+                        <img class="mo-deck-anchor" src="images/mining/anchor.png" alt="" />
+                        <span class="mo-surface-label">SHIP DECK · SELL & REFILL</span>
                     </div>
                 }
                 else
@@ -103,8 +111,13 @@
                         var isDigTarget = digTargetRow == row && digTargetCol == col;
 
                         <div class="mo-cell @(TileClass(kind)) @(isDigTarget ? "digging" : "")"
+                             title="@TileLabel(kind)"
                              style="left:@(leftPct.ToString(Inv))%; top:@(topPct.ToString(Inv))%; width:@((100.0 / Cols).ToString(Inv))%; height:@(rowHeightPct.ToString(Inv))%;">
-                            @if (kind != TileKind.Empty)
+                            @if (TileAsset(kind) is { } asset)
+                            {
+                                <img class="mo-tile-art" src="@asset" alt="@TileLabel(kind)" draggable="false" />
+                            }
+                            else if (kind == TileKind.Gas)
                             {
                                 <span class="mo-tile-glyph">@TileEmoji(kind)</span>
                             }
@@ -120,17 +133,20 @@
             <div class="mo-pod mo-facing-@(facing.ToString().ToLowerInvariant()) @(heldDirection is not null ? "mo-pod-thrusting" : "")"
                  style="left:@((podCol * 100.0 / Cols + 50.0 / Cols).ToString(Inv))%; top:@(((podRow - cameraTop) * 100.0 / VisibleRows + 50.0 / VisibleRows).ToString(Inv))%;">
                 <div class="mo-pod-thrust"></div>
-                <div class="mo-pod-body">
-                    <div class="mo-pod-drill"></div>
-                    <div class="mo-pod-window"></div>
-                </div>
+                <img class="mo-pod-art" src="images/mining/pod.png" alt="Your mining pod" draggable="false" />
             </div>
         </div>
 
-        @if (toast is not null)
-        {
-            <div class="mo-toast">@toast</div>
-        }
+        <div class="mo-message" role="status" aria-live="polite">
+            @if (toast is not null)
+            {
+                <div class="mo-toast">@toast</div>
+            }
+            else
+            {
+                <span>Hold arrows / WASD or the buttons to dig. Return to the ship to sell & refill.</span>
+            }
+        </div>
 
         <div class="mo-dpad">
             <button class="mo-dpad-btn mo-dpad-up" aria-label="Up"
@@ -299,7 +315,7 @@
         if (needsFocus && phase == Phase.Playing)
         {
             needsFocus = false;
-            await fieldRef.FocusAsync();
+            await fieldRef.FocusAsync(preventScroll: true);
         }
     }
 
@@ -737,6 +753,38 @@
     };
 
     private static string TileClass(TileKind k) => "mo-tile-" + k.ToString().ToLowerInvariant();
+
+    private string DepthZone => podRow switch
+    {
+        0 => "Safe harbor",
+        <= 15 => "The sandy shallows",
+        <= 35 => "Sunken caverns",
+        <= 60 => "The crystal depths",
+        <= 90 => "The molten abyss",
+        _ => "The forgotten vault"
+    };
+
+    private static string? TileAsset(TileKind kind) => kind switch
+    {
+        TileKind.Copper or TileKind.Silver => "images/mining/silver.png",
+        TileKind.Gold => "images/mining/gold.png",
+        TileKind.Emerald => "images/mining/emerald.png",
+        TileKind.Ruby => "images/mining/ruby.png",
+        TileKind.Diamond => "images/mining/diamond.png",
+        TileKind.Relic => "images/mining/relic.png",
+        TileKind.Treasure => "images/mining/treasure.png",
+        _ => null
+    };
+
+    private static string TileLabel(TileKind kind) => kind switch
+    {
+        TileKind.Empty => "Open tunnel",
+        TileKind.HardRock => "Hard rock",
+        TileKind.DenseRock => "Dense rock",
+        TileKind.Gas => "Gas pocket — danger",
+        TileKind.Lava => "Lava — danger",
+        _ => kind.ToString()
+    };
 
     private int DigTicksRequired(TileKind kind, int drillTierValue)
     {
