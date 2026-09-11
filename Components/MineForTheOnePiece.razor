@@ -117,9 +117,13 @@
                 }
             }
 
-            <div class="mo-pod mo-facing-@(facing.ToString().ToLowerInvariant())"
+            <div class="mo-pod mo-facing-@(facing.ToString().ToLowerInvariant()) @(heldDirection is not null ? "mo-pod-thrusting" : "")"
                  style="left:@((podCol * 100.0 / Cols + 50.0 / Cols).ToString(Inv))%; top:@(((podRow - cameraTop) * 100.0 / VisibleRows + 50.0 / VisibleRows).ToString(Inv))%;">
-                <span class="mo-pod-glyph">🛶</span>
+                <div class="mo-pod-thrust"></div>
+                <div class="mo-pod-body">
+                    <div class="mo-pod-drill"></div>
+                    <div class="mo-pod-window"></div>
+                </div>
             </div>
         </div>
 
@@ -154,7 +158,7 @@
                         var maxed = tier >= MaxTier;
                         var cost = maxed ? 0 : UpgradeCost(tier);
 
-                        <div class="mo-shop-card">
+                        <div class="mo-shop-card @ShopClass(kind)">
                             <span class="mo-shop-icon">@ShopIcon(kind)</span>
                             <span class="mo-shop-name">@ShopName(kind)</span>
                             <span class="mo-shop-tier">Tier @tier@(maxed ? " (Max)" : "")</span>
@@ -768,6 +772,14 @@
         UpgradeKind.FuelTank => "Fuel Tank",
         UpgradeKind.CargoHold => "Cargo Hold",
         _ => "Hull",
+    };
+
+    private static string ShopClass(UpgradeKind kind) => kind switch
+    {
+        UpgradeKind.Drill => "mo-shop-drill",
+        UpgradeKind.FuelTank => "mo-shop-fuel",
+        UpgradeKind.CargoHold => "mo-shop-cargo",
+        _ => "mo-shop-hull",
     };
 
     private void BuyUpgrade(UpgradeKind kind)

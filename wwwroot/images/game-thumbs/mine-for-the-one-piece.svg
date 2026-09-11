@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="mo-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2b6fa8"/>
+      <stop offset="100%" stop-color="#173a5c"/>
+    </linearGradient>
+    <linearGradient id="mo-earth" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#a9793f"/>
+      <stop offset="55%" stop-color="#7a4e2c"/>
+      <stop offset="100%" stop-color="#2b1c10"/>
+    </linearGradient>
+    <radialGradient id="mo-gold" cx="35%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#fff2c4"/>
+      <stop offset="55%" stop-color="#e0b13a"/>
+      <stop offset="100%" stop-color="#7a5716"/>
+    </radialGradient>
+    <radialGradient id="mo-pod-grad" cx="35%" cy="25%" r="80%">
+      <stop offset="0%" stop-color="#ffd989"/>
+      <stop offset="60%" stop-color="#d98f1f"/>
+      <stop offset="100%" stop-color="#96650f"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="256" height="256" rx="26" fill="url(#mo-sky)"/>
+  <rect y="92" width="256" height="164" rx="0" fill="url(#mo-earth)"/>
+  <rect y="88" width="256" height="8" fill="#4a3320"/>
+
+  <!-- mine tunnel -->
+  <path d="M118 100 L138 100 L138 150 Q138 168 156 168 L200 168 L200 190 L156 190 Q116 190 116 150 Z" fill="#160f0a" opacity="0.75"/>
+
+  <!-- ore speckles -->
+  <circle cx="70" cy="130" r="7" fill="#d98850"/>
+  <circle cx="46" cy="176" r="6" fill="#dde2e8"/>
+  <circle cx="96" cy="210" r="7" fill="#63d894"/>
+  <circle cx="188" cy="222" r="6" fill="#f0728c"/>
+  <circle cx="212" cy="140" r="6" fill="#d3f7fb"/>
+
+  <!-- mining pod in the tunnel -->
+  <g transform="translate(150 118)">
+    <polygon points="18,-18 34,10 2,10" fill="#eef2f7"/>
+    <path d="M0 6 Q0 -6 18 -6 Q36 -6 36 6 L36 26 Q36 40 18 40 Q0 40 0 26 Z" fill="url(#mo-pod-grad)"/>
+    <circle cx="18" cy="18" r="10" fill="#2f7fa8"/>
+    <circle cx="15" cy="15" r="3.5" fill="#d3f6ff"/>
+  </g>
+
+  <!-- treasure glint at the bottom -->
+  <g transform="translate(60 226)">
+    <path d="M0 18 L18 0 L46 0 L64 18 L64 30 Q64 40 54 40 L10 40 Q0 40 0 30 Z" fill="#5a3a1e" stroke="#3d2712" stroke-width="2"/>
+    <rect x="0" y="14" width="64" height="8" fill="#3d2712"/>
+    <circle cx="32" cy="18" r="6" fill="url(#mo-gold)"/>
+  </g>
+
+  <!-- small pirate flag, top-left -->
+  <g transform="translate(24 20)">
+    <line x1="0" y1="0" x2="0" y2="34" stroke="#2b1c10" stroke-width="3" stroke-linecap="round"/>
+    <path d="M0 2 L26 9 L0 18 Z" fill="#1c2230"/>
+    <circle cx="9" cy="9" r="3.4" fill="#eef2f7"/>
+    <path d="M5.5 13.5 L12.5 6.5 M5.5 6.5 L12.5 13.5" stroke="#eef2f7" stroke-width="1.6"/>
+  </g>
+
+  <!-- sparkle accents -->
+  <g fill="#ffe58a">
+    <path d="M204 60 l2.4 6.2 6.2 2.4-6.2 2.4-2.4 6.2-2.4-6.2-6.2-2.4 6.2-2.4z"/>
+    <path d="M226 84 l1.6 4 4 1.6-4 1.6-1.6 4-1.6-4-4-1.6 4-1.6z"/>
+  </g>
+</svg>

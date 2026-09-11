@@ -233,6 +233,6 @@ public static class BuiltInGames
         new BuiltInGame("Solitaire", "♠️", Solitaire, MinAge: 6),
         new BuiltInGame("Snake", "🐍", Snake, MinAge: 6, MaxAge: 13),
         new BuiltInGame("Knight's March", "🛡️", KnightsMarch, MinAge: 6, MaxAge: 13),
-        new BuiltInGame("Mine for the One Piece", "🏴‍☠️", MineForTheOnePiece, MinAge: 7, MaxAge: 14),
+        new BuiltInGame("Mine for the One Piece", "🏴‍☠️", MineForTheOnePiece, "images/game-thumbs/mine-for-the-one-piece.svg", MinAge: 7, MaxAge: 14),
     };
 }
