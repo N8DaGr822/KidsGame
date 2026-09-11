@@ -20,6 +20,35 @@
     font-weight: 900;
 }
 
+.nono-howto {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.75rem 0.9rem;
+    margin: 0.25rem 0 0.5rem;
+    border-radius: var(--radius-md);
+    background: var(--control-bg-subtle);
+    border: 1px solid var(--line);
+}
+
+.nono-howto p {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--text-muted);
+}
+
+.nono-howto strong {
+    color: var(--text);
+}
+
+.nono-hint {
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    max-width: 46rem;
+    margin: 0 auto;
+}
+
 .nono-board-wrap {
     overflow-x: auto;
     display: flex;

@@ -23,7 +23,13 @@
 
     @if (phase == Phase.Setup)
     {
-        <GameSetupPanel Title="🖼️ Nonogram" Description="Use the row and column numbers to figure out which cells to fill in and reveal the hidden picture! Tap a cell to fill it, tap again to mark it with an X.">
+        <GameSetupPanel Title="🖼️ Nonogram" Description="Use the row and column numbers to figure out which cells to fill in and reveal the hidden picture!">
+            <div class="nono-howto">
+                <p><strong>How the numbers work:</strong> each number is a group of filled cells in that row or column, in order, left-to-right (or top-to-bottom) - with at least one empty cell between groups. A clue of "3 1" means: fill 3 cells in a row, leave a gap, then fill 1 more cell.</p>
+                <p><strong>How to play:</strong> tap a cell to fill it in. Tap again to mark it with an ✗ instead (a scratch note for "definitely empty" - it doesn't count toward winning). Tap a third time to clear it.</p>
+                <p><strong>How to win:</strong> fill in exactly the cells the clues describe, leaving everything else empty, and the hidden picture is revealed!</p>
+            </div>
+
             <h3 class="game-section-title">Choose a difficulty</h3>
             <LockedChoiceNotice Locked="LockedDifficulty is not null" Label="@(LockedDifficulty is { } l ? DifficultyName(l) : null)" Detail="@(LockedDifficulty is { } ld ? DifficultyDetail(ld) : null)">
                 <div class="game-option-grid">
@@ -47,6 +53,8 @@
             <StatPill Label="Time" Value="@FormatTime(elapsedSeconds)" />
             <SecondaryActionButton OnClick="ExitToSetup">← Exit</SecondaryActionButton>
         </GameHud>
+
+        <p class="nono-hint">Tap to fill a cell matching each row/column's clue numbers, tap again for ✗ (a "definitely empty" note) - fill exactly what the clues describe to win.</p>
 
         <div class="nono-board-wrap">
             <table class="nono-board">

@@ -1,6 +1,6 @@
 .sol-card {
-    width: 68px;
-    height: 96px;
+    width: var(--sol-card-w, 68px);
+    height: var(--sol-card-h, 96px);
     border-radius: 8px;
     background: #fdfdf5;
     border: 1px solid rgba(0, 0, 0, 0.25);
@@ -44,9 +44,9 @@
 
 .sol-card-rank {
     font-weight: 900;
-    font-size: 1.05rem;
+    font-size: calc(var(--sol-card-w, 68px) * 0.25);
 }
 
 .sol-card-suit {
-    font-size: 1.2rem;
+    font-size: calc(var(--sol-card-w, 68px) * 0.28);
 }

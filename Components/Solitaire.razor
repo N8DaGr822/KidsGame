@@ -104,7 +104,7 @@
                 {
                     var colIndex = c;
                     var column = tableau[colIndex];
-                    <div class="sol-column" style="min-height:@(ColumnHeightPx(column.Count))px">
+                    <div class="sol-column" style="--sol-count:@column.Count">
                         @if (column.Count == 0)
                         {
                             <div class="sol-slot sol-empty-column" @onclick="() => OnCardClick(PileType.Tableau, colIndex, 0)"></div>
@@ -114,7 +114,7 @@
                             @for (var i = 0; i < column.Count; i++)
                             {
                                 var cardIndex = i;
-                                <div class="sol-column-card" style="top:@(i * OverlapPx)px; z-index:@i" @onclick="() => OnCardClick(PileType.Tableau, colIndex, cardIndex)">
+                                <div class="sol-column-card" style="--sol-i:@i; z-index:@i" @onclick="() => OnCardClick(PileType.Tableau, colIndex, cardIndex)">
                                     <SolCardView Card="column[cardIndex]" Selected="IsSelected(PileType.Tableau, colIndex, cardIndex)" />
                                 </div>
                             }
@@ -171,9 +171,6 @@
     private enum Phase { Setup, Playing, Finished }
     public enum Difficulty { Easy, Medium, Hard }
     private enum PileType { Tableau, Waste, Foundation, Stock }
-
-    private const int OverlapPx = 26;
-    private const int CardHeightPx = 96;
 
     private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
 
@@ -241,9 +238,6 @@
     // foundations/stock, so it's safe to automate without second-guessing
     // a move the player might have wanted to make differently.
     private bool CanAutoFinish => phase == Phase.Playing && tableau.All(col => col.TrueForAll(card => card.FaceUp));
-
-    private static int ColumnHeightPx(int cardCount) =>
-        cardCount == 0 ? CardHeightPx : (cardCount - 1) * OverlapPx + CardHeightPx;
 
     protected override void OnInitialized()
     {

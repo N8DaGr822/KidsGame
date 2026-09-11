@@ -1,9 +1,42 @@
 .sol-game {
-    width: min(760px, 100%);
+    width: min(900px, 96vw);
     margin: 0 auto;
     color: var(--text);
     display: grid;
     gap: 1rem;
+    /* Card size drives the whole board's footprint - scaled up at wider
+       breakpoints below so the table actually uses the extra screen space
+       on desktop instead of sitting fixed-size in a sea of background.
+       Kept as custom properties (rather than baking px into the Razor
+       markup like the old top/min-height inline styles did) so a single
+       media query controls every card, slot, and column consistently. */
+    --sol-card-w: 68px;
+    --sol-card-h: 96px;
+    --sol-overlap: 26px;
+}
+
+@media (min-width: 640px) {
+    .sol-game {
+        --sol-card-w: 78px;
+        --sol-card-h: 109px;
+        --sol-overlap: 30px;
+    }
+}
+
+@media (min-width: 900px) {
+    .sol-game {
+        --sol-card-w: 90px;
+        --sol-card-h: 126px;
+        --sol-overlap: 35px;
+    }
+}
+
+@media (min-width: 1200px) {
+    .sol-game {
+        --sol-card-w: 104px;
+        --sol-card-h: 146px;
+        --sol-overlap: 40px;
+    }
 }
 
 .sol-diff-name {
@@ -48,6 +81,7 @@
 
 .sol-tableau {
     display: flex;
+    justify-content: center;
     gap: 0.5rem;
     width: fit-content;
     min-width: 100%;
@@ -55,11 +89,13 @@
 
 .sol-column {
     position: relative;
-    width: 68px;
+    width: var(--sol-card-w);
+    min-height: calc(max(0, var(--sol-count, 0) - 1) * var(--sol-overlap) + var(--sol-card-h));
 }
 
 .sol-column-card {
     position: absolute;
+    top: calc(var(--sol-i, 0) * var(--sol-overlap));
     left: 0;
     right: 0;
     cursor: pointer;
@@ -68,8 +104,8 @@
 /* ---- Slots (foundation / waste / stock / empty column) ---- */
 
 .sol-slot {
-    width: 68px;
-    height: 96px;
+    width: var(--sol-card-w);
+    height: var(--sol-card-h);
     border-radius: 8px;
     border: 2px dashed rgba(255, 255, 255, 0.25);
     display: grid;
@@ -79,7 +115,7 @@
 }
 
 .sol-slot-glyph {
-    font-size: 1.5rem;
+    font-size: calc(var(--sol-card-w) * 0.35);
     color: rgba(255, 255, 255, 0.35);
     font-weight: 900;
 }
