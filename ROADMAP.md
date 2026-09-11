@@ -177,7 +177,17 @@ more like a small world once it starts:
       bar item - already true (`.game-host-exit-btn`: a 34px icon-only
       circle, not a labeled bar item), just never checked off here.
 
-## 6. Responsive layout
+## 6. Picker browsability
+
+Flagged by the 2026-09-10 `GAME_EVALUATION.md` catalog review: the picker
+already has Recently Played, but with 112 games there's no other way to
+narrow the list.
+
+- [ ] Add favorites and a few visual categories (e.g. Create, Match, Think,
+      Action) to game select. Offer parents age/skill filters without
+      making children configure a search form.
+
+## 7. Responsive layout
 
 - [x] `.carousel-wrap` uses a fixed `width: 71rem` - should be
       `width: min(71rem, 100%)` so it can't force horizontal overflow on

@@ -205,7 +205,11 @@ All shipped 2026-09-01 - see COMPLETED_GAMES.md.
   them before he arrives. Original name/theme, not a reproduction of the
   SNES game or its characters. First game here with a scrolling camera and
   a build-progress ring, both built from scratch (see `Components/KnightsMarch.razor`'s
-  header comment for the technique notes).
+  header comment for the technique notes). Widened 2026-09-08 from a
+  single lane to a 3-lane road with junctions every 6 tiles - the player
+  now taps a junction's flag to pre-select which lane the knight takes
+  next (defaults to staying in the current lane), adding real route
+  planning on top of the squire-dispatch loop.
 - [ ] Bridge Builder
 - [ ] Physics Puzzle
 - [ ] Marble Run
