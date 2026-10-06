@@ -25,16 +25,26 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore Tests/KidsGameLauncher.Tests.csproj
 
-      - name: Publish
-        run: dotnet publish KidsGameLauncher.csproj -c Release -o publish
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Regression tests
+        run: |
+          dotnet test Tests/KidsGameLauncher.Tests.csproj --no-restore
+          node --test Tests/service-worker.test.mjs
 
       # GitHub Pages serves this repo from /KidsGame/, not the root, so
       # the base href baked in for local dev (dotnet run at "/") needs to
       # point at the subpath or every asset request 404s.
       - name: Fix base href for the /KidsGame/ subpath
-        run: sed -i 's#<base href="/" />#<base href="/KidsGame/" />#' publish/wwwroot/index.html
+        run: sed -i 's#<base href="/" />#<base href="/KidsGame/" />#' wwwroot/index.html
+
+      # Offline Integrity: Generate hashes after setting the deployment base path.
+      - name: Publish
+        run: dotnet publish KidsGameLauncher.csproj -c Release -o publish
 
       # Pages runs output through Jekyll by default, which ignores
       # folders starting with "_" — that would drop Blazor's
@@ -47,6 +57,9 @@ jobs:
       # host. Pages falls back to 404.html, so serve the SPA there too.
       - name: Add SPA fallback
         run: cp publish/wwwroot/index.html publish/wwwroot/404.html
+
+      - name: Verify published offline assets
+        run: node Tests/verify-publish.mjs publish/wwwroot
 
       - uses: actions/configure-pages@v5
 

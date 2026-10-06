@@ -5,7 +5,7 @@ self.importScripts('./service-worker-assets.js');
 
 const cacheNamePrefix = 'kids-game-launcher-cache-';
 const cacheName = `${cacheNamePrefix}${self.assetsManifest.version}`;
-const offlineAssetsInclude = [/\.dll$/, /\.pdb$/, /\.wasm/, /\.html/, /\.js$/, /\.json$/, /\.css$/, /\.woff2?$/, /\.png$/, /\.jpe?g$/, /\.gif$/, /\.ico$/, /\.blat$/, /\.dat$/];
+const offlineAssetsInclude = [/\.dll$/, /\.pdb$/, /\.wasm/, /\.html/, /\.js$/, /\.json$/, /\.css$/, /\.woff2?$/, /\.png$/, /\.jpe?g$/, /\.svg$/, /\.webp$/, /\.gif$/, /\.ico$/, /\.blat$/, /\.dat$/];
 const offlineAssetsExclude = [/^service-worker\.js$/];
 
 self.addEventListener('install', event => event.waitUntil(onInstall(event)));
@@ -21,7 +21,7 @@ async function onInstall(event) {
         .map(asset => new Request(asset.url, { integrity: asset.hash, cache: 'no-cache' }));
 
     await caches.open(cacheName).then(cache => cache.addAll(assetsRequests));
-    self.skipWaiting();
+    // Offline Updates: Let open games finish using their current asset version.
 }
 
 async function onActivate(event) {
@@ -38,7 +38,13 @@ async function onActivate(event) {
 async function onFetch(event) {
     let cachedResponse = null;
     if (event.request.method === 'GET') {
-        const shouldServeIndexHtml = event.request.mode === 'navigate';
+        const url = new URL(event.request.url);
+        const scope = new URL(self.registration.scope);
+        const path = url.pathname.slice(scope.pathname.length);
+        // Game Routing: Embedded HTML games must receive their own cached document.
+        const isLauncherRoute = /^(?:$|index\.html$|games\/?$|play\/[^/]+\/?$|admin(?:\/.*)?$)/.test(path);
+        const shouldServeIndexHtml = event.request.mode === 'navigate'
+            && url.origin === scope.origin && url.pathname.startsWith(scope.pathname) && isLauncherRoute;
         const request = shouldServeIndexHtml ? 'index.html' : event.request;
         const cache = await caches.open(cacheName);
         cachedResponse = await cache.match(request);

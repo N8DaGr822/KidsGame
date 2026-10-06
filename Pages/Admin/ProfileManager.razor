@@ -39,7 +39,7 @@
                                 <a class="btn-secondary" href="@($"admin/access/{profile.Id}")">Manage games</a>
                                 <a class="btn-secondary" href="@($"admin/history/{profile.Id}")">Screen time</a>
                                 <button class="btn-secondary" @onclick="() => StartEditProfile(profile)">Edit</button>
-                                <button class="btn-danger" @onclick="() => DeleteProfileAsync(profile)">Remove</button>
+                                <button class="btn-danger" @onclick="() => _profileToDelete = profile">Remove</button>
                             </div>
                         </div>
                     }
@@ -59,6 +59,25 @@
                 }
             </div>
         </section>
+
+        <section class="admin-section">
+            <h2>Backup and restore</h2>
+            <StorageBackup />
+        </section>
+
+        @if (_profileToDelete is not null)
+        {
+            <div class="pin-modal-backdrop">
+                <div class="pin-modal" role="dialog" aria-modal="true" aria-labelledby="delete-profile-title">
+                    <h2 id="delete-profile-title">Remove @_profileToDelete.Name?</h2>
+                    <p>This removes this profile and its saved launcher progress. Export a backup first if you want to keep it.</p>
+                    <div class="pin-modal-actions">
+                        <button class="btn-secondary" @onclick="() => _profileToDelete = null">Cancel</button>
+                        <button class="btn-danger" @onclick="() => DeleteProfileAsync(_profileToDelete)">Remove profile</button>
+                    </div>
+                </div>
+            </div>
+        }
 
         @if (_editingProfile is not null)
         {
@@ -97,6 +116,7 @@
     private bool _isNewProfile;
     private string _newPin = "";
     private bool _pinSaved;
+    private Profile? _profileToDelete;
 
     protected override async Task OnInitializedAsync()
     {
@@ -155,6 +175,7 @@
 
     private async Task DeleteProfileAsync(Profile profile)
     {
+        _profileToDelete = null;
         await Data.DeleteProfileAsync(profile.Id);
         await RefreshAsync();
     }

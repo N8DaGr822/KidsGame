@@ -2,23 +2,49 @@
 @inject Services.PlayTimeTracker Tracker
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject AppDataService Data
 @implements IAsyncDisposable
 
 <div class="app-shell">
-    @Body
+    @if (!Data.NeedsRecovery)
+    {
+        @Body
+    }
 </div>
+
+@if (Data.NeedsRecovery)
+{
+    <div class="time-limit-overlay storage-recovery">
+        <div class="time-limit-card">
+            <h1>Recover saved data</h1>
+            <p role="alert">@Data.StorageError</p>
+            <button class="btn-secondary" @onclick="RetryLoadAsync">Retry reading storage</button>
+            <StorageBackup Recovery="true" />
+        </div>
+    </div>
+}
+else if (Data.StorageError is not null)
+{
+    <div class="storage-warning" role="alert">
+        <span>@Data.StorageError</span>
+        <button class="btn-secondary" @onclick="Data.SaveAsync">Retry saving</button>
+    </div>
+}
 
 <button class="fullscreen-toggle @(isFullscreen ? "active" : "")" @onclick="ToggleFullscreen" aria-label="@(isFullscreen ? "Exit full screen" : "Enter full screen")" title="@(isFullscreen ? "Exit full screen" : "Full screen")">
     ⛶
 </button>
 
-@if (Tracker.LimitReached)
+@if (!Data.NeedsRecovery && (Tracker.LimitReached || Tracker.CheckingLimit))
 {
     <div class="time-limit-overlay">
         <div class="time-limit-card">
             <span class="time-limit-icon">⏰</span>
-            <h1>All done for today!</h1>
-            <p>You've used up today's play time. Ask a grown-up if you'd like more, or come back tomorrow!</p>
+            <h1>@(Tracker.CheckingLimit ? "Checking play time…" : "All done for today!")</h1>
+            @if (!Tracker.CheckingLimit)
+            {
+                <p>You've used up today's play time. Ask a grown-up if you'd like more, or come back tomorrow!</p>
+            }
             <button class="btn-primary" @onclick="BackToProfiles">Back to profiles</button>
         </div>
     </div>
@@ -43,11 +69,18 @@
     protected override void OnInitialized()
     {
         Tracker.OnChange += HandleTrackerChanged;
+        Data.OnStorageChanged += HandleTrackerChanged;
     }
 
     private void HandleTrackerChanged() => InvokeAsync(StateHasChanged);
 
     private void BackToProfiles() => Nav.NavigateTo("");
+
+    private async Task RetryLoadAsync()
+    {
+        await Data.RetryLoadAsync();
+        if (!Data.NeedsRecovery) Nav.NavigateTo("", forceLoad: true);
+    }
 
     private async Task ToggleFullscreen()
     {
@@ -76,6 +109,7 @@
     public async ValueTask DisposeAsync()
     {
         Tracker.OnChange -= HandleTrackerChanged;
+        Data.OnStorageChanged -= HandleTrackerChanged;
 
         if (_module is not null)
         {

@@ -327,11 +327,18 @@
     private int matchedPairs;
     private int elapsedSeconds;
     private System.Threading.Timer? timer;
+    private CancellationTokenSource runCancellation = new();
+    private bool resultReported;
 
     // ---- Lifecycle / actions -----------------------------------------------
 
     private void StartGame()
     {
+        // Game Lifecycle: Invalidate every continuation from the previous deck before replacing it.
+        runCancellation.Cancel();
+        runCancellation.Dispose();
+        runCancellation = new();
+        resultReported = false;
         started = true;
         gameWon = false;
         moves = 0;
@@ -352,19 +359,17 @@
     // finish invoked OnComplete, so an abandoned session left no trace.
     private async Task ResetToSetup()
     {
-        if (started && !gameWon && OnComplete.HasDelegate)
-        {
-            StopTimer();
-            await OnComplete.InvokeAsync(new MemoryMatchResult(
-                Theme: selectedTheme.Name,
-                Difficulty: selectedDifficulty.Name,
-                Moves: moves,
-                ElapsedSeconds: elapsedSeconds));
-        }
-
+        var report = started && !gameWon && !resultReported && OnComplete.HasDelegate;
+        var result = new MemoryMatchResult(selectedTheme.Name, selectedDifficulty.Name, moves, elapsedSeconds);
+        runCancellation.Cancel();
         started = false;
         gameWon = false;
         StopTimer();
+        if (report)
+        {
+            resultReported = true;
+            await OnComplete.InvokeAsync(result);
+        }
     }
 
     private void BuildDeck()
@@ -378,7 +383,8 @@
 
     private async Task FlipCard(CardState card)
     {
-        if (isResolvingMismatch || card.IsFaceUp || card.IsMatched) return;
+        if (!started || gameWon || isResolvingMismatch || card.IsFaceUp || card.IsMatched) return;
+        var token = runCancellation.Token;
 
         card.IsFaceUp = true;
 
@@ -401,6 +407,7 @@
             firstPick = null;
             secondPick = null;
             await Interop.InvokeVoidAsync("playMatchSound");
+            if (token.IsCancellationRequested) return;
 
             if (matchedPairs == selectedDifficulty.PairCount)
             {
@@ -412,7 +419,10 @@
             isResolvingMismatch = true;
             StateHasChanged();
             await Interop.InvokeVoidAsync("playMismatchSound");
-            await Task.Delay(800);
+            if (token.IsCancellationRequested) return;
+            try { await Task.Delay(800, token); }
+            catch (OperationCanceledException) { return; }
+            if (token.IsCancellationRequested) return;
             firstPick.IsFaceUp = false;
             secondPick.IsFaceUp = false;
             firstPick = null;
@@ -424,20 +434,27 @@
 
     private async Task FinishGame()
     {
+        if (gameWon || resultReported || runCancellation.IsCancellationRequested) return;
+        var token = runCancellation.Token;
         StopTimer();
         gameWon = true;
 
         if (!string.IsNullOrEmpty(ProfileId))
         {
             var key = $"time:{selectedTheme.Name}:{selectedDifficulty.Name}";
-            bestTimeSeconds = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.MemoryMatch, key);
-            isNewTimeBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.MemoryMatch, key, elapsedSeconds, lowerIsBetter: true);
+            var previousBest = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.MemoryMatch, key);
+            if (token.IsCancellationRequested) return;
+            bestTimeSeconds = previousBest;
+            var newBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.MemoryMatch, key, elapsedSeconds, lowerIsBetter: true);
+            if (token.IsCancellationRequested) return;
+            isNewTimeBest = newBest;
         }
 
         StateHasChanged();
 
         if (OnComplete.HasDelegate)
         {
+            resultReported = true;
             await OnComplete.InvokeAsync(new MemoryMatchResult(
                 Theme: selectedTheme.Name,
                 Difficulty: selectedDifficulty.Name,
@@ -451,11 +468,13 @@
     private void StartTimer()
     {
         StopTimer();
-        timer = new System.Threading.Timer(_ =>
+        var token = runCancellation.Token;
+        timer = new System.Threading.Timer(_ => InvokeAsync(() =>
         {
+            if (token.IsCancellationRequested) return;
             elapsedSeconds++;
-            InvokeAsync(StateHasChanged);
-        }, null, 1000, 1000);
+            StateHasChanged();
+        }), null, 1000, 1000);
     }
 
     private void StopTimer()
@@ -472,6 +491,8 @@
 
     public ValueTask DisposeAsync()
     {
+        runCancellation.Cancel();
+        runCancellation.Dispose();
         StopTimer();
         return ValueTask.CompletedTask;
     }

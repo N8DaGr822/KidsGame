@@ -197,7 +197,28 @@ h1[tabindex="-1"]:focus {
   line-height: 1;
 }
 
+/* Storage Recovery: Keep persistence failures visible across every route. */
+.storage-warning {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  padding: 1rem;
+  background: #452222;
+  color: #fff;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.storage-backup { display: grid; gap: 1rem; margin-top: 1rem; }
+.storage-backup label { display: grid; gap: 0.5rem; }
+.storage-recovery { overflow-y: auto; }
+
 @media (prefers-reduced-motion: reduce) {
+  /* Gameplay-dependent motion has static alternatives in the affected games' isolated styles. */
   * {
     animation: none !important;
     scroll-behavior: auto !important;

@@ -3,6 +3,16 @@ export function scrollCarousel(element, amount) {
     element.scrollBy({ left: amount, behavior: 'smooth' });
 }
 
+// Backup Export: Download locally without sending profile data to a server.
+export function downloadText(filename, text) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export function getBoundingRect(element) {
     const r = element.getBoundingClientRect();
     return { left: r.left, top: r.top, width: r.width, height: r.height };

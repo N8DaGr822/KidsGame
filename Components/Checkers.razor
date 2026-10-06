@@ -93,7 +93,7 @@
                     var canSelect = turn == Turn.Player && phase == Phase.Playing && !midChain && !isSelected && legalOrigins.Contains((row, col));
                     var isDestination = selectedOrigin is not null && legalDestinations.Contains((row, col));
 
-                    <button class="ck-cell @(dark ? "dark" : "light")"
+                    <button class="ck-cell @(dark ? "dark" : "light") @(lastCpuMoveFrom == (row, col) ? "last-move-from" : "") @(lastCpuMoveTo == (row, col) ? "last-move-to" : "")"
                             style="background-image:url('images/checkers/@(dark ? "tile-dark.png" : "tile-light.png")')"
                             disabled="@(!dark || turn != Turn.Player || phase != Phase.Playing || !(canSelect || isSelected || isDestination))"
                             @onclick="() => HandleTap(row, col)">
@@ -167,6 +167,8 @@
     private HashSet<(int Row, int Col)> legalOrigins = new();
     private HashSet<(int Row, int Col)> legalDestinations = new();
     private (int Row, int Col)? selectedOrigin;
+    private (int Row, int Col)? lastCpuMoveFrom;
+    private (int Row, int Col)? lastCpuMoveTo;
     private int redCount = 12;
     private int blackCount = 12;
     private int playerTurnsTaken;
@@ -196,6 +198,8 @@
 
         turn = Turn.Player;
         selectedOrigin = null;
+        lastCpuMoveFrom = null;
+        lastCpuMoveTo = null;
         legalDestinations = new();
         roundMessage = "";
         won = false;
@@ -335,9 +339,12 @@
             return;
         }
 
+        // Last Move: Keep the original square marked throughout a multi-jump turn.
+        lastCpuMoveFrom = (cpuTurn[0].FromRow, cpuTurn[0].FromCol);
         foreach (var hop in cpuTurn)
         {
             var (wasCapture, _) = GameAi.CheckersApplyHop(board, hop.FromRow, hop.FromCol, hop.ToRow, hop.ToCol, hop.CapRow, hop.CapCol);
+            lastCpuMoveTo = (hop.ToRow, hop.ToCol);
             UpdateCounts();
             await Interop.InvokeVoidAsync(wasCapture ? "playImpactSound" : "playMatchSound");
             StateHasChanged();

@@ -198,6 +198,12 @@
     }
 }
 
+/* Reduced Motion: Present stationary targets instead of leaving bubbles below the field. */
+@media (prefers-reduced-motion: reduce) {
+    .bp-item { bottom: var(--bp-rest-height, 50%); }
+    .bp-item.popped { visibility: hidden; }
+}
+
 .bp-win-stats {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

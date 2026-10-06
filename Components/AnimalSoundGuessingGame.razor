@@ -164,14 +164,18 @@
     private bool isNewBest;
     private readonly Random rng = new();
     private DateTime startedAtUtc;
+    private CancellationTokenSource runCancellation = new();
 
     protected override void OnInitialized()
     {
         if (LockedDifficulty is { } locked) selectedDifficulty = locked;
     }
 
-    private void StartGame()
+    private async Task StartGame()
     {
+        runCancellation.Cancel();
+        runCancellation.Dispose();
+        runCancellation = new();
         sessionAnimals = Animals.OrderBy(_ => rng.Next()).Take(SessionSize).ToList();
         roundIndex = 0;
         score = 0;
@@ -179,7 +183,7 @@
         isNewBest = false;
         startedAtUtc = DateTime.UtcNow;
         phase = Phase.Playing;
-        _ = LoadRoundAsync();
+        await LoadRoundAsync();
     }
 
     private async Task LoadRoundAsync()
@@ -197,7 +201,10 @@
 
     private async Task ExitToSetup()
     {
-        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        var report = phase == Phase.Playing && OnComplete.HasDelegate;
+        phase = Phase.Setup;
+        runCancellation.Cancel();
+        if (report)
         {
             await OnComplete.InvokeAsync(new AnimalSoundGuessingGameResult(
                 Difficulty: DifficultyName(selectedDifficulty),
@@ -205,12 +212,12 @@
                 SessionSize: SessionSize,
                 ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
         }
-        phase = Phase.Setup;
     }
 
     private async Task OnGuess(AnimalDef choice)
     {
-        if (roundState != RoundState.Guessing) return;
+        if (phase != Phase.Playing || roundState != RoundState.Guessing) return;
+        var token = runCancellation.Token;
 
         pickedAnimal = choice;
         roundState = RoundState.Revealed;
@@ -218,7 +225,10 @@
         if (correct) score++;
         StateHasChanged();
         await PlaySoundAsync(correct ? "playMatchSound" : "playMismatchSound");
-        await Task.Delay(1300);
+        if (token.IsCancellationRequested) return;
+        try { await Task.Delay(1300, token); }
+        catch (OperationCanceledException) { return; }
+        if (token.IsCancellationRequested) return;
 
         roundIndex++;
         if (roundIndex >= SessionSize)
@@ -245,13 +255,19 @@
 
     private async Task FinishGame()
     {
+        if (phase != Phase.Playing || runCancellation.IsCancellationRequested) return;
+        var token = runCancellation.Token;
         phase = Phase.Finished;
 
         if (!string.IsNullOrEmpty(ProfileId))
         {
             var key = $"high-score-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
-            bestScore = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.AnimalSoundGuessingGame, key);
-            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.AnimalSoundGuessingGame, key, score, lowerIsBetter: false);
+            var previousBest = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.AnimalSoundGuessingGame, key);
+            if (token.IsCancellationRequested) return;
+            bestScore = previousBest;
+            var newBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.AnimalSoundGuessingGame, key, score, lowerIsBetter: false);
+            if (token.IsCancellationRequested) return;
+            isNewBest = newBest;
         }
 
         StateHasChanged();
@@ -282,6 +298,8 @@
 
     public async ValueTask DisposeAsync()
     {
+        runCancellation.Cancel();
+        runCancellation.Dispose();
         try
         {
             await Interop.InvokeVoidAsync("stopSpeaking");

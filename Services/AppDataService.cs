@@ -18,20 +18,35 @@ public class AppDataService
     private const string StorageKey = "kgl_appdata";
     private readonly IJSRuntime _js;
     private AppData? _cache;
+    private Task<AppData>? _loadTask;
+    private readonly SemaphoreSlim _saveLock = new(1, 1);
+    private string? _recoveryJson;
+
+    public string? StorageError { get; private set; }
+    public bool NeedsRecovery { get; private set; }
+    public bool HasUnsavedChanges { get; private set; }
+    public event Action? OnStorageChanged;
 
     public AppDataService(IJSRuntime js)
     {
         _js = js;
     }
 
-    public async Task<AppData> LoadAsync()
+    public Task<AppData> LoadAsync() => _loadTask ??= LoadCoreAsync();
+
+    private async Task<AppData> LoadCoreAsync()
     {
-        if (_cache is not null)
-            return _cache;
+        string? json;
+        try
+        {
+            json = await _js.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+        }
+        catch (JSException)
+        {
+            return RequireRecovery(null, "Browser storage could not be read. Retry when storage is available.");
+        }
 
-        var json = await _js.InvokeAsync<string?>("localStorage.getItem", StorageKey);
-
-        if (string.IsNullOrWhiteSpace(json))
+        if (json is null)
         {
             _cache = SeedDefaultData();
             EnsureBuiltInCatalogEntries(_cache);
@@ -40,7 +55,14 @@ public class AppDataService
             return _cache;
         }
 
-        _cache = JsonSerializer.Deserialize<AppData>(json) ?? SeedDefaultData();
+        try
+        {
+            _cache = ReadBackup(json);
+        }
+        catch (JsonException)
+        {
+            return RequireRecovery(json, "Saved data could not be read. The original is preserved. Download it before restoring a backup.");
+        }
         var changed = ApplyBuiltInCatalogArt(_cache);
         changed |= ApplyBuiltInCatalogAges(_cache);
         changed |= RemoveStaleGameEntries(_cache);
@@ -56,9 +78,114 @@ public class AppDataService
 
     public async Task SaveAsync()
     {
-        if (_cache is null) return;
-        var json = JsonSerializer.Serialize(_cache);
-        await _js.InvokeVoidAsync("localStorage.setItem", StorageKey, json);
+        if (_cache is null || NeedsRecovery) return;
+        await _saveLock.WaitAsync();
+        try
+        {
+            // Storage Recovery: Keep changes in memory if persistence fails so retry/export can recover them.
+            HasUnsavedChanges = true;
+            var json = JsonSerializer.Serialize(_cache);
+            await _js.InvokeVoidAsync("localStorage.setItem", StorageKey, json);
+            HasUnsavedChanges = false;
+            StorageError = null;
+        }
+        catch (JSException)
+        {
+            StorageError = "Changes could not be saved to this browser. Keep the app open and retry, or ask a parent to export a backup.";
+        }
+        finally
+        {
+            _saveLock.Release();
+            OnStorageChanged?.Invoke();
+        }
+    }
+
+    private AppData RequireRecovery(string? json, string message)
+    {
+        _recoveryJson = json;
+        NeedsRecovery = true;
+        StorageError = message;
+        _cache = new AppData();
+        OnStorageChanged?.Invoke();
+        return _cache;
+    }
+
+    public async Task RetryLoadAsync()
+    {
+        if (!NeedsRecovery) return;
+        _loadTask = null;
+        _cache = null;
+        NeedsRecovery = false;
+        StorageError = null;
+        await LoadAsync();
+        OnStorageChanged?.Invoke();
+    }
+
+    public async Task<string> ExportAsync()
+    {
+        var data = await LoadAsync();
+        return NeedsRecovery ? _recoveryJson ?? "" : JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    public static AppData ReadBackup(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Object
+            || !document.RootElement.TryGetProperty(nameof(AppData.Profiles), out _)
+            || !document.RootElement.TryGetProperty(nameof(AppData.Games), out _))
+            throw new JsonException("This file is not a launcher backup.");
+
+        var data = JsonSerializer.Deserialize<AppData>(json) ?? throw new JsonException("The backup is empty.");
+        // Backup Validation: Reject invalid identity/collection shapes before replacing any stored data.
+        if (data.Profiles is null || data.Games is null || data.PlayHistory is null
+            || data.Profiles.Any(p => p is null || string.IsNullOrWhiteSpace(p.Id) || string.IsNullOrWhiteSpace(p.Name) || !Enum.IsDefined(p.Type))
+            || !data.Profiles.Any(p => p.Type == ProfileType.Admin)
+            || data.Profiles.Select(p => p.Id).Distinct().Count() != data.Profiles.Count
+            || data.Games.Any(g => g is null || string.IsNullOrWhiteSpace(g.Id) || string.IsNullOrWhiteSpace(g.Title) || !Enum.IsDefined(g.LaunchMode))
+            || data.Games.Select(g => g.Id).Distinct().Count() != data.Games.Count
+            || data.PlayHistory.Any(h => h is null || string.IsNullOrWhiteSpace(h.Id) || h.ElapsedSeconds < 0 || !Enum.IsDefined(h.Status))
+            || data.ProfileGameAccess is null || data.ProfileGameAccess.Values.Any(v => v is null)
+            || data.DailyUsageSeconds is null || data.DailyUsageSeconds.Values.Any(v => v is null || v.Values.Any(seconds => seconds < 0))
+            || data.GardenItems is null || data.GardenItems.Values.Any(v => v is null)
+            || data.GameDifficultyOverrides is null || data.GameDifficultyOverrides.Values.Any(v => v is null)
+            || data.GameBests is null || data.GameBests.Values.Any(v => v is null || v.Values.Any(metrics => metrics is null))
+            || data.CardBattleCollection is null || data.CardBattleCollection.Values.Any(v => v is null)
+            || data.CardBattleDeck is null || data.CardBattleDeck.Values.Any(v => v is null)
+            || data.MineSaves is null || data.MineSaves.Values.Any(v => v is null || v.Cargo is null || v.Items is null)
+            || data.MineProfiles is null || data.MineProfiles.Values.Any(v => v is null || v.OwnedPaints is null))
+            throw new JsonException("The backup contains invalid profiles, games, or progress.");
+        return data;
+    }
+
+    public async Task<bool> ImportAsync(string json)
+    {
+        var restored = ReadBackup(json);
+        await _saveLock.WaitAsync();
+        try
+        {
+            // Backup Restore: Preserve the previous bytes before atomically replacing the main key.
+            var previous = await _js.InvokeAsync<string?>("localStorage.getItem", StorageKey);
+            if (!string.IsNullOrEmpty(previous))
+                await _js.InvokeVoidAsync("localStorage.setItem", StorageKey + "_before_restore", previous);
+            await _js.InvokeVoidAsync("localStorage.setItem", StorageKey, JsonSerializer.Serialize(restored));
+            _cache = restored;
+            _loadTask = Task.FromResult(restored);
+            _recoveryJson = null;
+            NeedsRecovery = false;
+            HasUnsavedChanges = false;
+            StorageError = null;
+            return true;
+        }
+        catch (JSException)
+        {
+            StorageError = "The backup could not be restored. Existing saved data has been kept. Check available browser storage and retry.";
+            return false;
+        }
+        finally
+        {
+            _saveLock.Release();
+            OnStorageChanged?.Invoke();
+        }
     }
 
     // ---- Profiles ----
@@ -213,6 +340,15 @@ public class AppDataService
         await SaveAsync();
     }
 
+    public async Task SavePlayHistoryAsync(PlayHistoryEntry entry)
+    {
+        var data = await LoadAsync();
+        var index = data.PlayHistory.FindIndex(h => h.Id == entry.Id);
+        if (index < 0) data.PlayHistory.Add(entry);
+        else data.PlayHistory[index] = entry;
+        await SaveAsync();
+    }
+
     public async Task<List<PlayHistoryEntry>> GetPlayHistoryAsync(string profileId)
     {
         var data = await LoadAsync();
@@ -221,13 +357,12 @@ public class AppDataService
 
     // ---- Play time tracking ----
 
-    // Adds to today's usage bucket for a profile and returns the new
-    // running total for today, so callers can check it against a limit
-    // without a second round trip.
-    public async Task<int> AddUsageSecondsAsync(string profileId, int seconds)
+    // Adds to the requested local day's usage bucket (today by default).
+    // The tracker supplies a date when an elapsed interval crosses midnight.
+    public async Task<int> AddUsageSecondsAsync(string profileId, int seconds, DateTime? date = null)
     {
         var data = await LoadAsync();
-        var dateKey = TodayKey();
+        var dateKey = (date ?? DateTime.Now).ToString("yyyy-MM-dd");
 
         if (!data.DailyUsageSeconds.TryGetValue(profileId, out var days))
         {

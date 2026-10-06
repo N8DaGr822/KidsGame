@@ -56,8 +56,9 @@
         </div>
 
         <p class="ftc-status">@StatusText</p>
+        <p class="ftc-reduced-motion-note">The ball stays visible as the cups change places. Remember where it stops!</p>
 
-        <div class="ftc-table" style="--ftc-count:@Math.Max(1, cups.Count)">
+        <div class="ftc-table @(roundState == RoundState.Shuffling ? "shuffling" : "")" style="--ftc-count:@Math.Max(1, cups.Count)">
             @foreach (var cup in cups)
             {
                 var isBallCup = cup.Id == ballCupId;

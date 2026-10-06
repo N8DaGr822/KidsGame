@@ -43,6 +43,14 @@
     transition: left 0.35s ease;
 }
 
+.ftc-reduced-motion-note { display: none; }
+
+/* Reduced Motion: Show each discrete ball position so instant swaps remain a fair memory game. */
+@media (prefers-reduced-motion: reduce) {
+    .ftc-reduced-motion-note { display: block; }
+    .ftc-table.shuffling .ftc-ball { z-index: 3; }
+}
+
 .ftc-ball {
     position: absolute;
     left: 50%;

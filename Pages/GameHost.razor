@@ -20,450 +20,450 @@
             @_hudSlot.Content
         </div>
 
-        <div class="game-host-surface @GameThemes.For(_game.LaunchTarget)">
+        <div @key="_session" class="game-host-surface @GameThemes.For(_game.LaunchTarget)">
             @if (_game.LaunchMode == GameLaunchMode.ExternalIframe)
             {
                 <iframe title="@_game.Title" src="@_game.LaunchTarget"></iframe>
             }
             else if (_game.LaunchTarget == BuiltInGames.MemoryMatch)
             {
-                <MemoryMatchGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMemoryMatchComplete" />
+                <MemoryMatchGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<MemoryMatchGame.MemoryMatchResult>(HandleMemoryMatchComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Fishing)
             {
-                <FishingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" OnComplete="HandleFishingComplete" />
+                <FishingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" OnComplete="GuardResult<FishingGame.FishingResult>(HandleFishingComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.DressUp)
             {
-                <DressUpGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" OnComplete="HandleDressUpComplete" HudSlot="_hudSlot" />
+                <DressUpGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" OnComplete="GuardResult<DressUpGame.DressUpResult>(HandleDressUpComplete)" HudSlot="_hudSlot" />
             }
             else if (_game.LaunchTarget == BuiltInGames.MannersGarden)
             {
-                <MannersGarden PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" OnComplete="HandleMannersGardenComplete" />
+                <MannersGarden PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" OnComplete="GuardResult<MannersGarden.MannersGardenResult>(HandleMannersGardenComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.TankDuel)
             {
-                <TankDuel PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" OnComplete="HandleTankDuelComplete" />
+                <TankDuel PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" OnComplete="GuardResult<TankDuel.TankDuelResult>(HandleTankDuelComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Uno)
             {
-                <UnoGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleUnoComplete" />
+                <UnoGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<UnoGame.UnoResult>(HandleUnoComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.SimonSays)
             {
-                <SimonSays PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSimonSaysComplete" />
+                <SimonSays PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<SimonSays.SimonSaysResult>(HandleSimonSaysComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.SlidingPuzzle)
             {
-                <SlidingPuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSlidingPuzzleComplete" />
+                <SlidingPuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<SlidingPuzzle.SlidingPuzzleResult>(HandleSlidingPuzzleComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.WordScramble)
             {
-                <WordScramble PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWordScrambleComplete" />
+                <WordScramble PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<WordScramble.WordScrambleResult>(HandleWordScrambleComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Minesweeper)
             {
-                <Minesweeper PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMinesweeperComplete" />
+                <Minesweeper PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<Minesweeper.MinesweeperResult>(HandleMinesweeperComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Sudoku)
             {
-                <Sudoku PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSudokuComplete" />
+                <Sudoku PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<Sudoku.SudokuResult>(HandleSudokuComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.WhackAMole)
             {
-                <WhackAMole PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWhackAMoleComplete" />
+                <WhackAMole PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<WhackAMole.WhackAMoleResult>(HandleWhackAMoleComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.CatchGame)
             {
-                <CatchGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCatchGameComplete" />
+                <CatchGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<CatchGame.CatchResult>(HandleCatchGameComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.FruitSlice)
             {
-                <FruitSlice PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleFruitSliceComplete" />
+                <FruitSlice PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<FruitSlice.FruitSliceResult>(HandleFruitSliceComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.BubblePop)
             {
-                <BubblePop PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleBubblePopComplete" />
+                <BubblePop PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<BubblePop.BubblePopResult>(HandleBubblePopComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ReactionTimer)
             {
-                <ReactionTimer PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleReactionTimerComplete" />
+                <ReactionTimer PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<ReactionTimer.ReactionTimerResult>(HandleReactionTimerComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.RedLightGreenLight)
             {
-                <RedLightGreenLight PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRedLightGreenLightComplete" />
+                <RedLightGreenLight PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<RedLightGreenLight.RedLightGreenLightResult>(HandleRedLightGreenLightComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.TicTacToe)
             {
-                <TicTacToe PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTicTacToeComplete" />
+                <TicTacToe PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<TicTacToe.TicTacToeResult>(HandleTicTacToeComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.UltimateTicTacToe)
             {
-                <UltimateTicTacToe PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleUltimateTicTacToeComplete" />
+                <UltimateTicTacToe PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<UltimateTicTacToe.UltimateTicTacToeResult>(HandleUltimateTicTacToeComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Hex)
             {
-                <Hex PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleHexComplete" />
+                <Hex PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<Hex.HexResult>(HandleHexComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.SequencePuzzle)
             {
-                <SequencePuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSequencePuzzleComplete" />
+                <SequencePuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<SequencePuzzle.SequencePuzzleResult>(HandleSequencePuzzleComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.LogicGridPuzzle)
             {
-                <LogicGridPuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleLogicGridPuzzleComplete" />
+                <LogicGridPuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<LogicGridPuzzle.LogicGridResult>(HandleLogicGridPuzzleComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Nonogram)
             {
-                <Nonogram PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleNonogramComplete" />
+                <Nonogram PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<Nonogram.NonogramResult>(HandleNonogramComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ThreesPuzzle)
             {
-                <ThreesPuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleThreesPuzzleComplete" />
+                <ThreesPuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<ThreesPuzzle.ThreesResult>(HandleThreesPuzzleComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ConnectFour)
             {
-                <ConnectFour PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleConnectFourComplete" />
+                <ConnectFour PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<ConnectFour.ConnectFourResult>(HandleConnectFourComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.RockPaperScissors)
             {
-                <RockPaperScissors PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRockPaperScissorsComplete" />
+                <RockPaperScissors PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<RockPaperScissors.RockPaperScissorsResult>(HandleRockPaperScissorsComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.HigherOrLower)
             {
-                <HigherOrLower PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleHigherOrLowerComplete" />
+                <HigherOrLower PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<HigherOrLower.HigherOrLowerResult>(HandleHigherOrLowerComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.PeekReveal)
             {
-                <PeekReveal PlayerName="@State.CurrentProfile?.Name" OnComplete="HandlePeekRevealComplete" />
+                <PeekReveal PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<PeekReveal.PeekRevealResult>(HandlePeekRevealComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.SoundButtons)
             {
-                <SoundButtons PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleSoundButtonsComplete" />
+                <SoundButtons PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<SoundButtons.SoundButtonsResult>(HandleSoundButtonsComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.PopAndSparkle)
             {
-                <PopAndSparkle PlayerName="@State.CurrentProfile?.Name" OnComplete="HandlePopAndSparkleComplete" />
+                <PopAndSparkle PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<PopAndSparkle.PopAndSparkleResult>(HandlePopAndSparkleComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.BigSmall)
             {
-                <BigSmall PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBigSmallComplete" />
+                <BigSmall PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<BigSmall.BigSmallResult>(HandleBigSmallComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ColorSplash)
             {
-                <ColorSplash PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleColorSplashComplete" />
+                <ColorSplash PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<ColorSplash.ColorSplashResult>(HandleColorSplashComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.FingerTrails)
             {
-                <FingerTrails PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleFingerTrailsComplete" />
+                <FingerTrails PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<FingerTrails.FingerTrailsResult>(HandleFingerTrailsComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.SleepyAnimals)
             {
-                <SleepyAnimals PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleSleepyAnimalsComplete" />
+                <SleepyAnimals PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<SleepyAnimals.SleepyAnimalsResult>(HandleSleepyAnimalsComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.GentleCreatures)
             {
-                <GentleCreatures PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleGentleCreaturesComplete" />
+                <GentleCreatures PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<GentleCreatures.GentleCreaturesResult>(HandleGentleCreaturesComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.NightSky)
             {
-                <NightSky PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleNightSkyComplete" />
+                <NightSky PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<NightSky.NightSkyResult>(HandleNightSkyComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.FireworksTouch)
             {
-                <FireworksTouch PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleFireworksTouchComplete" />
+                <FireworksTouch PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<FireworksTouch.FireworksTouchResult>(HandleFireworksTouchComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.LightsOnOff)
             {
-                <LightsOnOff PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleLightsOnOffComplete" />
+                <LightsOnOff PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<LightsOnOff.LightsOnOffResult>(HandleLightsOnOffComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.SpinTheWheel)
             {
-                <SpinTheWheel PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleSpinTheWheelComplete" />
+                <SpinTheWheel PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<SpinTheWheel.SpinTheWheelResult>(HandleSpinTheWheelComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.MakeItRain)
             {
-                <MakeItRain PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleMakeItRainComplete" />
+                <MakeItRain PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<MakeItRain.MakeItRainResult>(HandleMakeItRainComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.SnowDay)
             {
-                <SnowDay PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleSnowDayComplete" />
+                <SnowDay PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<SnowDay.SnowDayResult>(HandleSnowDayComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.PuddleSplash)
             {
-                <PuddleSplash PlayerName="@State.CurrentProfile?.Name" OnComplete="HandlePuddleSplashComplete" />
+                <PuddleSplash PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<PuddleSplash.PuddleSplashResult>(HandlePuddleSplashComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.BathTime)
             {
-                <BathTime PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBathTimeComplete" />
+                <BathTime PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<BathTime.BathTimeResult>(HandleBathTimeComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.FunnyFaces)
             {
-                <FunnyFaces PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleFunnyFacesComplete" />
+                <FunnyFaces PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<FunnyFaces.FunnyFacesResult>(HandleFunnyFacesComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.TouchTheBodyPart)
             {
-                <TouchTheBodyPart PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleTouchTheBodyPartComplete" />
+                <TouchTheBodyPart PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<TouchTheBodyPart.TouchTheBodyPartResult>(HandleTouchTheBodyPartComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.StackTheBlocks)
             {
-                <StackTheBlocks PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleStackTheBlocksComplete" />
+                <StackTheBlocks PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<StackTheBlocks.StackTheBlocksResult>(HandleStackTheBlocksComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.KnockItDown)
             {
-                <KnockItDown PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleKnockItDownComplete" />
+                <KnockItDown PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<KnockItDown.KnockItDownResult>(HandleKnockItDownComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.RollTheBall)
             {
-                <RollTheBall PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleRollTheBallComplete" />
+                <RollTheBall PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<RollTheBall.RollTheBallResult>(HandleRollTheBallComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.CardBattleGame)
             {
-                <CardBattleGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCardBattleGameComplete" />
+                <CardBattleGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<CardBattleGame.CardBattleGameResult>(HandleCardBattleGameComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.AutoBattler)
             {
-                <AutoBattler PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleAutoBattlerComplete" />
+                <AutoBattler PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<AutoBattler.AutoBattlerResult>(HandleAutoBattlerComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.BabyPiano)
             {
-                <BabyPiano PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBabyPianoComplete" />
+                <BabyPiano PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<BabyPiano.BabyPianoResult>(HandleBabyPianoComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.MagicGarden)
             {
-                <MagicGarden PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleMagicGardenComplete" />
+                <MagicGarden PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<MagicGarden.MagicGardenResult>(HandleMagicGardenComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.FeedTheAnimal)
             {
-                <FeedTheAnimal PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleFeedTheAnimalComplete" />
+                <FeedTheAnimal PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<FeedTheAnimal.FeedTheAnimalResult>(HandleFeedTheAnimalComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.TowerDefense)
             {
-                <TowerDefense PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTowerDefenseComplete" />
+                <TowerDefense PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<TowerDefense.TowerDefenseResult>(HandleTowerDefenseComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.OddOneOut)
             {
-                <OddOneOut PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleOddOneOutComplete" />
+                <OddOneOut PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<OddOneOut.OddOneOutResult>(HandleOddOneOutComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.PatternComplete)
             {
-                <PatternComplete PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandlePatternCompleteComplete" />
+                <PatternComplete PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<PatternComplete.PatternCompleteResult>(HandlePatternCompleteComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.NumberSequence)
             {
-                <NumberSequence PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleNumberSequenceComplete" />
+                <NumberSequence PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<NumberSequence.NumberSequenceResult>(HandleNumberSequenceComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.QuickMath)
             {
-                <QuickMath PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleQuickMathComplete" />
+                <QuickMath PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<QuickMath.QuickMathResult>(HandleQuickMathComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.MathTarget)
             {
-                <MathTarget PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMathTargetComplete" />
+                <MathTarget PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<MathTarget.MathTargetResult>(HandleMathTargetComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.JigsawPuzzle)
             {
-                <JigsawPuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleJigsawPuzzleComplete" />
+                <JigsawPuzzle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<JigsawPuzzle.JigsawPuzzleResult>(HandleJigsawPuzzleComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.SpotTheDifference)
             {
-                <SpotTheDifference PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSpotTheDifferenceComplete" />
+                <SpotTheDifference PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<SpotTheDifference.SpotTheDifferenceResult>(HandleSpotTheDifferenceComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ColorMatch)
             {
-                <ColorMatch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleColorMatchComplete" />
+                <ColorMatch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<ColorMatch.ColorMatchResult>(HandleColorMatchComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ShapeSorter)
             {
-                <ShapeSorter PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleShapeSorterComplete" />
+                <ShapeSorter PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<ShapeSorter.ShapeSorterResult>(HandleShapeSorterComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ShadowMatch)
             {
-                <ShadowMatch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleShadowMatchComplete" />
+                <ShadowMatch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<ShadowMatch.ShadowMatchResult>(HandleShadowMatchComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.GuessTheWord)
             {
-                <GuessTheWord PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleGuessTheWordComplete" />
+                <GuessTheWord PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<GuessTheWord.GuessTheWordResult>(HandleGuessTheWordComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.WordSearch)
             {
-                <WordSearch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWordSearchComplete" />
+                <WordSearch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<WordSearch.WordSearchResult>(HandleWordSearchComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Mastermind)
             {
-                <Mastermind PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMastermindComplete" />
+                <Mastermind PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<Mastermind.MastermindResult>(HandleMastermindComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.CodeBreaker)
             {
-                <CodeBreaker PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCodeBreakerComplete" />
+                <CodeBreaker PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<CodeBreaker.CodeBreakerResult>(HandleCodeBreakerComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Battleships)
             {
-                <Battleships PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleBattleshipsComplete" />
+                <Battleships PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<Battleships.BattleshipsResult>(HandleBattleshipsComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.DotsAndBoxes)
             {
-                <DotsAndBoxes PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleDotsAndBoxesComplete" />
+                <DotsAndBoxes PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<DotsAndBoxes.DotsAndBoxesResult>(HandleDotsAndBoxesComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Puzzle2048)
             {
-                <Puzzle2048 PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandlePuzzle2048Complete" />
+                <Puzzle2048 PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<Puzzle2048.Puzzle2048Result>(HandlePuzzle2048Complete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Reversi)
             {
-                <Reversi PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleReversiComplete" />
+                <Reversi PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<Reversi.ReversiResult>(HandleReversiComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Cryptogram)
             {
-                <Cryptogram PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCryptogramComplete" />
+                <Cryptogram PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<Cryptogram.CryptogramResult>(HandleCryptogramComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.MorseCodeChallenge)
             {
-                <MorseCodeChallenge PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMorseCodeChallengeComplete" />
+                <MorseCodeChallenge PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<MorseCodeChallenge.MorseCodeChallengeResult>(HandleMorseCodeChallengeComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.RobotCommands)
             {
-                <RobotCommands PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRobotCommandsComplete" />
+                <RobotCommands PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<RobotCommands.RobotCommandsResult>(HandleRobotCommandsComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ArcheryChallenge)
             {
-                <ArcheryChallenge PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleArcheryChallengeComplete" />
+                <ArcheryChallenge PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<ArcheryChallenge.ArcheryChallengeResult>(HandleArcheryChallengeComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.BasketballShot)
             {
-                <BasketballShot PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleBasketballShotComplete" />
+                <BasketballShot PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<BasketballShot.BasketballShotResult>(HandleBasketballShotComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.PenaltyShootout)
             {
-                <PenaltyShootout PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandlePenaltyShootoutComplete" />
+                <PenaltyShootout PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<PenaltyShootout.PenaltyShootoutResult>(HandlePenaltyShootoutComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.LaserMaze)
             {
-                <LaserMaze PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleLaserMazeComplete" />
+                <LaserMaze PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<LaserMaze.LaserMazeResult>(HandleLaserMazeComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.RhythmGame)
             {
-                <RhythmGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRhythmGameComplete" />
+                <RhythmGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<RhythmGame.RhythmGameResult>(HandleRhythmGameComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.WordLadder)
             {
-                <WordLadder PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleWordLadderComplete" />
+                <WordLadder PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<WordLadder.WordLadderResult>(HandleWordLadderComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.TriviaBattle)
             {
-                <TriviaBattle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTriviaBattleComplete" />
+                <TriviaBattle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<TriviaBattle.TriviaBattleResult>(HandleTriviaBattleComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.FlagGuessingGame)
             {
-                <FlagGuessingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleFlagGuessingGameComplete" />
+                <FlagGuessingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<FlagGuessingGame.FlagGuessingGameResult>(HandleFlagGuessingGameComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.AirHockey)
             {
-                <AirHockey PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleAirHockeyComplete" />
+                <AirHockey PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<AirHockey.AirHockeyResult>(HandleAirHockeyComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.PoolBilliards)
             {
-                <PoolBilliards PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandlePoolBilliardsComplete" />
+                <PoolBilliards PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<PoolBilliards.PoolBilliardsResult>(HandlePoolBilliardsComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.FollowTheCups)
             {
-                <FollowTheCups PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleFollowTheCupsComplete" />
+                <FollowTheCups PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<FollowTheCups.FollowTheCupsResult>(HandleFollowTheCupsComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Checkers)
             {
-                <Checkers PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCheckersComplete" />
+                <Checkers PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<Checkers.CheckersResult>(HandleCheckersComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ChessPuzzles)
             {
-                <ChessPuzzles PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleChessPuzzlesComplete" />
+                <ChessPuzzles PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<ChessPuzzles.ChessPuzzlesResult>(HandleChessPuzzlesComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.ChessGame)
             {
-                <ChessGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleChessGameComplete" />
+                <ChessGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<ChessGame.ChessGameResult>(HandleChessGameComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.SpaceGame)
             {
-                <SpaceGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSpaceGameComplete" />
+                <SpaceGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<SpaceGame.SpaceGameResult>(HandleSpaceGameComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.RacingGame)
             {
-                <RacingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRacingGameComplete" />
+                <RacingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<RacingGame.RacingGameResult>(HandleRacingGameComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Snake)
             {
-                <Snake PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSnakeComplete" />
+                <Snake PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<Snake.SnakeResult>(HandleSnakeComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.KnightsMarch)
             {
-                <KnightsMarch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleKnightsMarchComplete" />
+                <KnightsMarch PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<KnightsMarch.KnightsMarchResult>(HandleKnightsMarchComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.MineForTheOnePiece)
             {
-                <MineForTheOnePiece PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMineForTheOnePieceComplete" />
+                <MineForTheOnePiece PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<MineForTheOnePiece.MineForTheOnePieceResult>(HandleMineForTheOnePieceComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.TimeTrialRacer)
             {
-                <TimeTrialRacer PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTimeTrialRacerComplete" />
+                <TimeTrialRacer PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<TimeTrialRacer.TimeTrialRacerResult>(HandleTimeTrialRacerComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.MiniGolf)
             {
-                <MiniGolf PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMiniGolfComplete" />
+                <MiniGolf PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<MiniGolf.MiniGolfResult>(HandleMiniGolfComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.CopyThePattern)
             {
-                <CopyThePattern PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleCopyThePatternComplete" />
+                <CopyThePattern PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<CopyThePattern.CopyThePatternResult>(HandleCopyThePatternComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.MemorySequenceAdventure)
             {
-                <MemorySequenceAdventure PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleMemorySequenceAdventureComplete" />
+                <MemorySequenceAdventure PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<MemorySequenceAdventure.MemorySequenceAdventureResult>(HandleMemorySequenceAdventureComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.HotAndCold)
             {
-                <HotAndCold PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleHotAndColdComplete" />
+                <HotAndCold PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<HotAndCold.HotAndColdResult>(HandleHotAndColdComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.TreasureHunt)
             {
-                <TreasureHunt PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTreasureHuntComplete" />
+                <TreasureHunt PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<TreasureHunt.TreasureHuntResult>(HandleTreasureHuntComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.AnimalSoundGuessingGame)
             {
-                <AnimalSoundGuessingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleAnimalSoundGuessingGameComplete" />
+                <AnimalSoundGuessingGame PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<AnimalSoundGuessingGame.AnimalSoundGuessingGameResult>(HandleAnimalSoundGuessingGameComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.BuildAMonster)
             {
-                <BuildAMonster PlayerName="@State.CurrentProfile?.Name" OnComplete="HandleBuildAMonsterComplete" />
+                <BuildAMonster PlayerName="@State.CurrentProfile?.Name" OnComplete="GuardResult<BuildAMonster.BuildAMonsterResult>(HandleBuildAMonsterComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.DuckShoot)
             {
-                <DuckShoot PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleDuckShootComplete" />
+                <DuckShoot PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<DuckShoot.DuckShootResult>(HandleDuckShootComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Dominoes)
             {
-                <Dominoes PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleDominoesComplete" />
+                <Dominoes PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<Dominoes.DominoesResult>(HandleDominoesComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.DungeonCrawler)
             {
-                <DungeonCrawler PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleDungeonCrawlerComplete" />
+                <DungeonCrawler PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<DungeonCrawler.DungeonCrawlerResult>(HandleDungeonCrawlerComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.RpgBattle)
             {
-                <RpgBattle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRpgBattleComplete" />
+                <RpgBattle PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<RpgBattle.RpgBattleResult>(HandleRpgBattleComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.RoguelikeArena)
             {
-                <RoguelikeArena PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleRoguelikeArenaComplete" />
+                <RoguelikeArena PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<RoguelikeArena.RoguelikeArenaResult>(HandleRoguelikeArenaComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.CatDefense)
             {
-                <TowerDefense Theme="cat" PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleTowerDefenseComplete" />
+                <TowerDefense Theme="cat" PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<TowerDefense.TowerDefenseResult>(HandleTowerDefenseComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.SlotMachine)
             {
-                <SlotMachine PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSlotMachineComplete" />
+                <SlotMachine PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<SlotMachine.SlotMachineResult>(HandleSlotMachineComplete)" />
             }
             else if (_game.LaunchTarget == BuiltInGames.Solitaire)
             {
-                <Solitaire PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="HandleSolitaireComplete" />
+                <Solitaire PlayerName="@State.CurrentProfile?.Name" ProfileId="@State.CurrentProfile?.Id" ForcedDifficulty="@_difficultyOverride" OnComplete="GuardResult<Solitaire.SolitaireResult>(HandleSolitaireComplete)" />
             }
             else
             {
@@ -484,38 +484,62 @@
     [Parameter] public string GameId { get; set; } = "";
 
     private Game? _game;
-    private DateTime? _sessionStartedAtUtc;
+    private PlaySession? _session;
+    private System.Threading.Timer? _checkpointTimer;
+    private IDisposable? _navigationRegistration;
+    private int _routeGeneration;
+    private bool _disposed;
     private string? _difficultyOverride;
     private readonly GameHudSlot _hudSlot = new();
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         _hudSlot.Changed += HandleHudChanged;
+        _navigationRegistration = Nav.RegisterLocationChangingHandler(async _ => await EndSessionAsync());
+    }
 
-        if (State.CurrentProfile is null)
+    protected override async Task OnParametersSetAsync()
+    {
+        var generation = ++_routeGeneration;
+        await EndSessionAsync();
+        if (_disposed || generation != _routeGeneration) return;
+        _game = null;
+        _session = null;
+        var profile = State.CurrentProfile;
+        if (profile is null)
         {
             Nav.NavigateTo("");
             return;
         }
 
-        var allGames = await Data.GetAllGamesAsync();
-        _game = allGames.FirstOrDefault(g => g.Id == GameId);
+        // Game Access: Apply the same enabled/assigned rules at the route boundary as in the picker.
+        var allGames = await Data.GetGamesForProfileAsync(profile.Id);
+        if (_disposed || generation != _routeGeneration || State.CurrentProfile?.Id != profile.Id) return;
+        var game = allGames.FirstOrDefault(g => g.Id == GameId);
 
-        if (_game is null)
+        if (game is null)
         {
             Nav.NavigateTo("games");
             return;
         }
 
-        _difficultyOverride = await Data.GetDifficultyOverrideAsync(State.CurrentProfile.Id, _game.Id);
-        _sessionStartedAtUtc = DateTime.UtcNow;
+        var difficulty = await Data.GetDifficultyOverrideAsync(profile.Id, game.Id);
+        if (_disposed || generation != _routeGeneration || State.CurrentProfile?.Id != profile.Id) return;
+        _game = game;
+        _difficultyOverride = difficulty;
+        var session = _session = new PlaySession(Data, profile.Id, game.Id, game.LaunchMode == GameLaunchMode.ExternalIframe);
+        // Session Checkpoint: Preserve unfinished visits even if the browser closes without async disposal.
+        _checkpointTimer = new System.Threading.Timer(_ =>
+        {
+            if (!_disposed) _ = InvokeAsync(() => ReferenceEquals(session, _session) ? session.CheckpointAsync() : Task.CompletedTask);
+        }, null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
     }
 
     private async Task HandleMemoryMatchComplete(MemoryMatchGame.MemoryMatchResult result)
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -530,7 +554,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -545,7 +569,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -560,7 +584,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -575,7 +599,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -590,7 +614,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -605,7 +629,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -620,7 +644,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -635,7 +659,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -650,7 +674,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -665,7 +689,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -680,7 +704,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -695,7 +719,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -710,7 +734,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -725,7 +749,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -740,7 +764,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -755,7 +779,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -770,7 +794,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -785,7 +809,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -800,7 +824,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -815,7 +839,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -830,7 +854,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -845,7 +869,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -860,7 +884,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -875,7 +899,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -890,7 +914,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -905,7 +929,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -920,7 +944,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -935,7 +959,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -949,7 +973,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -964,7 +988,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -979,7 +1003,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -994,7 +1018,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1009,7 +1033,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1024,7 +1048,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1038,7 +1062,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1052,7 +1076,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1067,7 +1091,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1082,7 +1106,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1097,7 +1121,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1111,7 +1135,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1125,7 +1149,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1139,7 +1163,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1153,7 +1177,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1167,7 +1191,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1181,7 +1205,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1195,7 +1219,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1209,7 +1233,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1223,7 +1247,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1237,7 +1261,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1251,7 +1275,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1265,7 +1289,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1280,7 +1304,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1295,7 +1319,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1309,7 +1333,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1324,7 +1348,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1339,7 +1363,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1354,7 +1378,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1369,7 +1393,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1384,7 +1408,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1399,7 +1423,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1414,7 +1438,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1429,7 +1453,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1444,7 +1468,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1459,7 +1483,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1474,7 +1498,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1489,7 +1513,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1504,7 +1528,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1519,7 +1543,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1534,7 +1558,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1549,7 +1573,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1564,7 +1588,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1579,7 +1603,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1594,7 +1618,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1609,7 +1633,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1624,7 +1648,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1639,7 +1663,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1654,7 +1678,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1669,7 +1693,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1684,7 +1708,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1699,7 +1723,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1714,7 +1738,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1729,7 +1753,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1744,7 +1768,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1759,7 +1783,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1774,7 +1798,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1789,7 +1813,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1804,7 +1828,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1819,7 +1843,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1834,7 +1858,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1849,7 +1873,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1864,7 +1888,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1879,7 +1903,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1894,7 +1918,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1909,7 +1933,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1924,7 +1948,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1939,7 +1963,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1954,7 +1978,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1969,7 +1993,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1984,7 +2008,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -1999,7 +2023,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -2014,7 +2038,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -2029,7 +2053,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -2043,7 +2067,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -2057,7 +2081,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -2072,7 +2096,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -2087,7 +2111,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -2102,7 +2126,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -2117,7 +2141,7 @@
     {
         if (State.CurrentProfile is null || _game is null) return;
 
-        await Data.AddPlayHistoryAsync(new PlayHistoryEntry
+        await RecordResultAsync(new PlayHistoryEntry
         {
             ProfileId = State.CurrentProfile.Id,
             GameId = _game.Id,
@@ -2132,30 +2156,28 @@
 
     private void HandleHudChanged() => InvokeAsync(StateHasChanged);
 
-    // Built-in games log their own PlayHistoryEntry on completion (with
-    // real gameplay stats). Iframe-hosted games have no completion signal
-    // at all, so this is the only place their play time is ever recorded -
-    // measured as wall-clock time the game was mounted, written on exit
-    // (button, browser back, or navigating elsewhere) rather than only on
-    // a "finish" that may never come.
+    private Func<T, Task> GuardResult<T>(Func<T, Task> handler)
+    {
+        var session = _session;
+        // Route Lifecycle: A callback from an old child must never record against a newly loaded game.
+        return result => !_disposed && ReferenceEquals(session, _session) ? handler(result) : Task.CompletedTask;
+    }
+
+    private Task RecordResultAsync(PlayHistoryEntry entry) => _session?.RecordResultAsync(entry) ?? Task.CompletedTask;
+
+    private async Task EndSessionAsync()
+    {
+        _checkpointTimer?.Dispose();
+        _checkpointTimer = null;
+        if (_session is { } session) await session.EndAsync();
+    }
+
     public async ValueTask DisposeAsync()
     {
+        _disposed = true;
+        _routeGeneration++;
         _hudSlot.Changed -= HandleHudChanged;
-
-        if (_game is { LaunchMode: GameLaunchMode.ExternalIframe } game
-            && _sessionStartedAtUtc is { } startedAt
-            && State.CurrentProfile is { } profile)
-        {
-            var elapsed = (int)(DateTime.UtcNow - startedAt).TotalSeconds;
-            if (elapsed > 0)
-            {
-                await Data.AddPlayHistoryAsync(new PlayHistoryEntry
-                {
-                    ProfileId = profile.Id,
-                    GameId = game.Id,
-                    ElapsedSeconds = elapsed,
-                });
-            }
-        }
+        _navigationRegistration?.Dispose();
+        await EndSessionAsync();
     }
 }

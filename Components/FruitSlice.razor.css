@@ -183,6 +183,12 @@
     }
 }
 
+/* Reduced Motion: Keep swipe targets visible and stationary for their full lifetime. */
+@media (prefers-reduced-motion: reduce) {
+    .fs-item { bottom: var(--fs-peak); }
+    .fs-item.sliced { visibility: hidden; }
+}
+
 .fs-win-stats {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

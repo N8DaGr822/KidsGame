@@ -84,6 +84,10 @@
                             <AssetGlyph Class="admin-profile-avatar" Src="@game?.ThumbnailImagePath" Fallback="@(game?.ThumbnailEmoji ?? "🎮")" Alt="@(game?.Title ?? "Unknown game")" />
                             <span class="admin-profile-name">
                                 @(game?.Title ?? "Unknown game")
+                                @if (entry.Status != PlaySessionStatus.ResultRecorded)
+                                {
+                                    <span class="muted">(@SessionLabel(entry.Status))</span>
+                                }
                                 @if (OutcomeBadge(entry.Theme) is { } badge)
                                 {
                                     <span class="outcome-badge @badge.CssClass">@badge.Label</span>
@@ -162,6 +166,13 @@
     }
 
     private Game? GameFor(string gameId) => _games.FirstOrDefault(g => g.Id == gameId);
+
+    private static string SessionLabel(PlaySessionStatus status) => status switch
+    {
+        PlaySessionStatus.Abandoned => "Left without a result",
+        PlaySessionStatus.Ended => "Session ended",
+        _ => "Unfinished session",
+    };
 
     // Theme doubles as a game outcome for games with a real win/lose state
     // (Tank Duel, UNO) - surface those as a clear badge instead of leaving

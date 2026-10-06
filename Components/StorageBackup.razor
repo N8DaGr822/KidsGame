@@ -1,0 +1,93 @@
+@inject AppDataService Data
+@inject AppState State
+@inject InteropService Interop
+@inject NavigationManager Nav
+@inject PlayTimeTracker Tracker
+
+@if (CanManage)
+{
+    <div class="storage-backup">
+        <button class="btn-secondary" disabled="@busy" @onclick="DownloadAsync">@(Recovery ? "Download preserved data" : "Export backup")</button>
+        <label>
+            Restore a launcher backup
+            <InputFile OnChange="ReadFileAsync" accept=".json,application/json" disabled="@busy" />
+        </label>
+        <p class="muted">Backups include profiles, parent settings, play history, and launcher-managed progress. Saved Dress Up pictures and embedded games' own saves are stored separately.</p>
+        @if (message is not null)
+        {
+            <p class="error-text" role="alert">@message</p>
+        }
+        @if (pendingJson is not null)
+        {
+            <div class="pin-modal-backdrop">
+                <div class="pin-modal" role="dialog" aria-modal="true" aria-labelledby="restore-backup-title">
+                    <h2 id="restore-backup-title">Replace saved launcher data?</h2>
+                    <p>This replaces profiles, PIN, settings, and tracked progress with the selected backup. Export your current data first if you want to keep it.</p>
+                    <div class="pin-modal-actions">
+                        <button class="btn-secondary" disabled="@busy" @onclick="() => pendingJson = null">Cancel</button>
+                        <button class="btn-primary" disabled="@busy" @onclick="RestoreAsync">Restore backup</button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public bool Recovery { get; set; }
+    private bool CanManage => State.CurrentProfile?.Type == ProfileType.Admin || (Recovery && Data.NeedsRecovery);
+    private bool busy;
+    private string? pendingJson;
+    private string? message;
+
+    private async Task DownloadAsync()
+    {
+        if (!CanManage || busy) return;
+        busy = true;
+        message = null;
+        try
+        {
+            var json = await Data.ExportAsync();
+            if (string.IsNullOrEmpty(json)) message = "Storage could not be read. Retry before downloading.";
+            else await Interop.InvokeVoidAsync("downloadText", $"kids-game-backup-{DateTime.Now:yyyyMMdd-HHmmss}.json", json);
+        }
+        catch (JSException) { message = "The download could not start. Please retry."; }
+        finally { busy = false; }
+    }
+
+    private async Task ReadFileAsync(InputFileChangeEventArgs args)
+    {
+        if (!CanManage || busy) return;
+        busy = true;
+        pendingJson = null;
+        message = null;
+        try
+        {
+            await using var stream = args.File.OpenReadStream(20 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            var json = await reader.ReadToEndAsync();
+            AppDataService.ReadBackup(json);
+            pendingJson = json;
+        }
+        catch (System.Text.Json.JsonException) { message = "This file is not a valid launcher backup. Existing data has not been changed."; }
+        catch (IOException) { message = "The file could not be read. Choose a JSON backup smaller than 20 MB."; }
+        finally { busy = false; }
+    }
+
+    private async Task RestoreAsync()
+    {
+        if (!CanManage || busy || pendingJson is null) return;
+        busy = true;
+        try
+        {
+            await Tracker.FlushAsync();
+            if (await Data.ImportAsync(pendingJson))
+            {
+                State.ClearCurrentProfile();
+                Nav.NavigateTo("", forceLoad: true);
+            }
+            else message = Data.StorageError;
+        }
+        finally { busy = false; }
+    }
+}

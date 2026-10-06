@@ -322,7 +322,7 @@
     private string ItemStyle(BubbleItem item)
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture;
-        var style = $"left:{item.StartXPct.ToString("0.#", inv)}%; --bp-wobble:{item.WobblePct.ToString("0.#", inv)}%; animation-duration:{item.DurationMs}ms;";
+        var style = $"left:{item.StartXPct.ToString("0.#", inv)}%; --bp-wobble:{item.WobblePct.ToString("0.#", inv)}%; --bp-rest-height:{(45 + item.WobblePct * 3).ToString("0.#", inv)}%; animation-duration:{item.DurationMs}ms;";
         if (selectedMode.ColorHex is { } hex && hex.TryGetValue(item.Symbol, out var color))
         {
             style += $" background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.55), {color} 60%);";

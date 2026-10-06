@@ -21,6 +21,7 @@
         <ChessGame OnComplete="HandleGameComplete" />
 *@
 @inject InteropService Interop
+@implements IDisposable
 @inject AppDataService Data
 @using KidsGameLauncher.Services
 
@@ -95,7 +96,7 @@
                     var isDestination = selectedSquare is not null && legalDestinations.Contains((row, col));
                     var canSelect = turn == Turn.Player && phase == Phase.Playing && !animating && cell != ChessRules.Empty && ChessRules.IsWhite(cell);
 
-                    <button class="cg-cell @(light ? "light" : "dark")"
+                    <button class="cg-cell @(light ? "light" : "dark") @(lastCpuMoveFrom == (row, col) ? "last-move-from" : "") @(lastCpuMoveTo == (row, col) ? "last-move-to" : "")"
                             style="background-image:url('images/chess/@(light ? "tile-light.png" : "tile-dark.png")')"
                             disabled="@(animating || turn != Turn.Player || phase != Phase.Playing || !(canSelect || isDestination))"
                             @onclick="() => HandleTap(row, col)">
@@ -171,6 +172,8 @@
     private Turn turn = Turn.Player;
     private int[,] board = new int[ChessRules.Size, ChessRules.Size];
     private (int Row, int Col)? selectedSquare;
+    private (int Row, int Col)? lastCpuMoveFrom;
+    private (int Row, int Col)? lastCpuMoveTo;
     private HashSet<(int Row, int Col)> legalDestinations = new();
     private bool animating;
     private int whiteCount = 16;
@@ -182,6 +185,7 @@
     private bool isNewBest;
     private readonly Random rng = new();
     private DateTime startedAtUtc;
+    private CancellationTokenSource runCancellation = new();
 
     protected override void OnInitialized()
     {
@@ -190,9 +194,14 @@
 
     private void StartGame()
     {
+        runCancellation.Cancel();
+        runCancellation.Dispose();
+        runCancellation = new();
         board = ChessRules.ParseBoard(StartingRows);
         turn = Turn.Player;
         selectedSquare = null;
+        lastCpuMoveFrom = null;
+        lastCpuMoveTo = null;
         legalDestinations = new();
         undoStack.Clear();
         animating = false;
@@ -210,7 +219,10 @@
     // so far) rather than silently vanishing.
     private async Task ExitToSetup()
     {
-        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        var report = phase == Phase.Playing && OnComplete.HasDelegate;
+        phase = Phase.Setup;
+        runCancellation.Cancel();
+        if (report)
         {
             await OnComplete.InvokeAsync(new ChessGameResult(
                 Difficulty: DifficultyName(selectedDifficulty),
@@ -218,7 +230,6 @@
                 PlayerTurnsTaken: playerTurnsTaken,
                 ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
         }
-        phase = Phase.Setup;
     }
 
     private void HandleTap(int row, int col)
@@ -246,6 +257,7 @@
 
     private async Task ApplyPlayerMoveAsync(int fromRow, int fromCol, int toRow, int toCol)
     {
+        var token = runCancellation.Token;
         animating = true;
         selectedSquare = null;
         legalDestinations = new();
@@ -260,6 +272,7 @@
         UpdateCounts();
         playerTurnsTaken++;
         await Interop.InvokeVoidAsync(wasCapture ? "playImpactSound" : "playMatchSound");
+        if (token.IsCancellationRequested) return;
         StateHasChanged();
 
         if (ChessRules.IsCheckmate(board, false))
@@ -284,7 +297,10 @@
 
     private async Task RunCpuTurnAsync()
     {
-        await Task.Delay(450);
+        var token = runCancellation.Token;
+        try { await Task.Delay(450, token); }
+        catch (OperationCanceledException) { return; }
+        if (token.IsCancellationRequested) return;
         var move = GameAi.ChessMove(board, aiIsWhite: false, selectedDifficulty);
         if (move is null)
         {
@@ -298,8 +314,11 @@
 
         var wasCapture = board[move.Value.ToRow, move.Value.ToCol] != ChessRules.Empty;
         ChessRules.ApplyMove(board, move.Value);
+        lastCpuMoveFrom = (move.Value.FromRow, move.Value.FromCol);
+        lastCpuMoveTo = (move.Value.ToRow, move.Value.ToCol);
         UpdateCounts();
         await Interop.InvokeVoidAsync(wasCapture ? "playImpactSound" : "playMatchSound");
+        if (token.IsCancellationRequested) return;
         StateHasChanged();
 
         if (ChessRules.IsCheckmate(board, true))
@@ -334,6 +353,8 @@
         board = prevBoard;
         playerTurnsTaken = prevTurns;
         selectedSquare = null;
+        lastCpuMoveFrom = null;
+        lastCpuMoveTo = null;
         legalDestinations = new();
         UpdateCounts();
         statusText = ChessRules.IsInCheck(board, false) ? "Check! Your move." : "Your move.";
@@ -378,6 +399,8 @@
 
     private async Task FinishGame()
     {
+        if (phase != Phase.Playing || runCancellation.IsCancellationRequested) return;
+        var token = runCancellation.Token;
         phase = Phase.Finished;
         statusText = "";
 
@@ -387,10 +410,14 @@
         if (!trainingMode && !string.IsNullOrEmpty(ProfileId))
         {
             var key = $"fewest-turns-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
-            bestTurns = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.ChessGame, key);
+            var previousBest = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.ChessGame, key);
+            if (token.IsCancellationRequested) return;
+            bestTurns = previousBest;
             if (outcome == Outcome.PlayerWon)
             {
-                isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.ChessGame, key, playerTurnsTaken, lowerIsBetter: true);
+                var newBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.ChessGame, key, playerTurnsTaken, lowerIsBetter: true);
+                if (token.IsCancellationRequested) return;
+                isNewBest = newBest;
             }
         }
 
@@ -404,6 +431,12 @@
                 PlayerTurnsTaken: playerTurnsTaken,
                 ElapsedSeconds: (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds));
         }
+    }
+
+    public void Dispose()
+    {
+        runCancellation.Cancel();
+        runCancellation.Dispose();
     }
 
     private static string DifficultyName(GameAi.Difficulty d) => d switch

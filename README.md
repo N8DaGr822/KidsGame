@@ -185,26 +185,34 @@ browser, so there's no separate "enable sound" step.
 
 ## Screen time tracking and limits
 
-`Services/PlayTimeTracker.cs` ticks every 15 seconds while a Kid profile
+`Services/PlayTimeTracker.cs` checks at most every 15 seconds while a Kid profile
 is active — regardless of which screen or game is showing, including
 iframe-hosted games the app has no visibility into otherwise — and adds
-that time to the profile's usage total for the current local day
+actual elapsed time to the profile's usage total, split at local midnight
 (`AppData.DailyUsageSeconds`). `Layout/MainLayout.razor` wraps every
 page, so once a profile's daily limit (set from `/admin/history/{id}`)
 is reached, a full-screen lockout appears no matter what's on screen,
-and stays until the kid switches back to the profile picker.
+and stays until the next local day or a parent grants more time. Existing
+usage is checked immediately when a child returns, and partial intervals
+are saved when profiles switch. Subsecond remainders carry across switches
+within the running app.
 
 This total is separate from `AppData.PlayHistory`, which logs
 individual play sessions (game, difficulty, moves where applicable, and
 duration) for the "recent activity" list on that same admin page.
-Built-in games log their own entry on completion; iframe games have no
-completion signal at all, so `GameHost.razor` measures their session
-length itself and logs it on exit instead.
+Built-in games report detailed round results. `GameHost.razor` also owns a
+`PlaySession` for each game visit: until the first result arrives, it saves
+an unfinished checkpoint every 15 seconds and finalizes it on navigation.
+The first result replaces that checkpoint; subsequent reported rounds are
+retained. A visit without a result is labeled "Left without a result" on
+exit; an iframe visit is labeled "Session ended". A browser crash/close may
+lose up to the latest checkpoint interval, and setup time is included in
+the host's fallback visit duration. This fallback is visit-level, not a
+replacement for each game's detailed round reporting.
 
-Known limitation: the timer keeps running if the tablet is put to sleep
-or the tab is backgrounded (there's no Page Visibility API hook yet), so
-a long stretch with the screen off while the tab is open would still
-count against the limit.
+Screen-time policy: background/sleep time counts while a child profile is
+active. Delayed timer callbacks account for the elapsed interval on return,
+up to each day's limit. Switch back to the profile picker to stop counting.
 
 ## Data storage
 
@@ -217,6 +225,38 @@ device, fully offline, no backend to run.
 If you outgrow localStorage (multi-device sync, more complex data),
 `AppDataService` is the only place that knows about storage — swap its
 internals for a real database or API without touching any page.
+
+### Backup and recovery
+
+Parent admin includes **Export backup** and a validated, confirmed restore.
+Backups cover the launcher's profiles, PIN hash, access rules, history, and
+managed progress. Dress Up pictures and embedded games' independent saves
+are stored separately and are not included. Restore preserves the previous
+main storage value under `kgl_appdata_before_restore` before replacing it.
+
+Unreadable saved data opens a recovery screen without seeding over the
+original. Download the preserved data, retry reading storage, or restore a
+valid backup. Failed saves leave changes in memory and show a persistent
+retry message; export before closing if saving continues to fail.
+
+### Reliability checks
+
+```bash
+dotnet test Tests/KidsGameLauncher.Tests.csproj
+node --test Tests/service-worker.test.mjs
+dotnet publish -c Release -o publish
+node Tests/verify-publish.mjs publish/wwwroot
+```
+
+CI runs these checks and sets the GitHub Pages base path **before** publish
+so the offline asset hashes match the deployed bytes. Service-worker
+updates wait for open app windows to close instead of replacing their
+asset cache during a game.
+
+Reduced-motion mode uses stationary Fruit Slice/Bubble Pop targets and
+reveals the ball during Follow the Cups' discrete swaps. Device testing
+should cover these modes, offline reloads, backup downloads/restores, and
+rapid restart/exit gestures.
 
 ## Adding a game
 
