@@ -1,5 +1,5 @@
 .mo-game {
-    width: min(920px, 100%);
+    width: min(1180px, 100%);
     margin: 0 auto;
     color: var(--text);
     display: grid;
@@ -80,8 +80,9 @@
 
 .mo-field {
     position: relative;
-    width: min(820px, 92vw, 78vh);
-    aspect-ratio: 9 / 11;
+    width: 100%;
+    height: 100%;
+
     container-type: inline-size;
     margin: 0 auto;
     border-radius: var(--radius-md);
@@ -102,34 +103,6 @@
     inset: 0;
     pointer-events: none;
     box-shadow: inset 0 0 3.5rem rgba(0, 0, 0, 0.6), inset 0 0.6rem 1.2rem rgba(0, 0, 0, 0.4);
-}
-
-.mo-row {
-    position: absolute;
-    left: 0;
-    width: 100%;
-}
-
-.mo-surface-row {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background:
-        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.14) 0 3px, transparent 3px 34px),
-        linear-gradient(180deg, #a9793f 0%, #8a5a33 55%, #6b4423 100%);
-    box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.15), inset 0 -8px 14px rgba(0, 0, 0, 0.4);
-    border-bottom: 3px solid #3d2a17;
-}
-
-.mo-surface-label {
-    padding: 0.15rem 0.6rem;
-    border-radius: 999px;
-    background: rgba(18, 12, 8, 0.45);
-    font-size: 0.7rem;
-    font-weight: 900;
-    color: #ffe9c2;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-    letter-spacing: 0.02em;
 }
 
 .mo-cell {
@@ -156,15 +129,6 @@
 
 .mo-tile-copper .mo-tile-art {
     filter: sepia(1) saturate(3) hue-rotate(330deg) brightness(.85) drop-shadow(0 2px 2px #0008);
-}
-
-.mo-dig-progress {
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    height: 5px;
-    background: linear-gradient(90deg, #ffb347, #ffe58a);
-    box-shadow: 0 0 6px rgba(255, 215, 106, 0.9);
 }
 
 .mo-cell.digging {
@@ -227,10 +191,10 @@
 
 .mo-pod {
     position: absolute;
-    width: calc(100% / 9 * 0.86);
+    height: auto;
     aspect-ratio: 1;
     transform: translate(-50%, -50%) rotate(0deg);
-    transition: left 0.12s linear, top 0.12s linear, transform 0.12s ease;
+    transition: transform 0.15s ease;
     pointer-events: none;
     z-index: 3;
 }
@@ -382,8 +346,11 @@
 }
 
 .mo-shop-drill { --mo-accent: #b7c0cc; }
-.mo-shop-fuel { --mo-accent: #6ea8fe; }
-.mo-shop-cargo { --mo-accent: #c98c4a; }
+.mo-shop-fueltank { --mo-accent: #6ea8fe; }
+.mo-shop-engine { --mo-accent: #f5a35c; }
+.mo-shop-radiator { --mo-accent: #8fe3ff; }
+.mo-shop-item { --mo-accent: #d4b46a; }
+.mo-shop-cargohold { --mo-accent: #c98c4a; }
 .mo-shop-hull { --mo-accent: #ff8c8c; }
 
 .mo-shop-icon {
@@ -412,12 +379,6 @@
     margin-top: 0.2rem;
     padding: 0.4rem 0.7rem;
     font-size: 0.75rem;
-}
-
-.mo-shop-hint {
-    margin: 0;
-    color: var(--text-muted);
-    font-size: 0.78rem;
 }
 
 /* Nautical scene dressing; all decoration stays outside the input path. */
@@ -449,9 +410,6 @@
 .mo-bar { width: 110px; height: 26px; }
 .mo-hull-fill { background: linear-gradient(90deg, #358976, #74c3a2); }
 .mo-field:focus-visible { outline: 3px solid #91e2dd; outline-offset: 3px; }
-.mo-surface-row { justify-content: flex-start; padding-left: 8%; gap: .4rem; box-sizing: border-box; background: url('images/mining/deck.png') repeat-x center / auto 100%; }
-.mo-deck-anchor { height: 72%; width: 7%; object-fit: contain; }
-.mo-surface-label { font-size: clamp(.4rem, 1.5cqw, .7rem); }
 .mo-message { display: grid; place-items: center; min-height: 3rem; font-size: .75rem; text-align: center; color: var(--text-muted); }
 .mo-toast { margin: 0; }
 .mo-dpad::after { display: none; }
@@ -460,4 +418,367 @@
 @media (prefers-reduced-motion: reduce) {
     .mo-pod, .mo-bar-fill, .mo-pod-thrust, .mo-dpad-btn { transition: none; }
     .mo-cell.digging, .mo-pod-thrusting .mo-pod-thrust, .mo-toast { animation: none; }
+}
+
+/* ---- Motherload-style free-scrolling world ---- */
+.mo-stage { position: relative; }
+.mo-world {
+    position: absolute;
+    inset: 0;
+    will-change: transform;
+}
+.mo-world > * { position: absolute; }
+.mo-sky {
+    background:
+        radial-gradient(ellipse at 75% 20%, #fff6c980, transparent 30%),
+        linear-gradient(180deg, #6fc6e8 0%, #a8e1f0 55%, #e6cf98 88%, #c9a66b 100%);
+}
+.mo-underground {
+    background:
+        linear-gradient(180deg, #3a2414 0%, #1f160f 12%, #120d0a 60%, #1d0905 100%);
+    box-shadow: inset 0 6px 10px rgba(0, 0, 0, 0.6);
+}
+.mo-cell { transition: transform 0.05s linear; }
+.mo-tile-boulder { background-color: #5b5148; border-radius: 38%; }
+.mo-cell.mo-tile-boulder { background-image: url('images/mining/stone.png'); }
+.mo-tile-boulder .mo-tile-glyph { opacity: 1; font-size: clamp(1rem, 6cqw, 2.4rem); }
+
+.mo-station {
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    justify-items: center;
+    align-items: start;
+    box-sizing: border-box;
+    padding-top: 4%;
+    border-radius: 18% 18% 4% 4% / 14% 14% 4% 4%;
+    border: 2px solid #3d2a17;
+    border-bottom: none;
+    background:
+        repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.16) 0 2px, transparent 2px 18%),
+        linear-gradient(180deg, var(--mo-station, #a9793f), color-mix(in srgb, var(--mo-station, #a9793f) 60%, black));
+    box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.2), 0 4px 8px rgba(0, 0, 0, 0.35);
+    transition: filter 0.15s ease, box-shadow 0.15s ease;
+}
+.mo-station-fuel { --mo-station: #3f7fa9; }
+.mo-station-trader { --mo-station: #b58a2c; }
+.mo-station-shipwright { --mo-station: #7a5332; }
+.mo-station-repair { --mo-station: #a2493f; }
+.mo-station-near {
+    filter: brightness(1.18);
+    box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.3), 0 0 14px #ffe58acc;
+}
+.mo-station-sign { font-size: clamp(0.9rem, 5cqw, 2.1rem); line-height: 1.1; filter: drop-shadow(0 2px 2px #0008); }
+.mo-station-name {
+    padding: 0.05rem 0.35rem;
+    border-radius: 999px;
+    background: rgba(18, 12, 8, 0.55);
+    color: #ffe9c2;
+    font-size: clamp(0.4rem, 1.8cqw, 0.75rem);
+    font-weight: 900;
+    white-space: nowrap;
+}
+.mo-station-door {
+    align-self: end;
+    width: 42%;
+    height: 38%;
+    border-radius: 40% 40% 0 0;
+    background: linear-gradient(180deg, #1c120a, #2c1d12);
+    box-shadow: inset 0 2px 4px #000a;
+}
+
+.mo-pod-drilling .mo-pod-art { animation: mo-drill-buzz 0.08s linear infinite; }
+@keyframes mo-drill-buzz {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(1px, -1px); }
+}
+
+.mo-shake { animation: mo-shake 0.3s ease-in-out; }
+@keyframes mo-shake {
+    0%, 100% { transform: translate(0, 0); }
+    20% { transform: translate(-4px, 2px); }
+    40% { transform: translate(4px, -2px); }
+    60% { transform: translate(-3px, -1px); }
+    80% { transform: translate(2px, 1px); }
+}
+
+.mo-radio {
+    position: absolute;
+    left: 4%;
+    right: 4%;
+    top: 3%;
+    z-index: 4;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.8rem;
+    border-radius: 14px;
+    border: 2px solid #bca571;
+    background: rgba(12, 28, 34, 0.92);
+    color: #ffe9c2;
+    font-size: clamp(0.7rem, 2.6cqw, 0.95rem);
+    font-weight: 800;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+    animation: mo-toast-in 0.25s ease;
+}
+.mo-radio-icon { font-size: 1.4em; flex-shrink: 0; }
+
+.mo-panel-backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    display: grid;
+    place-items: center;
+    padding: 4%;
+    background: rgba(4, 10, 14, 0.55);
+    border-radius: var(--radius-md);
+}
+.mo-panel {
+    display: grid;
+    gap: 0.6rem;
+    width: min(100%, 640px);
+    max-height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-top: 4px solid #bca571;
+    border-radius: var(--radius-lg);
+    background: var(--panel-bg);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+}
+.mo-panel h3 { margin: 0; }
+.mo-panel-sub { margin: 0.3rem 0 0; font-size: 0.9rem; font-weight: 900; }
+.mo-panel-line { margin: 0; font-weight: 800; }
+.mo-panel-hint { margin: 0; color: var(--text-muted); font-size: 0.8rem; font-weight: 700; }
+.mo-panel > .game-primary-action, .mo-panel-leave { justify-self: center; }
+.mo-shop-stat { color: var(--text-muted); font-size: 0.7rem; font-weight: 700; line-height: 1.2; }
+
+.mo-cargo-list { display: grid; gap: 0.3rem; }
+.mo-cargo-row {
+    display: grid;
+    grid-template-columns: 1.8rem 1fr auto;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: var(--radius-sm);
+    background: var(--control-bg-subtle);
+    text-align: left;
+    font-weight: 800;
+    font-size: 0.85rem;
+}
+.mo-cargo-icon { width: 1.6rem; height: 1.6rem; object-fit: contain; }
+.mo-cargo-icon.mo-tile-copper { filter: sepia(1) saturate(3) hue-rotate(330deg) brightness(.85); }
+.mo-cargo-value { color: #f5c542; }
+
+.mo-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem 2rem;
+}
+.mo-items { display: flex; gap: 0.4rem; flex-wrap: wrap; justify-content: center; }
+.mo-item-btn {
+    position: relative;
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    border: 1px solid #82adaa60;
+    background: linear-gradient(#355d66, #203a45);
+    color: #eaf1ff;
+    touch-action: manipulation;
+    cursor: pointer;
+}
+.mo-item-btn:disabled { opacity: 0.4; cursor: default; }
+.mo-item-icon { font-size: 1.5rem; }
+.mo-item-count {
+    position: absolute;
+    right: 3px;
+    bottom: 2px;
+    font-size: 0.7rem;
+    font-weight: 900;
+    text-shadow: 0 1px 2px #000;
+}
+.mo-item-key {
+    position: absolute;
+    left: 4px;
+    top: 2px;
+    font-size: 0.6rem;
+    font-weight: 800;
+    opacity: 0.7;
+}
+
+.mo-bar-low .mo-bar-label { animation: mo-low-blink 0.8s ease-in-out infinite alternate; }
+@keyframes mo-low-blink { from { color: #fff; } to { color: #ff8c8c; } }
+.mo-stat-full { color: #f5a35c; }
+.mo-stat-hot { color: #ff8c5c; animation: mo-low-blink 0.8s ease-in-out infinite alternate; }
+
+@media (prefers-reduced-motion: reduce) {
+    .mo-shake, .mo-pod-drilling .mo-pod-art, .mo-bar-low .mo-bar-label, .mo-stat-hot, .mo-radio { animation: none; }
+    .mo-cell, .mo-station { transition: none; }
+}
+
+/* ---- Miner Depths-inspired additions ---- */
+.mo-cell.mo-tile-crate {
+    background-image: url('images/mining/dirt.png');
+    background-color: #bc8c61;
+}
+.mo-tile-crate .mo-tile-art { width: 66%; height: 66%; }
+
+.mo-cell.mo-tile-looserock {
+    background-image:
+        linear-gradient(62deg, transparent 46%, #2b211a 47%, #2b211a 50%, transparent 51%),
+        linear-gradient(-38deg, transparent 56%, #2b211a 57%, #2b211a 59%, transparent 60%),
+        linear-gradient(8deg, transparent 30%, #2b211a 31%, #2b211a 33%, transparent 34%),
+        url('images/mining/stone.png');
+    background-color: #9a7f63;
+}
+.mo-wobble { animation: mo-wobble 0.12s ease-in-out infinite alternate; }
+@keyframes mo-wobble {
+    from { transform: translateX(-3%) rotate(-3deg); }
+    to { transform: translateX(3%) rotate(3deg); }
+}
+.mo-falling-rock { z-index: 2; box-shadow: 0 6px 10px rgba(0, 0, 0, 0.5); }
+
+.mo-pod-anchored::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 85%;
+    width: 4px;
+    height: 900%;
+    transform: translateX(-50%);
+    background: repeating-linear-gradient(180deg, #e2c58b 0 6px, #8a6a3a 6px 9px);
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+}
+
+.mo-paint-rainbow { animation: mo-rainbow 3s linear infinite; }
+@keyframes mo-rainbow {
+    from { filter: hue-rotate(0deg) saturate(1.5) drop-shadow(0 2px 3px #0009); }
+    to { filter: hue-rotate(360deg) saturate(1.5) drop-shadow(0 2px 3px #0009); }
+}
+
+.mo-tabs { display: flex; justify-content: center; gap: 0.4rem; flex-wrap: wrap; }
+.mo-tab {
+    padding: 0.4rem 0.8rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--control-bg-subtle);
+    color: var(--text);
+    font-weight: 800;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+.mo-tab.selected { border-color: #bca571; background: color-mix(in srgb, #bca571 30%, var(--control-bg-subtle)); }
+
+.mo-paint-preview { width: 3rem; height: 3.4rem; object-fit: contain; }
+.mo-shop-paint.equipped { border-color: #bca571; box-shadow: 0 0 0 2px #bca57180; }
+
+.mo-continue { display: grid; justify-items: center; gap: 0.35rem; }
+.mo-continue-detail { color: var(--text-muted); font-size: 0.78rem; font-weight: 700; }
+
+.mo-stick {
+    position: relative;
+    width: 132px;
+    height: 132px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #2b4a53 0%, #182c33 70%);
+    border: 2px solid #82adaa70;
+    box-shadow: inset 0 4px 12px rgba(0, 0, 0, 0.55), 0 3px 6px rgba(0, 0, 0, 0.35);
+    touch-action: none;
+    user-select: none;
+    cursor: grab;
+}
+.mo-stick::before {
+    content: "⬆️";
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.8rem;
+    opacity: 0.55;
+    pointer-events: none;
+}
+.mo-stick-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 46%;
+    height: 46%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #8fe3dd, #2f7a80 70%);
+    box-shadow: inset 0 3px 4px rgba(255, 255, 255, 0.35), 0 4px 8px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+.mo-control-toggle {
+    padding: 0.4rem 0.8rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--control-bg-subtle);
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+/* Bigger touch targets (a common complaint about mobile miners). */
+.mo-item-btn { width: 60px; height: 60px; }
+.mo-item-icon { font-size: 1.7rem; }
+.mo-dpad { grid-template-columns: repeat(3, 64px); grid-template-rows: repeat(2, 56px); }
+
+@media (prefers-reduced-motion: reduce) {
+    .mo-wobble, .mo-paint-rainbow { animation: none; }
+}
+
+/* ---- Play layout: items | play area | joystick ----
+   .mo-center is just the available box; the game measures it and sizes
+   .mo-stage (inline px) to a whole number of square tiles that fill it. */
+.mo-game { width: 100%; }
+.mo-play { display: grid; gap: 1rem; width: 100%; min-width: 0; }
+.mo-center { display: flex; justify-content: center; align-items: flex-start; min-width: 0; overflow: hidden; }
+.mo-stage { flex: none; }
+.mo-right { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+.mo-item-name { display: none; }
+
+@media (min-width: 900px) {
+    .mo-play {
+        grid-template-columns: 180px minmax(0, 1fr) 230px;
+        align-items: start;
+    }
+    .mo-center { height: calc(100dvh - 255px); min-height: 320px; }
+    .mo-left .mo-items { display: flex; flex-direction: column; gap: 0.45rem; }
+    .mo-left .mo-item-btn {
+        width: 100%;
+        height: 54px;
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0 0.7rem 0 1.15rem;
+        text-align: left;
+    }
+    .mo-left .mo-item-icon { font-size: 1.5rem; }
+    .mo-item-name { display: block; flex: 1; font-size: 0.78rem; font-weight: 800; }
+    .mo-left .mo-item-count { position: static; font-size: 0.9rem; }
+    .mo-message { min-height: 4.5rem; padding-top: 0.5rem; }
+}
+
+/* Narrow screens: play area on top, then hint, items, and joystick - all
+   on one screen. */
+@media (max-width: 899px) {
+    .mo-play { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+    .mo-center { order: 0; width: 100%; height: calc(100dvh - 500px); min-height: 260px; }
+    .mo-right { display: contents; }
+    .mo-message { order: 1; min-height: 2.2rem; font-size: 0.7rem; }
+    .mo-left { order: 2; }
+    .mo-stick, .mo-dpad { order: 3; }
+    .mo-control-toggle { order: 4; }
+    .mo-hud { padding: 0.45rem; row-gap: 0.3rem; }
+    .mo-items { flex-wrap: nowrap; gap: 0.3rem; }
+    .mo-item-btn { width: 46px; height: 46px; border-radius: 10px; }
+    .mo-item-icon { font-size: 1.25rem; }
+    .mo-stick { width: 116px; height: 116px; }
+}
+@media (max-width: 600px) {
+    .mo-title { display: none; }
 }

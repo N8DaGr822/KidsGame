@@ -96,6 +96,8 @@ public class AppDataService
         data.GameBests.Remove(profileId);
         data.CardBattleCollection.Remove(profileId);
         data.CardBattleDeck.Remove(profileId);
+        data.MineSaves.Remove(profileId);
+        data.MineProfiles.Remove(profileId);
         await SaveAsync();
     }
 
@@ -473,6 +475,36 @@ public class AppDataService
     {
         var data = await LoadAsync();
         data.CardBattleDeck[profileId] = cardIds;
+        await SaveAsync();
+    }
+
+    // ---- Mine for the One Piece (an expedition checkpoint plus paint
+    // jobs/control prefs, both per profile and kept across sessions) ----
+
+    public async Task<MineSave?> GetMineSaveAsync(string profileId)
+    {
+        var data = await LoadAsync();
+        return data.MineSaves.TryGetValue(profileId, out var save) ? save : null;
+    }
+
+    public async Task SetMineSaveAsync(string profileId, MineSave? save)
+    {
+        var data = await LoadAsync();
+        if (save is null) data.MineSaves.Remove(profileId);
+        else data.MineSaves[profileId] = save;
+        await SaveAsync();
+    }
+
+    public async Task<MineProfile> GetMineProfileAsync(string profileId)
+    {
+        var data = await LoadAsync();
+        return data.MineProfiles.TryGetValue(profileId, out var profile) ? profile : new MineProfile();
+    }
+
+    public async Task SaveMineProfileAsync(string profileId, MineProfile profile)
+    {
+        var data = await LoadAsync();
+        data.MineProfiles[profileId] = profile;
         await SaveAsync();
     }
 

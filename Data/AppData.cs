@@ -57,4 +57,13 @@ public class AppData
     // auto-builds one from the owned collection until the player saves
     // their own.
     public Dictionary<string, List<string>> CardBattleDeck { get; set; } = new();
+
+    // profileId -> the in-progress Mine for the One Piece expedition,
+    // checkpointed whenever the pod docks at a surface station. Absent
+    // means no expedition to continue.
+    public Dictionary<string, MineSave> MineSaves { get; set; } = new();
+
+    // profileId -> Mine for the One Piece paint jobs and control style,
+    // which persist across expeditions.
+    public Dictionary<string, MineProfile> MineProfiles { get; set; } = new();
 }

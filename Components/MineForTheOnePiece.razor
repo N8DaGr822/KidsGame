@@ -1,28 +1,43 @@
 @*
     MineForTheOnePiece.razor
-    An original dig-down mining game in the same family as classics like
-    Motherload/SteamWorld Dig (dig for ore, watch your fuel and hull, haul
-    cargo back to sell and upgrade, go deeper) - built from scratch for this
-    app with its own tile grid, procedural world, and pirate/treasure-hunt
-    flavor rather than any borrowed code or art. The legendary treasure sits
-    at the very bottom of the mine, waiting for a fully-upgraded pod.
+    A dig-down mining game modeled on the feel of Motherload (XGen, 2004),
+    built from scratch for this app with its own procedural world and
+    pirate/treasure-hunt flavor rather than any borrowed code or art.
 
-    Reuses Snake's tick-loop shape (a running Task.Delay loop, keyboard
-    ArrowKeys via a focusable field, held-direction input) rather than
-    SpaceGame's continuous physics, since movement here is a discrete grid
-    step per tick, not free 2D motion - but "holding" a direction (button or
-    key) drives repeated steps instead of Snake's always-moving snake, so a
-    dig can take several ticks against harder rock.
+    What makes it play like Motherload:
+      - Free 2D movement with momentum: gravity always pulls, holding Up
+        fires the thruster (the Engine upgrade sets how hard it fights
+        gravity, and a full cargo hold makes it sluggish), and the pod
+        slides/drifts rather than stepping tile by tile.
+      - Drilling only goes Down, Left or Right - never Up - and sideways
+        drilling needs the pod resting on the ground. The only way home is
+        flying back up shafts you've already dug, so every dive is a little
+        route-planning puzzle.
+      - Fuel drains constantly while underground (more when thrusting or
+        drilling); falls hurt based on impact speed; heat builds with depth.
+      - Nothing at the surface is free (except on Easy): four stations sell
+        fuel, buy ore, sell upgrades/supplies, and repair the hull.
+      - Steep ore-value curve, consumable items (fuel can, repair kit,
+        powder kegs to blast boulders, Den Den Mushi recall), and pirate
+        radio calls with gold bonuses at depth milestones.
 
-    World layout: column 0 is the leftmost lane, row 0 is the ship deck at
-    the surface (always safe, always diggable-through) and rows 1..
-    TotalDepthRows are the mine, generated once per run with tier-based odds
-    that shift from soft dirt/copper near the top to bedrock/diamonds/lava
-    near the bottom. The legendary treasure sits in the bottom row - digging
-    it out wins the run. Gravity pulls the pod down through any already-dug
-    tile or natural cavern; falling too far before landing on solid ground
-    costs hull. Cargo only turns into gold (and fuel/hull only refill) back
-    at the surface.
+    Ideas borrowed from Miner Depths (a modern Motherload-like): a saved
+    expedition checkpointed at every dock, a touch joystick, buried
+    crates, loose rock that wobbles and then falls (cave-ins), a guided
+    "Anchor Drop" descent item, and pod paint jobs kept across runs.
+
+    Kid-friendly change from the original: running dry or wrecking the hull
+    doesn't end the run - the crew tows you home, you lose your cargo and
+    pay a small tow fee. The run ends when the legendary treasure at the
+    bottom is dug out (or the player exits).
+
+    Same fixed-timestep loop shape as SpaceGame/AirHockey: a Task.Delay
+    frame loop with a capped substep count so a backgrounded tab can't
+    simulate a huge jump (and tunnel the pod through a floor).
+
+    World layout: column 0 is the leftmost lane; rows SkyTop..0 are open
+    air above the surface (the stations sit on row 0), rows 1..TotalDepthRows
+    are the mine. The pod is a 0.8-tile square tracked in tile units.
 
     Usage:
         <MineForTheOnePiece OnComplete="HandleGameComplete" />
@@ -38,12 +53,12 @@
         <div class="mo-setup game-setup-panel">
             <div class="mo-hero" aria-hidden="true">
                 <img class="mo-hero-anchor" src="images/mining/anchor.png" alt="" />
-                <img class="mo-hero-pod" src="images/mining/pod.png" alt="" />
+                <img class="mo-hero-pod @PaintClass" src="images/mining/pod.png" alt="" style="@PaintStyle" />
                 <img class="mo-hero-treasure" src="images/mining/treasure.png" alt="" />
                 <span class="mo-hero-caption">THE DEEP IS CALLING</span>
             </div>
             <h2>🏴‍☠️ Mine for the One Piece</h2>
-            <p>Dig deep beneath the waves in search of treasure - and the legendary One Piece itself. Watch your fuel, your cargo hold, and your hull as you go. Sell your haul back at the ship to refuel, repair, and upgrade before diving again.</p>
+            <p>Fly your drill pod deep under the island in search of treasure - and the legendary One Piece itself. Hold ⬆️ to fly, and drill ⬇️ ⬅️ ➡️ (you can't drill up, so keep a way home!). Sell your haul at the Treasure Trader, then refuel, repair, and upgrade before diving again. Your expedition saves every time you dock, so you can keep digging another day.</p>
 
             <h3 class="game-section-title">Choose a difficulty</h3>
             @if (LockedDifficulty is { } locked)
@@ -63,80 +78,273 @@
                 </div>
             }
 
-            <button class="game-primary-action" @onclick="StartGame">Set Sail</button>
+            @if (ContinuableSave is { } save)
+            {
+                <div class="mo-continue">
+                    <button class="game-primary-action" @onclick="ContinueGame">💾 Continue expedition</button>
+                    <span class="mo-continue-detail">@save.Difficulty · deepest @(save.DeepestRow * 10)m · 💰@save.Gold</span>
+                    <button class="game-secondary-action" @onclick="StartGame">New expedition</button>
+                    <span class="mo-continue-detail">Starting new replaces your saved expedition.</span>
+                </div>
+            }
+            else
+            {
+                <button class="game-primary-action" @onclick="StartGame">Set Sail</button>
+            }
         </div>
     }
     else
     {
         <div class="game-hud mo-hud">
             <span class="mo-title">⛏️ Mine for the One Piece</span>
-            <span class="game-stat">📏 @(podRow * 10)m</span>
+            <span class="game-stat">📏 @(PodRow * 10)m</span>
             <span class="game-stat">💰 @gold</span>
-            <div class="mo-bar" title="Fuel">
-                <div class="mo-bar-fill mo-fuel-fill" style="width:@(FuelPct.ToString(Inv))%;"></div>
-                <span class="mo-bar-label">⛽ @fuel/@FuelCapacity(fuelTankTier)</span>
+            <div class="mo-bar @(FuelPct < 25 ? "mo-bar-low" : "")" title="Fuel">
+                <div class="mo-bar-fill mo-fuel-fill" style="width:@(FuelPct.ToString("0.#", Inv))%;"></div>
+                <span class="mo-bar-label">⛽ @((int)Math.Ceiling(fuel))/@FuelCapacity(fuelTankTier)</span>
             </div>
-            <div class="mo-bar" title="Hull">
-                <div class="mo-bar-fill mo-hull-fill" style="width:@(HullPct.ToString(Inv))%;"></div>
-                <span class="mo-bar-label">🛠️ @hull/@HullMax(hullTier)</span>
+            <div class="mo-bar @(HullPct < 25 ? "mo-bar-low" : "")" title="Hull">
+                <div class="mo-bar-fill mo-hull-fill" style="width:@(HullPct.ToString("0.#", Inv))%;"></div>
+                <span class="mo-bar-label">🛡️ @((int)Math.Ceiling(hull))/@HullMax(hullTier)</span>
             </div>
-            <span class="game-stat">🎒 @CargoWeightUsed/@CargoCapacity(cargoTier)</span>
+            <span class="game-stat @(CargoCount >= CargoCapacity(cargoTier) ? "mo-stat-full" : "")">🎒 @CargoCount/@CargoCapacity(cargoTier)</span>
+            @if (HeatDamagePerSecond > 0)
+            {
+                <span class="game-stat mo-stat-hot" title="Heat is damaging your hull - upgrade the Radiator">🌡️ Hot!</span>
+            }
             <button class="game-secondary-action" @onclick="ExitToSetup">← Exit</button>
         </div>
 
         <div class="mo-expedition"><span>@DepthZone</span><span>Deepest: @(deepestRow * 10)m</span></div>
-        <div class="mo-field" @ref="fieldRef" tabindex="0" aria-label="Mining field. Hold arrow keys or WASD to move and dig. Return to the ship to sell and refill."
-             @onkeydown="OnKeyDown" @onkeydown:preventDefault="true" @onkeyup="OnKeyUp">
 
-            @foreach (var r in VisibleRowIndexes)
-            {
-                var topPct = (r - cameraTop) * 100.0 / VisibleRows;
-                var rowHeightPct = 100.0 / VisibleRows;
-
-                if (r == 0)
+        <div class="mo-play">
+        <div class="mo-left">
+            <div class="mo-items">
+                @for (var i = 0; i < ItemKinds.Length; i++)
                 {
-                    <div class="mo-row mo-surface-row" style="top:@(topPct.ToString(Inv))%; height:@(rowHeightPct.ToString(Inv))%;">
-                        <img class="mo-deck-anchor" src="images/mining/anchor.png" alt="" />
-                        <span class="mo-surface-label">SHIP DECK · SELL & REFILL</span>
-                    </div>
+                    var item = ItemKinds[i];
+                    var count = items.GetValueOrDefault(item);
+                    var hotkey = i + 1;
+                    <button class="mo-item-btn" disabled="@(count == 0 || !CanUseItem(item))" title="@ItemName(item) (key @hotkey)"
+                            @onclick="() => UseItem(item)">
+                        <span class="mo-item-icon">@ItemIcon(item)</span>
+                        <span class="mo-item-name">@ItemName(item)</span>
+                        <span class="mo-item-count">@count</span>
+                        <span class="mo-item-key">@hotkey</span>
+                    </button>
                 }
-                else
-                {
-                    for (var c = 0; c < Cols; c++)
-                    {
-                        var col = c;
-                        var row = r;
-                        var kind = tiles[row, col];
-                        var leftPct = col * 100.0 / Cols;
-                        var isDigTarget = digTargetRow == row && digTargetCol == col;
-
-                        <div class="mo-cell @(TileClass(kind)) @(isDigTarget ? "digging" : "")"
-                             title="@TileLabel(kind)"
-                             style="left:@(leftPct.ToString(Inv))%; top:@(topPct.ToString(Inv))%; width:@((100.0 / Cols).ToString(Inv))%; height:@(rowHeightPct.ToString(Inv))%;">
-                            @if (TileAsset(kind) is { } asset)
-                            {
-                                <img class="mo-tile-art" src="@asset" alt="@TileLabel(kind)" draggable="false" />
-                            }
-                            else if (kind == TileKind.Gas)
-                            {
-                                <span class="mo-tile-glyph">@TileEmoji(kind)</span>
-                            }
-                            @if (isDigTarget && digTicksRequired > 0)
-                            {
-                                <div class="mo-dig-progress" style="width:@((digProgress * 100.0 / digTicksRequired).ToString(Inv))%;"></div>
-                            }
-                        </div>
-                    }
-                }
-            }
-
-            <div class="mo-pod mo-facing-@(facing.ToString().ToLowerInvariant()) @(heldDirection is not null ? "mo-pod-thrusting" : "")"
-                 style="left:@((podCol * 100.0 / Cols + 50.0 / Cols).ToString(Inv))%; top:@(((podRow - cameraTop) * 100.0 / VisibleRows + 50.0 / VisibleRows).ToString(Inv))%;">
-                <div class="mo-pod-thrust"></div>
-                <img class="mo-pod-art" src="images/mining/pod.png" alt="Your mining pod" draggable="false" />
             </div>
         </div>
 
+        <div class="mo-center" @ref="boxRef">
+        <div class="mo-stage" style="@StageStyle">
+            <div class="mo-field @(DateTime.UtcNow < shakeUntilUtc ? "mo-shake" : "")" @ref="fieldRef" tabindex="0"
+                 aria-label="Mining field. Hold Up to fly, Down, Left or Right to drill. Number keys 1 to 6 use items."
+                 @onkeydown="OnKeyDown" @onkeydown:preventDefault="true" @onkeyup="OnKeyUp" @onblur="() => heldKeys.Clear()">
+
+                <div class="mo-world" style="transform:translate(@Pct(-camX, visibleCols)%, @Pct(-(camY - SkyTop), visibleRows)%);">
+                    <div class="mo-sky" style="left:0; top:0; width:@Pct(Cols, visibleCols)%; height:@Pct(1 - SkyTop, visibleRows)%;"></div>
+                    <div class="mo-underground" style="left:0; top:@Pct(1 - SkyTop, visibleRows)%; width:@Pct(Cols, visibleCols)%; height:@Pct(TotalDepthRows, visibleRows)%;"></div>
+
+                    @foreach (var st in Stations)
+                    {
+                        <div class="mo-station mo-station-@st.Kind.ToString().ToLowerInvariant() @(StationAtPod() == st.Kind ? "mo-station-near" : "")"
+                             style="left:@Pct(st.Col + 0.08, visibleCols)%; top:@Pct(-1 - SkyTop, visibleRows)%; width:@Pct(StationWidth - 0.16, visibleCols)%; height:@Pct(2, visibleRows)%;">
+                            <span class="mo-station-sign">@st.Emoji</span>
+                            <span class="mo-station-name">@st.Name</span>
+                            <span class="mo-station-door"></span>
+                        </div>
+                    }
+
+                    @for (var r = Math.Max(1, (int)Math.Floor(camY)); r <= Math.Min(TotalDepthRows, (int)Math.Floor(camY) + visibleRows); r++)
+                    {
+                        for (var c = Math.Max(0, (int)Math.Floor(camX)); c <= Math.Min(Cols - 1, (int)Math.Floor(camX) + visibleCols); c++)
+                        {
+                            var kind = tiles[r, c];
+                            if (kind == TileKind.Empty) continue;
+                            var shown = DisplayKind(kind, r, c);
+                            var isDrill = drilling && drillRow == r && drillCol == c;
+                            var wobbling = kind == TileKind.LooseRock && wobblingRocks.ContainsKey((r, c));
+
+                            <div class="mo-cell @(TileClass(shown)) @(isDrill ? "digging" : "") @(wobbling ? "mo-wobble" : "")"
+                                 title="@TileLabel(shown)"
+                                 style="@CellStyle(r, c, isDrill)">
+                                @if (TileAsset(shown) is { } asset)
+                                {
+                                    <img class="mo-tile-art" src="@asset" alt="@TileLabel(shown)" draggable="false" />
+                                }
+                                else if (TileGlyph(shown) is { } glyph)
+                                {
+                                    <span class="mo-tile-glyph">@glyph</span>
+                                }
+                            </div>
+                        }
+                    }
+
+                    @foreach (var rock in fallingRocks)
+                    {
+                        <div class="mo-cell mo-tile-looserock mo-falling-rock"
+                             style="left:@Pct(rock.Col, visibleCols)%; top:@Pct(rock.Y - SkyTop, visibleRows)%; width:@Pct(1, visibleCols)%; height:@Pct(1, visibleRows)%;">
+                        </div>
+                    }
+
+                    <div class="mo-pod mo-facing-@(facing.ToString().ToLowerInvariant()) @(thrusting ? "mo-pod-thrusting" : "") @(drilling ? "mo-pod-drilling" : "") @(anchorActive ? "mo-pod-anchored" : "")"
+                         style="left:@Pct(px, visibleCols)%; top:@Pct(py - SkyTop, visibleRows)%; width:@Pct(PodHalf * 2 * 1.1, visibleCols)%;">
+                        <div class="mo-pod-thrust"></div>
+                        <img class="mo-pod-art @PaintClass" src="images/mining/pod.png" alt="Your mining pod" draggable="false" style="@PaintStyle" />
+                    </div>
+                </div>
+
+                @if (radioMessage is not null)
+                {
+                    <div class="mo-radio" role="status">
+                        <span class="mo-radio-icon">🐌📡</span>
+                        <span>@radioMessage</span>
+                    </div>
+                }
+            </div>
+
+            @if (overlay == Overlay.Station && activeStation is { } station)
+            {
+                <div class="mo-panel-backdrop">
+                    <div class="mo-panel mo-panel-@station.ToString().ToLowerInvariant()" role="dialog" aria-label="@StationName(station)">
+                        <h3 class="game-section-title">@StationEmoji(station) @StationName(station)</h3>
+                        @switch (station)
+                        {
+                            case Station.Fuel:
+                                <p class="mo-panel-line">Tank: <strong>@((int)Math.Ceiling(fuel)) / @FuelCapacity(fuelTankTier)</strong></p>
+                                <p class="mo-panel-hint">@(FuelPrice <= 0 ? "Fuel is free on Easy!" : $"💰{FuelPrice.ToString("0.##", Inv)} per unit")</p>
+                                <button class="game-primary-action" disabled="@(fuel >= FuelCapacity(fuelTankTier))" @onclick="Refuel">
+                                    @(fuel >= FuelCapacity(fuelTankTier) ? "Tank is full" : RefuelCost <= gold ? $"Fill up - 💰{RefuelCost}" : $"Buy what you can - 💰{gold}")
+                                </button>
+                                break;
+
+                            case Station.Repair:
+                                <p class="mo-panel-line">Hull: <strong>@((int)Math.Ceiling(hull)) / @HullMax(hullTier)</strong></p>
+                                <p class="mo-panel-hint">@(RepairPrice <= 0 ? "Repairs are free on Easy!" : $"💰{RepairPrice.ToString("0.##", Inv)} per point")</p>
+                                <button class="game-primary-action" disabled="@(hull >= HullMax(hullTier))" @onclick="Repair">
+                                    @(hull >= HullMax(hullTier) ? "Hull is in top shape" : RepairCost <= gold ? $"Repair fully - 💰{RepairCost}" : $"Repair what you can - 💰{gold}")
+                                </button>
+                                break;
+
+                            case Station.Trader:
+                                if (cargo.Count == 0)
+                                {
+                                    <p class="mo-panel-hint">Your cargo hold is empty. Go dig up some treasure!</p>
+                                }
+                                else
+                                {
+                                    <div class="mo-cargo-list">
+                                        @foreach (var kv in cargo.OrderBy(kv => OreValue(kv.Key)))
+                                        {
+                                            <div class="mo-cargo-row">
+                                                <img src="@TileAsset(kv.Key)" alt="" class="mo-cargo-icon mo-tile-@kv.Key.ToString().ToLowerInvariant()" />
+                                                <span>@TileLabel(kv.Key) × @kv.Value</span>
+                                                <span class="mo-cargo-value">💰@(kv.Value * OreValue(kv.Key))</span>
+                                            </div>
+                                        }
+                                    </div>
+                                    <button class="game-primary-action" @onclick="SellAll">Sell everything - 💰@CargoValue</button>
+                                }
+                                break;
+
+                            case Station.Shipwright:
+                                <p class="mo-panel-hint">💰 @gold gold</p>
+                                <div class="mo-tabs" role="tablist">
+                                    @foreach (var tab in ShipTabs)
+                                    {
+                                        <button class="mo-tab @(shipTab == tab ? "selected" : "")" role="tab" aria-selected="@(shipTab == tab)" @onclick="() => shipTab = tab">@ShipTabName(tab)</button>
+                                    }
+                                </div>
+                                if (shipTab == ShipTab.Upgrades)
+                                {
+                                <div class="mo-shop-grid">
+                                    @foreach (var kind in ShopKinds)
+                                    {
+                                        var tier = TierOf(kind);
+                                        var maxed = tier >= MaxTier;
+                                        var cost = maxed ? 0 : UpgradeCost(tier);
+
+                                        <div class="mo-shop-card @ShopClass(kind)">
+                                            <span class="mo-shop-icon">@ShopIcon(kind)</span>
+                                            <span class="mo-shop-name">@ShopName(kind)</span>
+                                            <span class="mo-shop-tier">Tier @tier@(maxed ? " (Max)" : $" → {tier + 1}")</span>
+                                            <span class="mo-shop-stat">@ShopStat(kind, tier, maxed)</span>
+                                            @if (!maxed)
+                                            {
+                                                <button class="game-primary-action mo-shop-buy" disabled="@(gold < cost)" @onclick="() => BuyUpgrade(kind)">💰@cost</button>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                                }
+                                else if (shipTab == ShipTab.Supplies)
+                                {
+                                <div class="mo-shop-grid">
+                                    @foreach (var item in ItemKinds)
+                                    {
+                                        var count = items.GetValueOrDefault(item);
+                                        <div class="mo-shop-card mo-shop-item">
+                                            <span class="mo-shop-icon">@ItemIcon(item)</span>
+                                            <span class="mo-shop-name">@ItemName(item)</span>
+                                            <span class="mo-shop-stat">@ItemDescription(item)</span>
+                                            <span class="mo-shop-tier">Have @count/@MaxItemCount</span>
+                                            <button class="game-primary-action mo-shop-buy" disabled="@(gold < ItemCost(item) || count >= MaxItemCount)" @onclick="() => BuyItem(item)">💰@ItemCost(item)</button>
+                                        </div>
+                                    }
+                                </div>
+                                }
+                                else
+                                {
+                                <p class="mo-panel-hint">Paint jobs are yours to keep on every expedition.</p>
+                                <div class="mo-shop-grid">
+                                    @foreach (var paint in Paints)
+                                    {
+                                        var owned = OwnsPaint(paint.Id);
+                                        var equipped = mineProfile.SelectedPaint == paint.Id;
+                                        <div class="mo-shop-card mo-shop-paint @(equipped ? "equipped" : "")">
+                                            <img class="mo-paint-preview @PaintClassFor(paint.Id)" src="images/mining/pod.png" alt="" style="@PaintStyleFor(paint.Id)" />
+                                            <span class="mo-shop-name">@paint.Name</span>
+                                            @if (equipped)
+                                            {
+                                                <span class="mo-shop-tier">✓ Equipped</span>
+                                            }
+                                            else if (owned)
+                                            {
+                                                <button class="game-secondary-action mo-shop-buy" @onclick="() => EquipPaint(paint.Id)">Equip</button>
+                                            }
+                                            else if (paint.Unlock is { } unlock)
+                                            {
+                                                <span class="mo-shop-stat">🔒 @unlock</span>
+                                            }
+                                            else
+                                            {
+                                                <button class="game-primary-action mo-shop-buy" disabled="@(gold < paint.Cost)" @onclick="() => BuyPaint(paint.Id)">💰@paint.Cost</button>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                                }
+                                break;
+                        }
+                        <button class="game-secondary-action mo-panel-leave" @onclick="CloseOverlay">Leave ➜</button>
+                    </div>
+                </div>
+            }
+            else if (overlay == Overlay.Rescue)
+            {
+                <div class="mo-panel-backdrop">
+                    <div class="mo-panel mo-panel-rescue" role="alertdialog">
+                        <h3 class="game-section-title">@rescueTitle</h3>
+                        <p class="mo-panel-line">@rescueText</p>
+                        <button class="game-primary-action" @onclick="CloseOverlay">Back to work!</button>
+                    </div>
+                </div>
+            }
+        </div>
+        </div>
+
+        <div class="mo-right">
         <div class="mo-message" role="status" aria-live="polite">
             @if (toast is not null)
             {
@@ -144,57 +352,48 @@
             }
             else
             {
-                <span>Hold arrows / WASD or the buttons to dig. Return to the ship to sell & refill.</span>
+                <span>@Hint</span>
             }
         </div>
 
-        <div class="mo-dpad">
-            <button class="mo-dpad-btn mo-dpad-up" aria-label="Up"
-                    @onpointerdown="() => SetHeld(Direction.Up)" @onpointerup="() => ClearHeld(Direction.Up)"
-                    @onpointercancel="() => ClearHeld(Direction.Up)" @onpointerleave="() => ClearHeld(Direction.Up)">⬆️</button>
-            <button class="mo-dpad-btn mo-dpad-left" aria-label="Left"
-                    @onpointerdown="() => SetHeld(Direction.Left)" @onpointerup="() => ClearHeld(Direction.Left)"
-                    @onpointercancel="() => ClearHeld(Direction.Left)" @onpointerleave="() => ClearHeld(Direction.Left)">⬅️</button>
-            <button class="mo-dpad-btn mo-dpad-down" aria-label="Down"
-                    @onpointerdown="() => SetHeld(Direction.Down)" @onpointerup="() => ClearHeld(Direction.Down)"
-                    @onpointercancel="() => ClearHeld(Direction.Down)" @onpointerleave="() => ClearHeld(Direction.Down)">⬇️</button>
-            <button class="mo-dpad-btn mo-dpad-right" aria-label="Right"
-                    @onpointerdown="() => SetHeld(Direction.Right)" @onpointerup="() => ClearHeld(Direction.Right)"
-                    @onpointercancel="() => ClearHeld(Direction.Right)" @onpointerleave="() => ClearHeld(Direction.Right)">➡️</button>
-        </div>
-
-        @if (podRow == 0 && phase == Phase.Playing)
-        {
-            <div class="mo-shop">
-                <h3 class="game-section-title">⚓ Ship Upgrades</h3>
-                <div class="mo-shop-grid">
-                    @foreach (var kind in ShopKinds)
-                    {
-                        var tier = TierOf(kind);
-                        var maxed = tier >= MaxTier;
-                        var cost = maxed ? 0 : UpgradeCost(tier);
-
-                        <div class="mo-shop-card @ShopClass(kind)">
-                            <span class="mo-shop-icon">@ShopIcon(kind)</span>
-                            <span class="mo-shop-name">@ShopName(kind)</span>
-                            <span class="mo-shop-tier">Tier @tier@(maxed ? " (Max)" : "")</span>
-                            @if (!maxed)
-                            {
-                                <button class="game-primary-action mo-shop-buy" disabled="@(gold < cost)" @onclick="() => BuyUpgrade(kind)">Upgrade - 💰@cost</button>
-                            }
-                        </div>
-                    }
+            @if (!mineProfile.UseButtons)
+            {
+                <div class="mo-stick" @ref="stickRef" aria-label="Joystick: push up to fly, sideways to drive, down to drill"
+                     @onpointerdown="OnStickDown" @onpointerdown:preventDefault="true" @onpointermove="OnStickMove"
+                     @onpointerup="OnStickUp" @onpointercancel="OnStickUp">
+                    <div class="mo-stick-knob" style="transform:translate(-50%, -50%) translate(@((stickX * 80).ToString("0.#", Inv))%, @((stickY * 80).ToString("0.#", Inv))%);"></div>
                 </div>
-                <p class="mo-shop-hint">Dive back down (⬇️) whenever you're ready!</p>
+            }
+            else
+            {
+            <div class="mo-dpad">
+                <button class="mo-dpad-btn mo-dpad-up" aria-label="Fly up"
+                        @onpointerdown="() => SetHeld(Direction.Up)" @onpointerup="() => ClearHeld(Direction.Up)"
+                        @onpointercancel="() => ClearHeld(Direction.Up)" @onpointerleave="() => ClearHeld(Direction.Up)">⬆️</button>
+                <button class="mo-dpad-btn mo-dpad-left" aria-label="Left"
+                        @onpointerdown="() => SetHeld(Direction.Left)" @onpointerup="() => ClearHeld(Direction.Left)"
+                        @onpointercancel="() => ClearHeld(Direction.Left)" @onpointerleave="() => ClearHeld(Direction.Left)">⬅️</button>
+                <button class="mo-dpad-btn mo-dpad-down" aria-label="Drill down"
+                        @onpointerdown="() => SetHeld(Direction.Down)" @onpointerup="() => ClearHeld(Direction.Down)"
+                        @onpointercancel="() => ClearHeld(Direction.Down)" @onpointerleave="() => ClearHeld(Direction.Down)">⬇️</button>
+                <button class="mo-dpad-btn mo-dpad-right" aria-label="Right"
+                        @onpointerdown="() => SetHeld(Direction.Right)" @onpointerup="() => ClearHeld(Direction.Right)"
+                        @onpointercancel="() => ClearHeld(Direction.Right)" @onpointerleave="() => ClearHeld(Direction.Right)">➡️</button>
             </div>
-        }
+            }
+
+            <button class="mo-control-toggle" @onclick="ToggleControls" title="Switch touch controls">
+                @(mineProfile.UseButtons ? "🕹️ Use joystick" : "✚ Use buttons")
+            </button>
+        </div>
+        </div>
 
         @if (phase == Phase.Finished)
         {
             <div class="game-result-overlay">
                 <div class="game-result-panel">
-                    <h2>@ResultTitle()</h2>
-                    <p>@ResultMessage()</p>
+                    <h2>🏆 You Found the One Piece!</h2>
+                    <p>@(NameOrDefault())dug up the legendary treasure itself! An incredible @(deepestRow * 10)m dive.</p>
                     <div class="game-result-stats">
                         <div><span class="game-stat-label">Depth</span><span class="game-stat-value">@(deepestRow * 10)m</span></div>
                         <div><span class="game-stat-label">Gold</span><span class="game-stat-value">@gold</span></div>
@@ -230,63 +429,200 @@
     private enum Phase { Setup, Playing, Finished }
     private enum Difficulty { Easy, Medium, Hard }
     private enum Direction { Up, Down, Left, Right }
-    private enum FinishReason { HullDestroyed, OutOfFuel, FoundTreasure }
-    private enum UpgradeKind { Drill, FuelTank, CargoHold, Hull }
-    private enum TileKind { Empty, Dirt, Stone, HardRock, DenseRock, Bedrock, Copper, Silver, Gold, Emerald, Ruby, Diamond, Relic, Lava, Gas, Treasure }
+    private enum Overlay { None, Station, Rescue }
+    private enum Station { Fuel, Trader, Shipwright, Repair }
+    private enum UpgradeKind { Drill, Engine, FuelTank, CargoHold, Hull, Radiator }
+    private enum ItemKind { FuelCan, RepairKit, PowderKeg, BigKeg, AnchorDrop, Recall }
+    private enum ShipTab { Upgrades, Supplies, Paint }
 
-    private const int Cols = 9;
+    // Saved worlds store each tile as (char)('A' + kind), so new kinds
+    // must only ever be appended to the end of this enum.
+    private enum TileKind { Empty, Dirt, Stone, HardRock, DenseRock, Bedrock, Copper, Silver, Gold, Emerald, Ruby, Diamond, Relic, Lava, Gas, Boulder, Treasure, Crate, LooseRock }
+
+    private sealed class FallingRock
+    {
+        public int Col;
+        public double Y;
+        public double Vy;
+    }
+
+    private sealed record StickRect(double Left, double Top, double Width, double Height);
+
+    private sealed record Paint(string Id, string Name, int Cost, string Filter, string? Unlock = null);
+
+    // World
+    private const int Cols = 24;
     private const int CenterCol = Cols / 2;
     private const int TotalDepthRows = 120;
-    private const int VisibleRows = 11;
-    private const int DeadzoneTop = 3;
-    private const int DeadzoneBottom = 7;
-    private const int TickMs = 150;
-    private const int SafeFallRows = 2;
-    private const int FallDamagePerExtraRow = 9;
-    private const int MoveFuelCost = 1;
-    private const int DigFuelCostPerTick = 2;
-    private const int MaxTier = 5;
+    private const int SkyTop = -2;
+    // The visible window (in tiles) and on-screen tile size are picked to
+    // fill whatever space the play area has - see MeasurePlayArea.
+    private int visibleCols = 11;
+    private int visibleRows = 13;
+    private double tilePx = 48;
+    private const double StartX = CenterCol + 0.5;
+    private const int StationWidth = 2;
+
+    // Loop
+    private const int FrameDelayMs = 16;
+    private const double FixedDt = 1.0 / 60.0;
+    private const int MaxSubstepsPerFrame = 5;
+
+    // Pod physics (tile units, seconds)
+    private const double PodHalf = 0.4;
+    private const double Eps = 1e-4;
+    private const double Gravity = 14;
+    private const double GroundAccel = 22;
+    private const double AirAccel = 12;
+    private const double GroundFriction = 26;
+    private const double AirDrag = 3;
+    private const double MaxFallSpeed = 15;
+    private const double SafeImpactSpeed = 8.5;
+    private const double ImpactDamagePerSpeed = 5;
+    private const double StationEnterSpeed = 0.8;
+
+    // Fuel drain per second while underground
+    private const double IdleDrain = 0.5;
+    private const double MoveDrain = 0.6;
+    private const double ThrustDrain = 1.8;
+    private const double DrillDrain = 2.2;
+
+    // Loose rock: how long it wobbles (the warning) before dropping, and
+    // how much a direct hit hurts.
+    private const double WobbleSeconds = 0.8;
+    private const double RockHitDamage = 18;
+
+    // Anchor Drop: a guided straight-down dig - fast, no fall damage,
+    // hazards along the way are defused.
+    private const int AnchorDropTiles = 10;
+    private const double AnchorStepSeconds = 0.14;
+
+    private const int SaveVersion = 1;
+    private const int MaxTier = 6;
+    private const int MaxItemCount = 5;
     private const double ToastSeconds = 2.2;
+    private const double RadioSeconds = 6;
 
     private static readonly Difficulty[] Difficulties = { Difficulty.Easy, Difficulty.Medium, Difficulty.Hard };
-    private static readonly UpgradeKind[] ShopKinds = { UpgradeKind.Drill, UpgradeKind.FuelTank, UpgradeKind.CargoHold, UpgradeKind.Hull };
+    private static readonly UpgradeKind[] ShopKinds = { UpgradeKind.Drill, UpgradeKind.Engine, UpgradeKind.FuelTank, UpgradeKind.CargoHold, UpgradeKind.Hull, UpgradeKind.Radiator };
+    private static readonly ItemKind[] ItemKinds = { ItemKind.FuelCan, ItemKind.RepairKit, ItemKind.PowderKeg, ItemKind.BigKeg, ItemKind.AnchorDrop, ItemKind.Recall };
+    private static readonly ShipTab[] ShipTabs = { ShipTab.Upgrades, ShipTab.Supplies, ShipTab.Paint };
+
+    // Pod paint jobs - CSS filters over the brass pod art. Bought with gold
+    // or unlocked by achievements, and kept across expeditions.
+    private const string RainbowPaint = "rainbow";
+    private const string AbyssPaint = "abyss";
+    private static readonly Paint[] Paints =
+    {
+        new("classic", "Classic Brass", 0, "none"),
+        new("ocean", "Ocean Blue", 400, "hue-rotate(170deg) saturate(1.2)"),
+        new("coral", "Coral Red", 400, "hue-rotate(-40deg) saturate(1.4)"),
+        new("jungle", "Jungle Green", 1200, "hue-rotate(60deg) saturate(1.3)"),
+        new("royal", "Royal Purple", 2500, "hue-rotate(230deg) saturate(1.2)"),
+        new("ghost", "Ghost Ship", 5000, "grayscale(1) brightness(1.2)"),
+        new(AbyssPaint, "Abyss Black", 0, "grayscale(1) brightness(0.55) contrast(1.5)", "Reach 700m"),
+        new(RainbowPaint, "Rainbow Legend", 0, "none", "Find the One Piece"),
+    };
+
+    private static readonly (Station Kind, int Col, string Emoji, string Name)[] Stations =
+    {
+        (Station.Fuel, 6, "⛽", "Fuel Dock"),
+        (Station.Trader, 9, "💰", "Trader"),
+        (Station.Shipwright, 14, "⚓", "Shipwright"),
+        (Station.Repair, 17, "🛠️", "Repairs"),
+    };
+
+    // Depth milestones: a Den Den Mushi call from the captain with a gold bonus.
+    private static readonly (int Row, int Bonus, string Message)[] Milestones =
+    {
+        (10, 100, "Puru puru... Captain here! 100m down already? Here's 100 gold for the crew!"),
+        (25, 300, "Puru puru... 250m! The old maps say the rock gets tougher from here. Take 300 gold!"),
+        (45, 800, "Puru puru... 450m! Watch for lava down there, mate. 800 gold for your bravery!"),
+        (70, 2000, "Puru puru... 700m! Nobody's dug this deep in a hundred years. 2,000 gold!"),
+        (95, 5000, "Puru puru... 950m! I can almost smell the treasure. 5,000 gold - keep going!"),
+        (115, 10000, "Puru puru... 1,150m! The vault is just below. Make us legends! 10,000 gold!"),
+    };
 
     private Difficulty? LockedDifficulty =>
         Enum.TryParse<Difficulty>(ForcedDifficulty, out var d) ? d : null;
 
     private Phase phase = Phase.Setup;
     private Difficulty selectedDifficulty = Difficulty.Easy;
+    private Overlay overlay = Overlay.None;
+    private Station? activeStation;
+    private Station? stationLatch;
+    private string rescueTitle = "";
+    private string rescueText = "";
 
     private TileKind[,] tiles = new TileKind[1, Cols];
     private readonly Dictionary<TileKind, int> cargo = new();
+    private readonly Dictionary<ItemKind, int> items = new();
+    // Keyboard and on-screen d-pad holds are tracked separately so losing
+    // keyboard focus (e.g. tapping a d-pad button) only drops the keys.
+    private readonly HashSet<Direction> heldKeys = new();
+    private readonly HashSet<Direction> heldPointer = new();
 
-    private int podRow;
-    private int podCol = CenterCol;
+    // Pod state
+    private double px = StartX;
+    private double py = 1 - PodHalf;
+    private double vx;
+    private double vy;
+    private bool grounded;
+    private bool thrusting;
     private Direction facing = Direction.Down;
-    private Direction? heldDirection;
 
-    private int digTargetRow = -1;
-    private int digTargetCol = -1;
-    private int digProgress;
-    private int digTicksRequired;
-    private int fallStreak;
+    // Drill state - while drilling, physics is paused and the pod slides
+    // from drillFrom to drillTo over drillDuration seconds.
+    private bool drilling;
+    private int drillRow;
+    private int drillCol;
+    private double drillElapsed;
+    private double drillDuration;
+    private double drillFromX, drillFromY, drillToX, drillToY;
 
     private int drillTier = 1;
+    private int engineTier = 1;
     private int fuelTankTier = 1;
     private int cargoTier = 1;
     private int hullTier = 1;
-    private int fuel;
-    private int hull;
+    private int radiatorTier = 1;
+    private double fuel;
+    private double hull;
     private int gold;
     private int deepestRow;
+    private int nextMilestone;
+    private int lastHeatWarned;
     private int elapsedSeconds;
-    private double fuelDrainMul = 1.0;
 
-    private int cameraTop;
+    private double camX;
+    private double camY;
+    private double accumulator;
     private string? toast;
     private DateTime toastUntilUtc;
-    private FinishReason? pendingFinish;
-    private FinishReason lastFinishReason;
+    private string? radioMessage;
+    private DateTime radioUntilUtc;
+    private DateTime shakeUntilUtc;
+    private bool pendingWin;
+
+    // Loose rock: tiles wobbling before they drop, and rocks mid-fall.
+    private readonly Dictionary<(int Row, int Col), double> wobblingRocks = new();
+    private readonly List<FallingRock> fallingRocks = new();
+
+    private int anchorStepsLeft;
+    private bool anchorActive;
+    private ShipTab shipTab = ShipTab.Upgrades;
+
+    // Persistence: the profile's saved expedition (shown as Continue on the
+    // setup screen) and their paint jobs / control style.
+    private MineSave? savedGame;
+    private MineProfile mineProfile = new();
+
+    // Joystick: normalized knob offset (-1..1) and the active pointer.
+    private ElementReference stickRef;
+    private StickRect? stickRect;
+    private long? stickPointerId;
+    private double stickX;
+    private double stickY;
 
     private int? bestDepth;
     private bool isNewBest;
@@ -298,21 +634,83 @@
     private CancellationTokenSource? _loopCts;
     private readonly Random rng = new();
 
+    private int PodRow => Math.Max(0, (int)Math.Floor(py));
+    private bool Underground => py > 1.0;
     private double FuelPct => fuel * 100.0 / Math.Max(1, FuelCapacity(fuelTankTier));
     private double HullPct => hull * 100.0 / Math.Max(1, HullMax(hullTier));
-    private int CargoWeightUsed => cargo.Sum(kv => kv.Value * OreWeight(kv.Key));
+    private int CargoCount => cargo.Values.Sum();
+    private int CargoValue => cargo.Sum(kv => kv.Value * OreValue(kv.Key));
+    private double DrillT => drillDuration <= 0 ? 0 : Math.Clamp(drillElapsed / drillDuration, 0, 1);
+    private bool HideGas => selectedDifficulty == Difficulty.Hard;
 
-    private IEnumerable<int> VisibleRowIndexes =>
-        Enumerable.Range(cameraTop, Math.Min(VisibleRows, TotalDepthRows + 1 - cameraTop));
+    private static string Pct(double tiles, int span) => (tiles * 100.0 / span).ToString("0.###", Inv);
 
-    protected override void OnInitialized()
+    // ---- Play-area sizing ----
+
+    // Target on-screen tile size; the row count is chosen so tiles land
+    // near this, then as many columns as fit (up to the whole world width).
+    private const double TargetTilePx = 72;
+
+    private ElementReference boxRef;
+    private DateTime nextMeasureUtc;
+
+    private string StageStyle =>
+        $"width:{(visibleCols * tilePx).ToString("0.#", Inv)}px; height:{(visibleRows * tilePx).ToString("0.#", Inv)}px;";
+
+    // Re-measured about once a second (cheap) so window resizes and phone
+    // rotation are picked up without a resize listener.
+    private async Task MeasurePlayArea()
+    {
+        var box = await Interop.InvokeAsync<StickRect>("getBoundingRect", boxRef);
+        if (box.Width < 50 || box.Height < 50) return;
+
+        var rows = Math.Clamp((int)Math.Round(box.Height / TargetTilePx), 8, 13);
+        var cols = Math.Clamp((int)Math.Round(box.Width / (box.Height / rows)), 7, Cols);
+        var tile = Math.Floor(Math.Min(box.Height / rows, box.Width / cols));
+
+        if (rows == visibleRows && cols == visibleCols && Math.Abs(tile - tilePx) < 1) return;
+        visibleRows = rows;
+        visibleCols = cols;
+        tilePx = tile;
+        UpdateCamera(1);
+        StateHasChanged();
+    }
+
+    private string CellStyle(int r, int c, bool isDrill)
+    {
+        var style = $"left:{Pct(c, visibleCols)}%; top:{Pct(r - SkyTop, visibleRows)}%; width:{Pct(1, visibleCols)}%; height:{Pct(1, visibleRows)}%;";
+        if (!isDrill) return style;
+        var t = DrillT;
+        return style + $" transform:scale({(1 - 0.45 * t).ToString("0.###", Inv)}); opacity:{(1 - 0.5 * t).ToString("0.###", Inv)};";
+    }
+
+    protected override async Task OnInitializedAsync()
     {
         if (LockedDifficulty is { } locked) selectedDifficulty = locked;
+        if (string.IsNullOrEmpty(ProfileId)) return;
+
+        savedGame = await Data.GetMineSaveAsync(ProfileId);
+        mineProfile = await Data.GetMineProfileAsync(ProfileId);
     }
+
+    // A save can be continued only if it's current-format and (when a
+    // parent has locked the difficulty) matches that difficulty.
+    private MineSave? ContinuableSave =>
+        savedGame is { Version: SaveVersion } s
+        && Enum.TryParse<Difficulty>(s.Difficulty, out var d)
+        && (LockedDifficulty is null || LockedDifficulty == d)
+            ? s
+            : null;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (needsFocus && phase == Phase.Playing)
+        if (phase == Phase.Playing && DateTime.UtcNow >= nextMeasureUtc)
+        {
+            nextMeasureUtc = DateTime.UtcNow.AddSeconds(1);
+            await MeasurePlayArea();
+        }
+
+        if (needsFocus && phase == Phase.Playing && overlay == Overlay.None)
         {
             needsFocus = false;
             await fieldRef.FocusAsync(preventScroll: true);
@@ -323,32 +721,82 @@
     {
         GenerateWorld(selectedDifficulty);
 
-        podRow = 0;
-        podCol = CenterCol;
-        facing = Direction.Down;
-        heldDirection = null;
-        ResetDig();
-        fallStreak = 0;
-
-        drillTier = 1;
-        fuelTankTier = 1;
-        cargoTier = 1;
-        hullTier = 1;
+        drillTier = engineTier = fuelTankTier = cargoTier = hullTier = radiatorTier = 1;
         fuel = FuelCapacity(fuelTankTier);
         hull = HullMax(hullTier);
         cargo.Clear();
+        items.Clear();
         gold = StartingGold(selectedDifficulty);
-        fuelDrainMul = FuelDrainMultiplier(selectedDifficulty);
-
         deepestRow = 0;
+        nextMilestone = 0;
         elapsedSeconds = 0;
-        cameraTop = 0;
+
+        BeginPlaying();
+        _ = SaveCheckpointAsync();
+    }
+
+    private void ContinueGame()
+    {
+        if (ContinuableSave is not { } s) return;
+
+        selectedDifficulty = Enum.Parse<Difficulty>(s.Difficulty);
+        tiles = new TileKind[TotalDepthRows + 1, Cols];
+        for (var r = 0; r <= TotalDepthRows; r++)
+            for (var c = 0; c < Cols; c++)
+            {
+                var i = r * Cols + c;
+                tiles[r, c] = i < s.Tiles.Length ? (TileKind)(s.Tiles[i] - 'A') : TileKind.Bedrock;
+            }
+
+        gold = s.Gold;
+        drillTier = s.DrillTier;
+        engineTier = s.EngineTier;
+        fuelTankTier = s.FuelTankTier;
+        cargoTier = s.CargoTier;
+        hullTier = s.HullTier;
+        radiatorTier = s.RadiatorTier;
+        fuel = s.Fuel;
+        hull = s.Hull;
+        cargo.Clear();
+        foreach (var (k, v) in s.Cargo)
+            if (Enum.TryParse<TileKind>(k, out var kind)) cargo[kind] = v;
+        items.Clear();
+        foreach (var (k, v) in s.Items)
+            if (Enum.TryParse<ItemKind>(k, out var item)) items[item] = v;
+        deepestRow = s.DeepestRow;
+        nextMilestone = s.NextMilestone;
+        elapsedSeconds = s.ElapsedSeconds;
+
+        BeginPlaying();
+        ShowToast("💾 Welcome back, Captain! Your expedition is right where you left it.");
+    }
+
+    // Shared reset for a fresh or continued run: pod on the surface, all
+    // transient state cleared, loop started.
+    private void BeginPlaying()
+    {
+        ResetPodToSurface();
+        facing = Direction.Down;
+        ClearHeld();
+        wobblingRocks.Clear();
+        fallingRocks.Clear();
+        anchorStepsLeft = 0;
+        anchorActive = false;
+        shipTab = ShipTab.Upgrades;
+        lastHeatWarned = 0;
+        accumulator = 0;
+        camX = Math.Clamp(px - visibleCols / 2.0, 0, Cols - visibleCols);
+        camY = SkyTop;
         toast = null;
-        pendingFinish = null;
+        radioMessage = null;
+        pendingWin = false;
+        overlay = Overlay.None;
+        activeStation = null;
+        stationLatch = null;
         bestDepth = null;
         isNewBest = false;
 
-        startedAtUtc = DateTime.UtcNow;
+        startedAtUtc = DateTime.UtcNow.AddSeconds(-elapsedSeconds);
         phase = Phase.Playing;
         needsFocus = true;
 
@@ -357,28 +805,91 @@
         _ = RunLoopAsync(_loopCts.Token);
     }
 
+    private void ResetPodToSurface()
+    {
+        px = StartX;
+        py = 1 - PodHalf - Eps;
+        vx = vy = 0;
+        grounded = true;
+        thrusting = false;
+        drilling = false;
+        anchorStepsLeft = 0;
+        anchorActive = false;
+    }
+
+    // ---- Saving ----
+
+    // Checkpoints the expedition. Called whenever the pod is safely on the
+    // surface (docking at a station, after a rescue, exiting from the
+    // surface) - exiting mid-dive keeps the last checkpoint instead, so
+    // quitting can't dodge a tow fee or undo a bad dive.
+    private async Task SaveCheckpointAsync()
+    {
+        if (string.IsNullOrEmpty(ProfileId) || phase != Phase.Playing) return;
+
+        var chars = new char[(TotalDepthRows + 1) * Cols];
+        for (var r = 0; r <= TotalDepthRows; r++)
+            for (var c = 0; c < Cols; c++)
+                chars[r * Cols + c] = (char)('A' + (int)tiles[r, c]);
+
+        savedGame = new MineSave
+        {
+            Version = SaveVersion,
+            Difficulty = DifficultyName(selectedDifficulty),
+            Tiles = new string(chars),
+            Gold = gold,
+            DrillTier = drillTier,
+            EngineTier = engineTier,
+            FuelTankTier = fuelTankTier,
+            CargoTier = cargoTier,
+            HullTier = hullTier,
+            RadiatorTier = radiatorTier,
+            Fuel = fuel,
+            Hull = hull,
+            Cargo = cargo.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value),
+            Items = items.ToDictionary(kv => kv.Key.ToString(), kv => kv.Value),
+            DeepestRow = deepestRow,
+            NextMilestone = nextMilestone,
+            ElapsedSeconds = elapsedSeconds,
+            SavedAtUtc = DateTime.UtcNow,
+        };
+        await Data.SetMineSaveAsync(ProfileId, savedGame);
+    }
+
+    private async Task SaveMineProfileAsync()
+    {
+        if (!string.IsNullOrEmpty(ProfileId)) await Data.SaveMineProfileAsync(ProfileId, mineProfile);
+    }
+
     private async Task ExitToSetup()
     {
         _loopCts?.Cancel();
-        if (phase == Phase.Playing && OnComplete.HasDelegate)
+        if (phase == Phase.Playing)
         {
-            await OnComplete.InvokeAsync(new MineForTheOnePieceResult(
-                Difficulty: DifficultyName(selectedDifficulty),
-                DeepestDepth: deepestRow * 10,
-                Gold: gold,
-                FoundTreasure: false,
-                ElapsedSeconds: elapsedSeconds));
+            if (!Underground) await SaveCheckpointAsync();
+            await RecordBestAsync();
+            if (OnComplete.HasDelegate)
+            {
+                await OnComplete.InvokeAsync(new MineForTheOnePieceResult(
+                    Difficulty: DifficultyName(selectedDifficulty),
+                    DeepestDepth: deepestRow * 10,
+                    Gold: gold,
+                    FoundTreasure: false,
+                    ElapsedSeconds: elapsedSeconds));
+            }
         }
         phase = Phase.Setup;
     }
 
     private async Task RunLoopAsync(CancellationToken ct)
     {
+        var lastTick = DateTime.UtcNow;
+
         while (!ct.IsCancellationRequested)
         {
             try
             {
-                await Task.Delay(TickMs, ct);
+                await Task.Delay(FrameDelayMs, ct);
             }
             catch (TaskCanceledException)
             {
@@ -387,14 +898,26 @@
 
             try
             {
-                Step();
-                elapsedSeconds = (int)(DateTime.UtcNow - startedAtUtc).TotalSeconds;
+                var now = DateTime.UtcNow;
+                accumulator += (now - lastTick).TotalSeconds;
+                lastTick = now;
 
-                if (toast is not null && DateTime.UtcNow >= toastUntilUtc) toast = null;
-
-                if (pendingFinish is { } reason)
+                var substeps = 0;
+                while (accumulator >= FixedDt && substeps < MaxSubstepsPerFrame)
                 {
-                    await FinishGame(reason);
+                    StepPhysics(FixedDt);
+                    accumulator -= FixedDt;
+                    substeps++;
+                }
+                if (substeps >= MaxSubstepsPerFrame) accumulator = 0;
+
+                elapsedSeconds = (int)(now - startedAtUtc).TotalSeconds;
+                if (toast is not null && now >= toastUntilUtc) toast = null;
+                if (radioMessage is not null && now >= radioUntilUtc) radioMessage = null;
+
+                if (pendingWin)
+                {
+                    await FinishGame();
                     return;
                 }
 
@@ -406,229 +929,829 @@
         }
     }
 
-    private void Step()
+    private void StepPhysics(double dt)
     {
-        UpdateCamera();
+        if (phase != Phase.Playing || overlay != Overlay.None || pendingWin) return;
 
-        if (heldDirection is { } dir)
+        if (drilling) UpdateDrill(dt);
+        else UpdateMovement(dt);
+
+        if (pendingWin) return;
+
+        UpdateRocks(dt);
+        UpdateFuelAndHeat(dt);
+        deepestRow = Math.Max(deepestRow, PodRow);
+        CheckMilestones();
+
+        if (hull <= 0)
         {
-            TryAct(dir);
+            Rescue("💥 Hull wrecked!", "Your pod fell apart, but the crew hauled it back to the surface.");
+            return;
+        }
+        if (fuel <= 0 && Underground)
+        {
+            Rescue("⛽ Out of fuel!", "Your pod sputtered to a stop, so the crew towed it home.");
+            return;
+        }
+
+        CheckStations();
+        UpdateCamera(dt);
+    }
+
+    // ---- Movement & collision ----
+
+    private bool Held(Direction d) => heldKeys.Contains(d) || heldPointer.Contains(d);
+
+    private void ClearHeld()
+    {
+        heldKeys.Clear();
+        heldPointer.Clear();
+    }
+
+    private void UpdateMovement(double dt)
+    {
+        var hx = (Held(Direction.Right) ? 1 : 0) - (Held(Direction.Left) ? 1 : 0);
+        var up = Held(Direction.Up) && fuel > 0;
+
+        if (grounded && TryDrillFromInput()) return;
+
+        if (hx != 0)
+        {
+            vx += hx * (grounded ? GroundAccel : AirAccel) * dt;
         }
         else
         {
-            ResetDig();
+            var damp = (grounded ? GroundFriction : AirDrag) * dt;
+            vx = Math.Abs(vx) <= damp ? 0 : vx - Math.Sign(vx) * damp;
+        }
+        var maxH = EngineMaxSpeed(engineTier);
+        vx = Math.Clamp(vx, -maxH, maxH);
+
+        thrusting = up;
+        if (up) vy -= EngineThrust(engineTier) * dt;
+        vy += Gravity * dt;
+        vy = Math.Clamp(vy, -EngineMaxClimb(engineTier), MaxFallSpeed);
+
+        // Horizontal pass
+        px += vx * dt;
+        var top = (int)Math.Floor(py - PodHalf + Eps);
+        var bot = (int)Math.Floor(py + PodHalf - Eps);
+        if (vx > 0)
+        {
+            var col = (int)Math.Floor(px + PodHalf);
+            for (var r = top; r <= bot; r++)
+                if (Solid(r, col)) { px = col - PodHalf - Eps; vx = 0; break; }
+        }
+        else if (vx < 0)
+        {
+            var col = (int)Math.Floor(px - PodHalf);
+            for (var r = top; r <= bot; r++)
+                if (Solid(r, col)) { px = col + 1 + PodHalf + Eps; vx = 0; break; }
         }
 
-        // Thrusting upward counters gravity for the tick - otherwise a
-        // pod climbing back up its own already-dug tunnel would get
-        // yanked straight back down every tick (the tile it just
-        // vacated is always Empty), making it impossible to ever climb
-        // out once a straight shaft had been dug.
-        if (heldDirection != Direction.Up) ApplyGravity();
+        // Vertical pass
+        var wasGrounded = grounded;
+        grounded = false;
+        py += vy * dt;
+        var lc = (int)Math.Floor(px - PodHalf + Eps);
+        var rc = (int)Math.Floor(px + PodHalf - Eps);
+        if (vy > 0)
+        {
+            var row = (int)Math.Floor(py + PodHalf);
+            for (var c = lc; c <= rc; c++)
+            {
+                if (!Solid(row, c)) continue;
+                py = row - PodHalf - Eps;
+                if (!wasGrounded) Land(vy);
+                vy = 0;
+                grounded = true;
+                break;
+            }
+        }
+        else if (vy < 0)
+        {
+            var row = (int)Math.Floor(py - PodHalf);
+            for (var c = lc; c <= rc; c++)
+                if (Solid(row, c)) { py = row + 1 + PodHalf + Eps; vy = 0; break; }
+        }
 
-        deepestRow = Math.Max(deepestRow, podRow);
-
-        if (hull <= 0) pendingFinish ??= FinishReason.HullDestroyed;
+        facing = thrusting ? Direction.Up
+            : hx > 0 ? Direction.Right
+            : hx < 0 ? Direction.Left
+            : Direction.Down;
     }
 
-    private void TryAct(Direction dir)
+    private void Land(double impactSpeed)
     {
+        if (impactSpeed <= SafeImpactSpeed) return;
+        ApplyDamage((impactSpeed - SafeImpactSpeed) * ImpactDamagePerSpeed);
+        ShowToast("💥 Ouch! That was a rough landing.");
+        Shake();
+        _ = Interop.InvokeVoidAsync("playImpactSound");
+    }
+
+    private bool Solid(int r, int c)
+    {
+        if (c < 0 || c >= Cols) return true;
+        if (r < SkyTop) return true;
+        if (r < 1) return false;
+        if (r > TotalDepthRows) return true;
+        return tiles[r, c] != TileKind.Empty;
+    }
+
+    // ---- Drilling ----
+
+    private bool TryDrillFromInput()
+    {
+        var row = (int)Math.Floor(py);
+        if (Held(Direction.Down))
+            return TryStartDrill(row + 1, (int)Math.Floor(px), Direction.Down);
+        if (Held(Direction.Left) && Solid(row, (int)Math.Floor(px - PodHalf - 0.02)))
+            return TryStartDrill(row, (int)Math.Floor(px - PodHalf - 0.02), Direction.Left);
+        if (Held(Direction.Right) && Solid(row, (int)Math.Floor(px + PodHalf + 0.02)))
+            return TryStartDrill(row, (int)Math.Floor(px + PodHalf + 0.02), Direction.Right);
+        return false;
+    }
+
+    private bool TryStartDrill(int row, int col, Direction dir)
+    {
+        if (col < 0 || col >= Cols || row < 1 || row > TotalDepthRows) return false;
+        var kind = tiles[row, col];
+        if (kind == TileKind.Empty) return false;
+
+        if (kind == TileKind.Boulder)
+        {
+            ShowToast("🪨 A boulder! Too tough to drill - blast it with a Powder Keg.");
+            return false;
+        }
+        if (Hardness(kind) > MaxHardness(drillTier))
+        {
+            ShowToast(kind == TileKind.Treasure
+                ? "🏆 The vault! Only a Tier 5 Drill can crack it."
+                : "⛏️ Too hard! Upgrade your Drill at the Shipwright.");
+            return false;
+        }
+        if (fuel <= 0) return false;
+
+        BeginDrill(row, col, dir, DigSeconds(kind, drillTier));
+        return true;
+    }
+
+    private void BeginDrill(int row, int col, Direction dir, double duration)
+    {
+        drilling = true;
+        drillRow = row;
+        drillCol = col;
+        drillElapsed = 0;
+        drillDuration = duration;
+        drillFromX = px;
+        drillFromY = py;
+        drillToX = col + 0.5;
+        drillToY = row + 1 - PodHalf - Eps;
+        vx = vy = 0;
+        thrusting = false;
         facing = dir;
-        var (dr, dc) = Delta(dir);
-        var targetRow = podRow + dr;
-        var targetCol = podCol + dc;
-
-        if (targetCol < 0 || targetCol >= Cols || targetRow < 0)
-        {
-            ResetDig();
-            return;
-        }
-
-        if (targetRow == 0)
-        {
-            if (fuel <= 0 && podRow > 0) return;
-            if (podRow > 0) fuel = Math.Max(0, fuel - DrainedFuel(MoveFuelCost));
-            MoveTo(0, podCol);
-            ResetDig();
-            return;
-        }
-
-        var kind = tiles[targetRow, targetCol];
-
-        if (kind == TileKind.Empty)
-        {
-            if (fuel <= 0) return;
-            fuel = Math.Max(0, fuel - DrainedFuel(MoveFuelCost));
-            MoveTo(targetRow, targetCol);
-            ResetDig();
-            CheckFuelStranded();
-            return;
-        }
-
-        if (Hardness(kind) > drillTier)
-        {
-            ShowToast("⛏️ Drill too weak - upgrade at the ship!");
-            ResetDig();
-            return;
-        }
-
-        if (fuel <= 0) return;
-
-        if (digTargetRow != targetRow || digTargetCol != targetCol)
-        {
-            digTargetRow = targetRow;
-            digTargetCol = targetCol;
-            digProgress = 0;
-            digTicksRequired = DigTicksRequired(kind, drillTier);
-        }
-
-        fuel = Math.Max(0, fuel - DrainedFuel(DigFuelCostPerTick));
-        digProgress++;
-
-        if (digProgress >= digTicksRequired)
-        {
-            BreakTile(targetRow, targetCol, kind);
-            if (pendingFinish is null) MoveTo(targetRow, targetCol);
-            ResetDig();
-        }
-
-        CheckFuelStranded();
     }
 
-    private int DrainedFuel(int baseCost) => Math.Max(1, (int)Math.Round(baseCost * fuelDrainMul));
-
-    private void CheckFuelStranded()
+    private void UpdateDrill(double dt)
     {
-        if (fuel <= 0 && podRow > 0) pendingFinish ??= FinishReason.OutOfFuel;
+        drillElapsed += dt;
+        var t = DrillT;
+        var ease = t * t * (3 - 2 * t);
+        px = drillFromX + (drillToX - drillFromX) * ease;
+        py = drillFromY + (drillToY - drillFromY) * ease;
+
+        if (t < 1) return;
+
+        drilling = false;
+        var kind = tiles[drillRow, drillCol];
+        tiles[drillRow, drillCol] = TileKind.Empty;
+        px = drillToX;
+        py = drillToY;
+        grounded = Solid(drillRow + 1, drillCol);
+        OnTileCleared(drillRow, drillCol);
+        BreakTile(kind);
+
+        if (anchorActive && !pendingWin) ContinueAnchorDrop();
     }
 
-    private void BreakTile(int row, int col, TileKind kind)
+    private void BreakTile(TileKind kind)
     {
-        tiles[row, col] = TileKind.Empty;
-
         if (kind == TileKind.Treasure)
         {
-            pendingFinish = FinishReason.FoundTreasure;
+            pendingWin = true;
             _ = Interop.InvokeVoidAsync("playFanfareSound");
             return;
         }
 
-        if (IsHazard(kind))
+        if (kind == TileKind.Crate)
         {
-            var raw = kind == TileKind.Lava ? 35 : 20;
-            ApplyDamage(raw);
-            ShowToast(kind == TileKind.Lava ? "🔥 Ouch! Lava scorched your hull!" : "💨 A gas pocket blew up!");
+            OpenCrate();
+            return;
+        }
+
+        if (kind is TileKind.Lava or TileKind.Gas && anchorActive)
+        {
+            ShowToast("⚓ The anchor line pulled you safely past the danger!");
+            return;
+        }
+
+        if (kind is TileKind.Lava or TileKind.Gas)
+        {
+            var radiatorShield = 1 - (radiatorTier - 1) * 0.12;
+            ApplyDamage((kind == TileKind.Lava ? 30 : 22) * radiatorShield);
+            ShowToast(kind == TileKind.Lava ? "🔥 Ouch! Lava scorched your hull!" : "💨 A gas pocket exploded!");
+            Shake();
             _ = Interop.InvokeVoidAsync("playExplosionSound");
             return;
         }
 
         if (IsOre(kind))
         {
-            var weight = OreWeight(kind);
-            if (CargoWeightUsed + weight <= CargoCapacity(cargoTier))
+            if (CargoCount < CargoCapacity(cargoTier))
             {
                 cargo[kind] = cargo.GetValueOrDefault(kind) + 1;
+                ShowToast($"+1 {TileLabel(kind)} (💰{OreValue(kind)})");
                 _ = Interop.InvokeVoidAsync("playCatchSound");
             }
             else
             {
-                ShowToast("🎒 Cargo full - head back to sell!");
+                ShowToast("🎒 Cargo full - that ore was lost! Sell at the Trader.");
             }
         }
     }
 
-    private void MoveTo(int row, int col)
+    // ---- Loose rock (cave-ins) ----
+
+    // Any tile that opens up can undermine loose rock above it; the rock
+    // wobbles first (the warning) and then drops.
+    private void OnTileCleared(int row, int col)
     {
-        podRow = row;
-        podCol = col;
-        if (row == 0) ArriveAtSurface();
+        var above = row - 1;
+        if (above < 1 || tiles[above, col] != TileKind.LooseRock || wobblingRocks.ContainsKey((above, col))) return;
+
+        wobblingRocks[(above, col)] = WobbleSeconds;
+        if (Math.Abs(col + 0.5 - px) < 2 && Math.Abs(above + 0.5 - py) < 4)
+            ShowToast("⚠️ Loose rock overhead - look out!");
     }
 
-    private void ArriveAtSurface()
+    private void UpdateRocks(double dt)
     {
-        fallStreak = 0;
-
-        if (cargo.Count > 0)
+        if (wobblingRocks.Count > 0)
         {
-            var earned = cargo.Sum(kv => kv.Value * OreValue(kv.Key));
-            gold += earned;
-            cargo.Clear();
-            ShowToast($"💰 Sold your haul for {earned} gold!");
+            foreach (var key in wobblingRocks.Keys.ToList())
+            {
+                var left = wobblingRocks[key] - dt;
+                if (left > 0)
+                {
+                    wobblingRocks[key] = left;
+                    continue;
+                }
+
+                wobblingRocks.Remove(key);
+                var (r, c) = key;
+                var beingDrilled = drilling && drillRow == r && drillCol == c;
+                if (tiles[r, c] != TileKind.LooseRock || Solid(r + 1, c) || beingDrilled) continue;
+
+                tiles[r, c] = TileKind.Empty;
+                fallingRocks.Add(new FallingRock { Col = c, Y = r });
+                OnTileCleared(r, c);
+            }
         }
 
-        fuel = FuelCapacity(fuelTankTier);
-        hull = HullMax(hullTier);
+        for (var i = fallingRocks.Count - 1; i >= 0; i--)
+        {
+            var rock = fallingRocks[i];
+            rock.Vy = Math.Min(rock.Vy + Gravity * dt, 12);
+            rock.Y += rock.Vy * dt;
+
+            var hitsPod = rock.Col < px + PodHalf && rock.Col + 1 > px - PodHalf
+                && rock.Y < py + PodHalf && rock.Y + 1 > py - PodHalf;
+            if (hitsPod)
+            {
+                fallingRocks.RemoveAt(i);
+                ApplyDamage(RockHitDamage);
+                ShowToast("🪨 Bonk! A falling rock hit your pod!");
+                Shake();
+                _ = Interop.InvokeVoidAsync("playImpactSound");
+                continue;
+            }
+
+            var below = (int)Math.Floor(rock.Y + 1);
+            if (!Solid(below, rock.Col)) continue;
+
+            fallingRocks.RemoveAt(i);
+            var restRow = below - 1;
+            if (restRow >= 1 && tiles[restRow, rock.Col] == TileKind.Empty) tiles[restRow, rock.Col] = TileKind.LooseRock;
+        }
     }
 
-    private void ApplyGravity()
+    // ---- Buried crates ----
+
+    private static readonly ItemKind[] CrateItems = { ItemKind.FuelCan, ItemKind.RepairKit, ItemKind.PowderKeg, ItemKind.AnchorDrop };
+
+    private void OpenCrate()
     {
-        if (podRow <= 0)
+        _ = Interop.InvokeVoidAsync("playMatchSound");
+
+        if (rng.NextDouble() < 0.4)
         {
-            fallStreak = 0;
+            var item = CrateItems[rng.Next(CrateItems.Length)];
+            if (items.GetValueOrDefault(item) < MaxItemCount)
+            {
+                items[item] = items.GetValueOrDefault(item) + 1;
+                ShowToast($"🎁 A buried crate! Inside: {ItemIcon(item)} {ItemName(item)}!");
+                return;
+            }
+        }
+
+        var bonus = 40 + drillRow * 15 + rng.Next(0, 30 + drillRow * 10);
+        gold += bonus;
+        ShowToast($"🎁 A buried crate full of doubloons! +{bonus} gold");
+    }
+
+    // ---- Anchor Drop (guided descent) ----
+
+    // Digs straight down up to AnchorDropTiles at a steady pace, keeps
+    // going through open caverns so it always ends on solid ground (no
+    // fall damage), defuses hazards on the way, and stops early at
+    // anything the drill can't handle.
+    private void ContinueAnchorDrop()
+    {
+        var row = (int)Math.Floor(py) + 1;
+        var col = (int)Math.Floor(px);
+        if (row > TotalDepthRows)
+        {
+            anchorActive = false;
             return;
         }
-        if (podRow >= TotalDepthRows) return;
 
-        var below = tiles[podRow + 1, podCol];
-        if (below == TileKind.Empty)
+        var kind = tiles[row, col];
+        if (kind == TileKind.Empty)
         {
-            podRow++;
-            fallStreak++;
+            BeginDrill(row, col, Direction.Down, AnchorStepSeconds);
+            return;
         }
-        else if (fallStreak > 0)
+
+        if (anchorStepsLeft <= 0)
         {
-            if (fallStreak > SafeFallRows)
+            anchorActive = false;
+            ShowToast("⚓ Anchor Drop complete!");
+            return;
+        }
+
+        if (kind == TileKind.Boulder || Hardness(kind) > MaxHardness(drillTier))
+        {
+            anchorActive = false;
+            anchorStepsLeft = 0;
+            ShowToast("⚓ The anchor hit something too tough and stopped.");
+            return;
+        }
+
+        anchorStepsLeft--;
+        BeginDrill(row, col, Direction.Down, AnchorStepSeconds);
+    }
+
+    private void ApplyDamage(double raw)
+    {
+        hull = Math.Max(0, hull - raw * DamageMultiplier(selectedDifficulty));
+    }
+
+    // ---- Fuel, heat, milestones ----
+
+    private int HeatLevel => PodRow switch
+    {
+        <= 40 => 0,
+        <= 65 => 1,
+        <= 90 => 2,
+        <= 105 => 3,
+        _ => 4,
+    };
+
+    private double HeatDamagePerSecond =>
+        Math.Max(0, HeatLevel - (radiatorTier - 1)) * 0.8 * DamageMultiplier(selectedDifficulty);
+
+    private void UpdateFuelAndHeat(double dt)
+    {
+        if (!Underground) return;
+
+        var rate = IdleDrain;
+        if (drilling) rate += DrillDrain;
+        else
+        {
+            if (thrusting) rate += ThrustDrain;
+            if (Held(Direction.Left) || Held(Direction.Right)) rate += MoveDrain;
+        }
+        fuel = Math.Max(0, fuel - rate * FuelDrainMultiplier(selectedDifficulty) * dt);
+
+        var heatDmg = HeatDamagePerSecond;
+        if (heatDmg > 0)
+        {
+            hull = Math.Max(0, hull - heatDmg * dt);
+            if (HeatLevel > lastHeatWarned)
             {
-                ApplyDamage((fallStreak - SafeFallRows) * FallDamagePerExtraRow);
-                ShowToast("💥 Ouch! That was a rough landing.");
-                _ = Interop.InvokeVoidAsync("playImpactSound");
+                lastHeatWarned = HeatLevel;
+                ShowToast("🌡️ It's getting hot down here! Upgrade your Radiator.");
             }
-            fallStreak = 0;
         }
     }
 
-    private void ApplyDamage(int raw)
+    private void CheckMilestones()
     {
-        var reduction = (hullTier - 1) * 0.10;
-        var dmg = Math.Max(1, (int)Math.Round(raw * (1 - reduction)));
-        hull = Math.Max(0, hull - dmg);
-        if (hull <= 0) pendingFinish ??= FinishReason.HullDestroyed;
+        if (nextMilestone >= Milestones.Length || deepestRow < Milestones[nextMilestone].Row) return;
+
+        var m = Milestones[nextMilestone++];
+        gold += m.Bonus;
+        radioMessage = m.Message;
+        radioUntilUtc = DateTime.UtcNow.AddSeconds(RadioSeconds);
+        _ = Interop.InvokeVoidAsync("playBuildCompleteSound");
+
+        if (m.Row >= 70) UnlockPaint(AbyssPaint);
     }
 
-    private void ResetDig()
+    // ---- Rescue (soft failure) ----
+
+    private void Rescue(string title, string reason)
     {
-        digTargetRow = -1;
-        digTargetCol = -1;
-        digProgress = 0;
-        digTicksRequired = 0;
+        var lost = CargoCount;
+        var fee = (int)Math.Round(gold * TowFeeRate(selectedDifficulty));
+        gold -= fee;
+        cargo.Clear();
+
+        ResetPodToSurface();
+        fuel = Math.Max(fuel, FuelCapacity(fuelTankTier) * 0.25);
+        hull = Math.Max(hull, HullMax(hullTier) * 0.25);
+        ClearHeld();
+
+        rescueTitle = title;
+        rescueText = $"{reason} {(lost > 0 ? $"You lost {lost} piece{(lost == 1 ? "" : "s")} of cargo" : "Your hold was empty")}{(fee > 0 ? $" and paid a {fee} gold tow fee." : ".")}";
+        overlay = Overlay.Rescue;
+        UpdateCamera(1);
+        _ = Interop.InvokeVoidAsync("playMismatchSound");
+        _ = SaveCheckpointAsync();
     }
 
-    private void ShowToast(string message)
+    // ---- Surface stations ----
+
+    private Station? StationAtPod()
     {
-        toast = message;
-        toastUntilUtc = DateTime.UtcNow.AddSeconds(ToastSeconds);
+        if (Underground || py < 0) return null;
+        var col = (int)Math.Floor(px);
+        foreach (var st in Stations)
+            if (col >= st.Col && col < st.Col + StationWidth) return st.Kind;
+        return null;
     }
 
-    private void UpdateCamera()
+    private void CheckStations()
     {
-        var maxTop = Math.Max(0, TotalDepthRows + 1 - VisibleRows);
-        if (podRow - cameraTop < DeadzoneTop) cameraTop = podRow - DeadzoneTop;
-        else if (podRow - cameraTop > DeadzoneBottom) cameraTop = podRow - DeadzoneBottom;
-        cameraTop = Math.Clamp(cameraTop, 0, maxTop);
+        var here = StationAtPod();
+        if (here is null) stationLatch = null;
+        if (here is not { } st || drilling || !grounded || Math.Abs(vx) > StationEnterSpeed || stationLatch == st) return;
+
+        stationLatch = st;
+        activeStation = st;
+        overlay = Overlay.Station;
+        vx = 0;
+        ClearHeld();
+        ShowToast("💾 Expedition saved");
+        _ = SaveCheckpointAsync();
     }
 
-    private void SetHeld(Direction d) => heldDirection = d;
-    private void ClearHeld(Direction d) { if (heldDirection == d) heldDirection = null; }
+    private void CloseOverlay()
+    {
+        // Leaving a station re-saves so anything just bought or sold sticks.
+        if (overlay == Overlay.Station) _ = SaveCheckpointAsync();
+        overlay = Overlay.None;
+        activeStation = null;
+        stationLatch = StationAtPod();
+        needsFocus = true;
+    }
+
+    private int RefuelCost => (int)Math.Ceiling(Math.Max(0, FuelCapacity(fuelTankTier) - fuel) * FuelPrice);
+    private int RepairCost => (int)Math.Ceiling(Math.Max(0, HullMax(hullTier) - hull) * RepairPrice);
+    private double FuelPrice => selectedDifficulty switch { Difficulty.Easy => 0, Difficulty.Hard => 0.45, _ => 0.3 };
+    private double RepairPrice => selectedDifficulty switch { Difficulty.Easy => 0, Difficulty.Hard => 2.5, _ => 1.5 };
+
+    private void Refuel()
+    {
+        var cap = FuelCapacity(fuelTankTier);
+        fuel = BuyFill(fuel, cap, FuelPrice, "fuel");
+        _ = Interop.InvokeVoidAsync("playSplashSound");
+    }
+
+    private void Repair()
+    {
+        var max = HullMax(hullTier);
+        hull = BuyFill(hull, max, RepairPrice, "repairs");
+        _ = Interop.InvokeVoidAsync("playBuildCompleteSound");
+    }
+
+    // Buys as much of a resource as the player can afford; if they're too
+    // broke to reach a quarter tank/hull, the crew spots them that much free
+    // so a run can never soft-lock at the surface.
+    private double BuyFill(double current, int max, double price, string what)
+    {
+        var missing = Math.Max(0, max - current);
+        if (price <= 0) return max;
+
+        var bought = Math.Min(missing, Math.Floor(gold / price));
+        gold -= (int)Math.Ceiling(bought * price);
+        current += bought;
+
+        if (current < max * 0.25)
+        {
+            current = max * 0.25;
+            ShowToast($"🏴‍☠️ The crew chipped in for some {what}!");
+        }
+        return current;
+    }
+
+    private void SellAll()
+    {
+        var earned = CargoValue;
+        if (earned <= 0) return;
+        gold += earned;
+        cargo.Clear();
+        ShowToast($"💰 Sold your haul for {earned} gold!");
+        _ = Interop.InvokeVoidAsync("playMatchSound");
+    }
+
+    // ---- Items ----
+
+    private bool CanUseItem(ItemKind item) => phase == Phase.Playing && overlay == Overlay.None && item switch
+    {
+        ItemKind.FuelCan => fuel < FuelCapacity(fuelTankTier),
+        ItemKind.RepairKit => hull < HullMax(hullTier),
+        ItemKind.AnchorDrop => grounded && !drilling && !anchorActive,
+        _ => Underground,
+    };
+
+    private void UseItem(ItemKind item)
+    {
+        if (items.GetValueOrDefault(item) <= 0 || !CanUseItem(item)) return;
+        items[item]--;
+
+        // A blast or recall mid-drill cancels the drill; the blast clears
+        // the tile being drilled anyway since it's always adjacent.
+        if (item is ItemKind.PowderKeg or ItemKind.BigKeg or ItemKind.Recall) drilling = false;
+
+        switch (item)
+        {
+            case ItemKind.FuelCan:
+                fuel = Math.Min(FuelCapacity(fuelTankTier), fuel + 40);
+                ShowToast("⛽ Glug glug - +40 fuel!");
+                _ = Interop.InvokeVoidAsync("playSplashSound");
+                break;
+            case ItemKind.RepairKit:
+                hull = Math.Min(HullMax(hullTier), hull + 40);
+                ShowToast("🩹 Patched up - +40 hull!");
+                _ = Interop.InvokeVoidAsync("playBuildCompleteSound");
+                break;
+            case ItemKind.PowderKeg:
+                Blast(1);
+                break;
+            case ItemKind.BigKeg:
+                Blast(2);
+                break;
+            case ItemKind.AnchorDrop:
+                anchorActive = true;
+                anchorStepsLeft = AnchorDropTiles;
+                ShowToast("⚓ Anchor away! Hold on tight...");
+                _ = Interop.InvokeVoidAsync("playSplashSound");
+                ContinueAnchorDrop();
+                break;
+            case ItemKind.Recall:
+                ResetPodToSurface();
+                UpdateCamera(1);
+                ShowToast("🐌 Puru puru... the crew reeled you home!");
+                _ = Interop.InvokeVoidAsync("playFanfareSound");
+                break;
+        }
+
+        needsFocus = true;
+    }
+
+    // Clears a square around the pod. Like Motherload's dynamite it
+    // destroys ore too, but it's the only way through boulders and a safe
+    // way to clear lava/gas. The treasure and the vault floor are immune.
+    private void Blast(int radius)
+    {
+        var pr = (int)Math.Floor(py);
+        var pc = (int)Math.Floor(px);
+        var cleared = new List<(int Row, int Col)>();
+        for (var r = pr - radius; r <= pr + radius; r++)
+        {
+            if (r < 1 || r >= TotalDepthRows) continue;
+            for (var c = pc - radius; c <= pc + radius; c++)
+            {
+                if (c < 0 || c >= Cols || tiles[r, c] is TileKind.Treasure or TileKind.Empty) continue;
+                tiles[r, c] = TileKind.Empty;
+                wobblingRocks.Remove((r, c));
+                cleared.Add((r, c));
+            }
+        }
+        foreach (var (r, c) in cleared) OnTileCleared(r, c);
+        grounded = false;
+        Shake();
+        ShowToast("💣 KA-BOOM!");
+        _ = Interop.InvokeVoidAsync("playExplosionSound");
+    }
+
+    private void BuyItem(ItemKind item)
+    {
+        var cost = ItemCost(item);
+        if (gold < cost || items.GetValueOrDefault(item) >= MaxItemCount) return;
+        gold -= cost;
+        items[item] = items.GetValueOrDefault(item) + 1;
+        _ = Interop.InvokeVoidAsync("playCatchSound");
+    }
+
+    private static int ItemCost(ItemKind item) => item switch
+    {
+        ItemKind.FuelCan => 80,
+        ItemKind.RepairKit => 200,
+        ItemKind.PowderKeg => 300,
+        ItemKind.BigKeg => 900,
+        ItemKind.AnchorDrop => 500,
+        _ => 1500,
+    };
+
+    private static string ItemIcon(ItemKind item) => item switch
+    {
+        ItemKind.FuelCan => "🛢️",
+        ItemKind.RepairKit => "🩹",
+        ItemKind.PowderKeg => "💣",
+        ItemKind.BigKeg => "🧨",
+        ItemKind.AnchorDrop => "⚓",
+        _ => "🐌",
+    };
+
+    private static string ItemName(ItemKind item) => item switch
+    {
+        ItemKind.FuelCan => "Fuel Can",
+        ItemKind.RepairKit => "Repair Kit",
+        ItemKind.PowderKeg => "Powder Keg",
+        ItemKind.BigKeg => "Big Keg",
+        ItemKind.AnchorDrop => "Anchor Drop",
+        _ => "Den Den Mushi",
+    };
+
+    private static string ItemDescription(ItemKind item) => item switch
+    {
+        ItemKind.FuelCan => "+40 fuel anywhere",
+        ItemKind.RepairKit => "+40 hull anywhere",
+        ItemKind.PowderKeg => "Blasts a 3×3 hole (ore too!)",
+        ItemKind.BigKeg => "Blasts a 5×5 hole (ore too!)",
+        ItemKind.AnchorDrop => $"Safely digs {AnchorDropTiles} tiles straight down",
+        _ => "Calls the crew to pull you home",
+    };
+
+    // ---- Paint jobs ----
+
+    private bool OwnsPaint(string id) => id == "classic" || mineProfile.OwnedPaints.Contains(id);
+
+    private string PaintClassFor(string id) => id == RainbowPaint ? "mo-paint-rainbow" : "";
+
+    private string PaintStyleFor(string id)
+    {
+        var filter = Paints.FirstOrDefault(p => p.Id == id)?.Filter ?? "none";
+        return filter == "none" ? "" : $"filter:{filter} drop-shadow(0 2px 3px #0009);";
+    }
+
+    private string PaintClass => PaintClassFor(mineProfile.SelectedPaint);
+    private string PaintStyle => PaintStyleFor(mineProfile.SelectedPaint);
+
+    private void BuyPaint(string id)
+    {
+        var paint = Paints.FirstOrDefault(p => p.Id == id);
+        if (paint is null || paint.Unlock is not null || OwnsPaint(id) || gold < paint.Cost) return;
+        gold -= paint.Cost;
+        mineProfile.OwnedPaints.Add(id);
+        mineProfile.SelectedPaint = id;
+        _ = Interop.InvokeVoidAsync("playBuildCompleteSound");
+        _ = SaveMineProfileAsync();
+    }
+
+    private void EquipPaint(string id)
+    {
+        if (!OwnsPaint(id)) return;
+        mineProfile.SelectedPaint = id;
+        _ = SaveMineProfileAsync();
+    }
+
+    private void UnlockPaint(string id)
+    {
+        if (OwnsPaint(id)) return;
+        mineProfile.OwnedPaints.Add(id);
+        ShowToast($"🎨 New paint job unlocked: {Paints.First(p => p.Id == id).Name}! Equip it at the Shipwright.");
+        _ = SaveMineProfileAsync();
+    }
+
+    private static string ShipTabName(ShipTab tab) => tab switch
+    {
+        ShipTab.Upgrades => "⚙️ Upgrades",
+        ShipTab.Supplies => "🎒 Supplies",
+        _ => "🎨 Paint Shop",
+    };
+
+    // ---- Joystick ----
+
+    // Maps the knob offset onto the same held directions the keyboard and
+    // buttons use. Down needs a firmer, more vertical push so drifting the
+    // thumb while steering doesn't start an accidental drill.
+    private async Task OnStickDown(PointerEventArgs e)
+    {
+        if (phase != Phase.Playing || overlay != Overlay.None) return;
+        stickPointerId = e.PointerId;
+        stickRect = await Interop.InvokeAsync<StickRect>("getBoundingRect", stickRef);
+        await Interop.InvokeVoidAsync("setPointerCapture", stickRef, e.PointerId);
+        UpdateStick(e.ClientX, e.ClientY);
+    }
+
+    private void OnStickMove(PointerEventArgs e)
+    {
+        if (stickPointerId == e.PointerId) UpdateStick(e.ClientX, e.ClientY);
+    }
+
+    private void OnStickUp(PointerEventArgs e)
+    {
+        if (stickPointerId != e.PointerId) return;
+        stickPointerId = null;
+        stickX = stickY = 0;
+        heldPointer.Clear();
+        needsFocus = true;
+    }
+
+    private void UpdateStick(double clientX, double clientY)
+    {
+        if (stickRect is not { Width: > 0 } rect || overlay != Overlay.None) return;
+
+        var radius = rect.Width / 2;
+        var nx = (clientX - (rect.Left + radius)) / radius;
+        var ny = (clientY - (rect.Top + rect.Height / 2)) / radius;
+        var len = Math.Sqrt(nx * nx + ny * ny);
+        if (len > 1)
+        {
+            nx /= len;
+            ny /= len;
+        }
+        stickX = nx;
+        stickY = ny;
+
+        heldPointer.Clear();
+        if (nx < -0.35) heldPointer.Add(Direction.Left);
+        if (nx > 0.35) heldPointer.Add(Direction.Right);
+        if (ny < -0.35) heldPointer.Add(Direction.Up);
+        if (ny > 0.55 && Math.Abs(nx) < 0.6) heldPointer.Add(Direction.Down);
+    }
+
+    private void ToggleControls()
+    {
+        mineProfile.UseButtons = !mineProfile.UseButtons;
+        stickPointerId = null;
+        stickX = stickY = 0;
+        heldPointer.Clear();
+        needsFocus = true;
+        _ = SaveMineProfileAsync();
+    }
+
+    // ---- Camera & input ----
+
+    private void UpdateCamera(double dt)
+    {
+        var targetX = Math.Clamp(px - visibleCols / 2.0, 0, Cols - visibleCols);
+        var targetY = Math.Clamp(py - visibleRows * 0.45, SkyTop, TotalDepthRows + 1 - visibleRows);
+        var k = Math.Min(1, dt * 9);
+        camX += (targetX - camX) * k;
+        camY += (targetY - camY) * k;
+    }
+
+    private void SetHeld(Direction d)
+    {
+        if (overlay == Overlay.None) heldPointer.Add(d);
+    }
+
+    private void ClearHeld(Direction d)
+    {
+        heldPointer.Remove(d);
+        needsFocus = true;
+    }
 
     private void OnKeyDown(KeyboardEventArgs e)
     {
-        if (phase != Phase.Playing) return;
-        if (KeyToDirection(e.Key) is { } d) heldDirection = d;
+        if (phase != Phase.Playing || overlay != Overlay.None) return;
+        if (KeyToDirection(e.Key) is { } d)
+        {
+            heldKeys.Add(d);
+            return;
+        }
+        if (e.Key.Length == 1 && e.Key[0] is >= '1' and <= '6')
+            UseItem(ItemKinds[e.Key[0] - '1']);
     }
 
     private void OnKeyUp(KeyboardEventArgs e)
     {
-        if (KeyToDirection(e.Key) is { } d && heldDirection == d) heldDirection = null;
+        if (KeyToDirection(e.Key) is { } d) heldKeys.Remove(d);
     }
 
     private static Direction? KeyToDirection(string key) => key switch
@@ -640,52 +1763,71 @@
         _ => null,
     };
 
-    private static (int Dr, int Dc) Delta(Direction d) => d switch
-    {
-        Direction.Up => (-1, 0),
-        Direction.Down => (1, 0),
-        Direction.Left => (0, -1),
-        _ => (0, 1),
-    };
+    private void Shake() => shakeUntilUtc = DateTime.UtcNow.AddSeconds(0.3);
 
-    // World generation - a fixed-size grid built once per run. Odds shift
-    // by depth tier from soft dirt/copper near the surface to bedrock,
-    // diamonds, and lava far below; a single fixed treasure tile sits in
-    // the bottom row. Difficulty only scales hazard (lava/gas) odds -
-    // the ore/rock mix stays the same across difficulties.
+    private void ShowToast(string message)
+    {
+        toast = message;
+        toastUntilUtc = DateTime.UtcNow.AddSeconds(ToastSeconds);
+    }
+
+    private string Hint
+    {
+        get
+        {
+            if (!Underground) return "Drive into a building and stop to visit it. Hold ⬇️ to drill down.";
+            if (FuelPct < 25) return "⛽ Fuel is low - fly home to the Fuel Dock!";
+            if (HullPct < 25) return "🛠️ Hull badly damaged - head home for repairs!";
+            if (CargoCount >= CargoCapacity(cargoTier)) return "🎒 Cargo full - fly up and sell at the Trader!";
+            return "Hold ⬆️ to fly. You can't drill upward - keep a shaft open to get home!";
+        }
+    }
+
+    // ---- World generation ----
+
+    // A fixed-size grid built once per run. Odds shift by depth tier from
+    // soft dirt/copper near the surface to bedrock, diamonds, and lava far
+    // below; horizontal caverns break up the rock, and the treasure sits in
+    // the bottom row under a bedrock floor. Difficulty scales hazard odds.
     private void GenerateWorld(Difficulty diff)
     {
         tiles = new TileKind[TotalDepthRows + 1, Cols];
         var hazardMul = HazardMultiplier(diff);
 
-        for (var r = 1; r <= TotalDepthRows; r++)
+        for (var r = 1; r < TotalDepthRows; r++)
         {
-            if (r == TotalDepthRows)
-            {
-                for (var c = 0; c < Cols; c++) tiles[r, c] = c == CenterCol ? TileKind.Treasure : TileKind.Bedrock;
-                continue;
-            }
-
             var table = TierTable(r, hazardMul);
             for (var c = 0; c < Cols; c++)
             {
-                tiles[r, c] = PickWeighted(table);
+                var kind = PickWeighted(table);
+                if (r <= 2 && kind is TileKind.Empty or TileKind.Gas or TileKind.Lava or TileKind.Boulder) kind = TileKind.Dirt;
+                tiles[r, c] = kind;
+            }
+
+            if (r >= 8 && r < TotalDepthRows - 2 && rng.NextDouble() < 0.12)
+            {
+                var len = rng.Next(2, 6);
+                var start = rng.Next(0, Cols - len);
+                for (var c = start; c < start + len; c++) tiles[r, c] = TileKind.Empty;
             }
         }
+
+        for (var c = 0; c < Cols; c++)
+            tiles[TotalDepthRows, c] = c == CenterCol ? TileKind.Treasure : TileKind.Bedrock;
     }
 
     private (TileKind Kind, double Weight)[] TierTable(int row, double hazardMul)
     {
         (TileKind Kind, double Weight)[] baseTable = row switch
         {
-            <= 15 => new (TileKind, double)[] { (TileKind.Dirt, 74), (TileKind.Copper, 15), (TileKind.Stone, 6), (TileKind.Empty, 5) },
-            <= 35 => new (TileKind, double)[] { (TileKind.Stone, 52), (TileKind.Dirt, 12), (TileKind.Silver, 12), (TileKind.Copper, 8), (TileKind.HardRock, 5), (TileKind.Empty, 6), (TileKind.Gas, 5) },
-            <= 60 => new (TileKind, double)[] { (TileKind.HardRock, 42), (TileKind.Stone, 14), (TileKind.Gold, 9), (TileKind.Silver, 8), (TileKind.Emerald, 5), (TileKind.DenseRock, 5), (TileKind.Empty, 6), (TileKind.Gas, 5), (TileKind.Lava, 6) },
-            <= 90 => new (TileKind, double)[] { (TileKind.DenseRock, 38), (TileKind.HardRock, 14), (TileKind.Emerald, 9), (TileKind.Gold, 6), (TileKind.Ruby, 7), (TileKind.Diamond, 3), (TileKind.Empty, 5), (TileKind.Gas, 6), (TileKind.Lava, 12) },
-            _ => new (TileKind, double)[] { (TileKind.Bedrock, 36), (TileKind.DenseRock, 14), (TileKind.Ruby, 9), (TileKind.Diamond, 9), (TileKind.Relic, 3), (TileKind.Empty, 4), (TileKind.Gas, 6), (TileKind.Lava, 19) },
+            <= 12 => new (TileKind, double)[] { (TileKind.Dirt, 74), (TileKind.Copper, 16), (TileKind.Silver, 3), (TileKind.Stone, 5), (TileKind.Empty, 2), (TileKind.Crate, 0.6) },
+            <= 35 => new (TileKind, double)[] { (TileKind.Stone, 46), (TileKind.Dirt, 14), (TileKind.Copper, 8), (TileKind.Silver, 13), (TileKind.Gold, 3), (TileKind.HardRock, 5), (TileKind.Empty, 3), (TileKind.Gas, 4), (TileKind.Boulder, 2), (TileKind.LooseRock, 4), (TileKind.Crate, 0.8) },
+            <= 60 => new (TileKind, double)[] { (TileKind.HardRock, 38), (TileKind.Stone, 16), (TileKind.Silver, 7), (TileKind.Gold, 10), (TileKind.Emerald, 4), (TileKind.DenseRock, 6), (TileKind.Empty, 3), (TileKind.Gas, 5), (TileKind.Lava, 5), (TileKind.Boulder, 3), (TileKind.LooseRock, 5), (TileKind.Crate, 0.8) },
+            <= 90 => new (TileKind, double)[] { (TileKind.DenseRock, 34), (TileKind.HardRock, 16), (TileKind.Gold, 5), (TileKind.Emerald, 9), (TileKind.Ruby, 5), (TileKind.Diamond, 1.5), (TileKind.Empty, 3), (TileKind.Gas, 5), (TileKind.Lava, 10), (TileKind.Boulder, 4), (TileKind.LooseRock, 5), (TileKind.Crate, 0.8) },
+            _ => new (TileKind, double)[] { (TileKind.Bedrock, 32), (TileKind.DenseRock, 16), (TileKind.Emerald, 4), (TileKind.Ruby, 9), (TileKind.Diamond, 6), (TileKind.Relic, 2.5), (TileKind.Empty, 3), (TileKind.Gas, 6), (TileKind.Lava, 15), (TileKind.Boulder, 4), (TileKind.LooseRock, 4), (TileKind.Crate, 0.8) },
         };
 
-        return baseTable.Select(t => (t.Kind, t.Kind is TileKind.Gas or TileKind.Lava ? t.Weight * hazardMul : t.Weight)).ToArray();
+        return baseTable.Select(t => (t.Kind, t.Kind is TileKind.Gas or TileKind.Lava or TileKind.Boulder or TileKind.LooseRock ? t.Weight * hazardMul : t.Weight)).ToArray();
     }
 
     private TileKind PickWeighted((TileKind Kind, double Weight)[] table)
@@ -701,63 +1843,71 @@
         return table[^1].Kind;
     }
 
+    // ---- Tile data ----
+
     private static int Hardness(TileKind k) => k switch
     {
         TileKind.Empty => 0,
-        TileKind.Dirt or TileKind.Copper or TileKind.Gas => 1,
-        TileKind.Stone or TileKind.Silver => 2,
+        TileKind.Dirt or TileKind.Copper or TileKind.Gas or TileKind.Crate => 1,
+        TileKind.Stone or TileKind.Silver or TileKind.LooseRock => 2,
         TileKind.HardRock or TileKind.Gold or TileKind.Emerald or TileKind.Lava => 3,
         TileKind.DenseRock or TileKind.Ruby or TileKind.Diamond => 4,
-        _ => 5, // Bedrock, Relic, Treasure
+        TileKind.Bedrock or TileKind.Relic => 5,
+        _ => 6, // Treasure (Boulder is never drillable)
+    };
+
+    private static int MaxHardness(int drillTierValue) => drillTierValue + 1;
+
+    private static double DigSeconds(TileKind kind, int drillTierValue) =>
+        (0.3 + 0.3 * Hardness(kind)) / (1 + 0.35 * (drillTierValue - 1));
+
+    private static string HardnessName(int hardness) => hardness switch
+    {
+        <= 1 => "dirt",
+        2 => "stone",
+        3 => "hard rock",
+        4 => "dense rock",
+        5 => "bedrock",
+        _ => "the vault",
     };
 
     private static bool IsOre(TileKind k) =>
         k is TileKind.Copper or TileKind.Silver or TileKind.Gold or TileKind.Emerald or TileKind.Ruby or TileKind.Diamond or TileKind.Relic;
 
-    private static bool IsHazard(TileKind k) => k is TileKind.Lava or TileKind.Gas;
-
     private static int OreValue(TileKind k) => k switch
     {
-        TileKind.Copper => 5,
-        TileKind.Silver => 14,
-        TileKind.Gold => 32,
-        TileKind.Emerald => 65,
-        TileKind.Ruby => 120,
-        TileKind.Diamond => 220,
-        TileKind.Relic => 550,
+        TileKind.Copper => 20,
+        TileKind.Silver => 45,
+        TileKind.Gold => 120,
+        TileKind.Emerald => 300,
+        TileKind.Ruby => 800,
+        TileKind.Diamond => 2000,
+        TileKind.Relic => 5000,
         _ => 0,
     };
 
-    private static int OreWeight(TileKind k) => k switch
+    // Hard mode disguises gas as stone, but it shimmers into view once the
+    // pod is right next to it - a fair warning rather than a pure trap.
+    private TileKind DisplayKind(TileKind k, int r, int c)
     {
-        TileKind.Copper or TileKind.Silver => 1,
-        TileKind.Gold or TileKind.Emerald => 2,
-        TileKind.Ruby or TileKind.Diamond => 3,
-        TileKind.Relic => 4,
-        _ => 0,
-    };
+        if (k != TileKind.Gas || !HideGas) return k;
+        var near = Math.Abs(r + 0.5 - py) < 1.6 && Math.Abs(c + 0.5 - px) < 1.6;
+        return near ? TileKind.Gas : TileKind.Stone;
+    }
 
-    private static string TileEmoji(TileKind k) => k switch
+    private static string? TileGlyph(TileKind k) => k switch
     {
-        TileKind.Copper => "🟠",
-        TileKind.Silver => "⚪",
-        TileKind.Gold => "🟡",
-        TileKind.Emerald => "🟢",
-        TileKind.Ruby => "🔴",
-        TileKind.Diamond => "💎",
-        TileKind.Relic => "🏺",
-        TileKind.Treasure => "🏆",
-        TileKind.Lava => "🔥",
         TileKind.Gas => "💨",
-        _ => "",
+        TileKind.Boulder => "🪨",
+        _ => null,
     };
 
     private static string TileClass(TileKind k) => "mo-tile-" + k.ToString().ToLowerInvariant();
 
-    private string DepthZone => podRow switch
+    private string DepthZone => PodRow switch
     {
         0 => "Safe harbor",
-        <= 15 => "The sandy shallows",
+        <= 12 => "The sandy shallows",
         <= 35 => "Sunken caverns",
         <= 60 => "The crystal depths",
         <= 90 => "The molten abyss",
@@ -773,6 +1923,7 @@
         TileKind.Diamond => "images/mining/diamond.png",
         TileKind.Relic => "images/mining/relic.png",
         TileKind.Treasure => "images/mining/treasure.png",
+        TileKind.Crate => "images/mining/deck.png",
         _ => null
     };
 
@@ -781,58 +1932,83 @@
         TileKind.Empty => "Open tunnel",
         TileKind.HardRock => "Hard rock",
         TileKind.DenseRock => "Dense rock",
-        TileKind.Gas => "Gas pocket — danger",
-        TileKind.Lava => "Lava — danger",
+        TileKind.Gas => "Gas pocket - danger",
+        TileKind.Lava => "Lava - danger",
+        TileKind.Boulder => "Boulder - needs a blast",
+        TileKind.Crate => "Buried crate",
+        TileKind.LooseRock => "Loose rock - may fall!",
+        TileKind.Relic => "Ancient relic",
+        TileKind.Treasure => "The One Piece",
         _ => kind.ToString()
     };
 
-    private int DigTicksRequired(TileKind kind, int drillTierValue)
-    {
-        var hardness = Hardness(kind);
-        var bonus = Math.Max(0, drillTierValue - hardness);
-        return Math.Max(1, hardness - bonus);
-    }
+    // ---- Upgrades ----
 
-    private static int FuelCapacity(int tier) => tier switch { 1 => 100, 2 => 150, 3 => 220, 4 => 320, _ => 450 };
-    private static int CargoCapacity(int tier) => tier switch { 1 => 30, 2 => 50, 3 => 80, 4 => 120, _ => 170 };
-    private static int HullMax(int tier) => tier switch { 1 => 100, 2 => 140, 3 => 190, 4 => 250, _ => 320 };
-    private static int UpgradeCost(int currentTier) => currentTier switch { 1 => 150, 2 => 400, 3 => 900, 4 => 2000, _ => int.MaxValue };
+    private static int FuelCapacity(int tier) => tier switch { 1 => 70, 2 => 100, 3 => 140, 4 => 190, 5 => 260, _ => 350 };
+    private static int CargoCapacity(int tier) => tier switch { 1 => 8, 2 => 14, 3 => 22, 4 => 32, 5 => 45, _ => 65 };
+    private static int HullMax(int tier) => tier switch { 1 => 70, 2 => 100, 3 => 140, 4 => 190, 5 => 260, _ => 350 };
+    private static double EngineMaxSpeed(int tier) => 3.6 + 0.6 * (tier - 1);
+    private static double EngineMaxClimb(int tier) => 4.0 + 0.8 * (tier - 1);
+    private static double EngineThrustBase(int tier) => tier switch { 1 => 21, 2 => 24, 3 => 27, 4 => 31, 5 => 35, _ => 40 };
+    private static int UpgradeCost(int currentTier) => currentTier switch { 1 => 250, 2 => 800, 3 => 2200, 4 => 6000, 5 => 16000, _ => int.MaxValue };
+
+    // A heavy hold makes the thruster work harder, like Motherload's
+    // loaded-pod sluggishness.
+    private double EngineThrust(int tier) =>
+        EngineThrustBase(tier) - 6.0 * CargoCount / Math.Max(1, CargoCapacity(cargoTier));
 
     private int TierOf(UpgradeKind kind) => kind switch
     {
         UpgradeKind.Drill => drillTier,
+        UpgradeKind.Engine => engineTier,
         UpgradeKind.FuelTank => fuelTankTier,
         UpgradeKind.CargoHold => cargoTier,
-        _ => hullTier,
+        UpgradeKind.Hull => hullTier,
+        _ => radiatorTier,
     };
 
     private static string ShopIcon(UpgradeKind kind) => kind switch
     {
         UpgradeKind.Drill => "⛏️",
+        UpgradeKind.Engine => "🚀",
         UpgradeKind.FuelTank => "⛽",
         UpgradeKind.CargoHold => "🎒",
-        _ => "🛠️",
+        UpgradeKind.Hull => "🛡️",
+        _ => "❄️",
     };
 
     private static string ShopName(UpgradeKind kind) => kind switch
     {
         UpgradeKind.Drill => "Drill",
+        UpgradeKind.Engine => "Engine",
         UpgradeKind.FuelTank => "Fuel Tank",
         UpgradeKind.CargoHold => "Cargo Hold",
-        _ => "Hull",
+        UpgradeKind.Hull => "Hull",
+        _ => "Radiator",
     };
 
-    private static string ShopClass(UpgradeKind kind) => kind switch
+    private static string ShopClass(UpgradeKind kind) => "mo-shop-" + kind.ToString().ToLowerInvariant();
+
+    private static string ShopStat(UpgradeKind kind, int tier, bool maxed)
     {
-        UpgradeKind.Drill => "mo-shop-drill",
-        UpgradeKind.FuelTank => "mo-shop-fuel",
-        UpgradeKind.CargoHold => "mo-shop-cargo",
-        _ => "mo-shop-hull",
-    };
+        var next = maxed ? tier : tier + 1;
+        string Arrow<T>(T now, T then) => maxed ? $"{now}" : $"{now} → {then}";
+        return kind switch
+        {
+            UpgradeKind.Drill => maxed || MaxHardness(next) > 6
+                ? "Faster drilling"
+                : $"Digs {HardnessName(MaxHardness(next))}, faster",
+            UpgradeKind.Engine => "Climbs & drives faster",
+            UpgradeKind.FuelTank => Arrow(FuelCapacity(tier), FuelCapacity(next)),
+            UpgradeKind.CargoHold => Arrow(CargoCapacity(tier), CargoCapacity(next)) + " slots",
+            UpgradeKind.Hull => Arrow(HullMax(tier), HullMax(next)) + " hull",
+            _ => "Resists heat & lava",
+        };
+    }
 
     private void BuyUpgrade(UpgradeKind kind)
     {
-        if (podRow != 0 || phase != Phase.Playing) return;
+        if (overlay != Overlay.Station || phase != Phase.Playing) return;
 
         var tier = TierOf(kind);
         if (tier >= MaxTier) return;
@@ -843,42 +2019,72 @@
         gold -= cost;
         switch (kind)
         {
-            case UpgradeKind.Drill:
-                drillTier++;
-                break;
+            case UpgradeKind.Drill: drillTier++; break;
+            case UpgradeKind.Engine: engineTier++; break;
             case UpgradeKind.FuelTank:
+                fuel += FuelCapacity(fuelTankTier + 1) - FuelCapacity(fuelTankTier);
                 fuelTankTier++;
-                fuel = FuelCapacity(fuelTankTier);
                 break;
-            case UpgradeKind.CargoHold:
-                cargoTier++;
-                break;
-            default:
+            case UpgradeKind.CargoHold: cargoTier++; break;
+            case UpgradeKind.Hull:
+                hull += HullMax(hullTier + 1) - HullMax(hullTier);
                 hullTier++;
-                hull = HullMax(hullTier);
                 break;
+            default: radiatorTier++; break;
         }
 
         _ = Interop.InvokeVoidAsync("playBuildCompleteSound");
     }
 
-    private static int StartingGold(Difficulty d) => d switch { Difficulty.Easy => 150, Difficulty.Hard => 50, _ => 100 };
-    private static double HazardMultiplier(Difficulty d) => d switch { Difficulty.Easy => 0.55, Difficulty.Hard => 1.5, _ => 1.0 };
-    private static double FuelDrainMultiplier(Difficulty d) => d switch { Difficulty.Easy => 0.8, Difficulty.Hard => 1.3, _ => 1.0 };
+    // ---- Station metadata ----
 
-    private async Task FinishGame(FinishReason reason)
+    private static string StationName(Station s) => s switch
+    {
+        Station.Fuel => "Fuel Dock",
+        Station.Trader => "Treasure Trader",
+        Station.Shipwright => "Shipwright",
+        _ => "Repair Shop",
+    };
+
+    private static string StationEmoji(Station s) => s switch
+    {
+        Station.Fuel => "⛽",
+        Station.Trader => "💰",
+        Station.Shipwright => "⚓",
+        _ => "🛠️",
+    };
+
+    // ---- Difficulty ----
+
+    private static int StartingGold(Difficulty d) => d switch { Difficulty.Easy => 300, Difficulty.Hard => 50, _ => 150 };
+    private static double HazardMultiplier(Difficulty d) => d switch { Difficulty.Easy => 0.55, Difficulty.Hard => 1.5, _ => 1.0 };
+    private static double FuelDrainMultiplier(Difficulty d) => d switch { Difficulty.Easy => 0.8, Difficulty.Hard => 1.2, _ => 1.0 };
+    private static double DamageMultiplier(Difficulty d) => d switch { Difficulty.Easy => 0.6, Difficulty.Hard => 1.3, _ => 1.0 };
+    private static double TowFeeRate(Difficulty d) => d switch { Difficulty.Easy => 0.10, Difficulty.Hard => 0.30, _ => 0.20 };
+
+    // ---- Finish ----
+
+    private async Task RecordBestAsync()
+    {
+        if (string.IsNullOrEmpty(ProfileId)) return;
+        var key = $"deepest-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
+        bestDepth = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.MineForTheOnePiece, key);
+        isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.MineForTheOnePiece, key, deepestRow, lowerIsBetter: false);
+    }
+
+    private async Task FinishGame()
     {
         _loopCts?.Cancel();
-        lastFinishReason = reason;
+        deepestRow = Math.Max(deepestRow, TotalDepthRows);
         phase = Phase.Finished;
 
-        if (!string.IsNullOrEmpty(ProfileId))
-        {
-            var key = $"deepest-{DifficultyName(selectedDifficulty).ToLowerInvariant()}";
-            bestDepth = (int?)await Data.GetBestAsync(ProfileId, BuiltInGames.MineForTheOnePiece, key);
-            isNewBest = await Data.TryRecordBestAsync(ProfileId, BuiltInGames.MineForTheOnePiece, key, deepestRow, lowerIsBetter: false);
-        }
+        await RecordBestAsync();
 
+        // The expedition is complete - nothing left to continue - and the
+        // legendary paint job is earned.
+        savedGame = null;
+        if (!string.IsNullOrEmpty(ProfileId)) await Data.SetMineSaveAsync(ProfileId, null);
+        UnlockPaint(RainbowPaint);
         StateHasChanged();
 
         if (OnComplete.HasDelegate)
@@ -887,31 +2093,17 @@
                 Difficulty: DifficultyName(selectedDifficulty),
                 DeepestDepth: deepestRow * 10,
                 Gold: gold,
-                FoundTreasure: reason == FinishReason.FoundTreasure,
+                FoundTreasure: true,
                 ElapsedSeconds: elapsedSeconds));
         }
     }
-
-    private string ResultTitle() => lastFinishReason switch
-    {
-        FinishReason.FoundTreasure => "🏆 You Found the One Piece!",
-        FinishReason.OutOfFuel => "⛽ Out of Fuel!",
-        _ => "⚓ Back to the Ship",
-    };
-
-    private string ResultMessage() => lastFinishReason switch
-    {
-        FinishReason.FoundTreasure => $"{NameOrDefault()}dug up the legendary treasure itself! An incredible {deepestRow * 10}m dive.",
-        FinishReason.OutOfFuel => $"{NameOrDefault()}ran dry down in the mine and had to be towed home.",
-        _ => $"{NameOrDefault()}the pod took too much damage and the crew hauled it back for repairs.",
-    };
 
     private string NameOrDefault() => string.IsNullOrWhiteSpace(PlayerName) ? "" : PlayerName + " - ";
 
     private static string FormatTime(int totalSeconds)
     {
         var ts = TimeSpan.FromSeconds(totalSeconds);
-        return ts.Minutes > 0 ? $"{ts.Minutes}:{ts.Seconds:D2}" : $"{ts.Seconds}s";
+        return ts.TotalMinutes >= 1 ? $"{(int)ts.TotalMinutes}:{ts.Seconds:D2}" : $"{ts.Seconds}s";
     }
 
     private static string DifficultyName(Difficulty d) => d switch
@@ -923,9 +2115,9 @@
 
     private static string DifficultyDetail(Difficulty d) => d switch
     {
-        Difficulty.Easy => "Fewer hazards, slower fuel burn",
-        Difficulty.Medium => "A steady challenge",
-        _ => "More hazards, thirsty engine",
+        Difficulty.Easy => "Free fuel & repairs, gentle hazards",
+        Difficulty.Medium => "Pay for fuel & repairs",
+        _ => "Pricey services, hidden gas pockets",
     };
 
     public ValueTask DisposeAsync()
